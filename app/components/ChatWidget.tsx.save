@@ -1,0 +1,132 @@
+"use client";
+import { useState, useRef, useEffect } from "react";
+import { supabase } from "../lib/supabase";
+
+const FAQ_DATA: Record<string, string> = {
+  "meeting_point": "We meet at Three Anchor Bay, Beach Road, Sea Point, Cape Town. Look for the Cape Kayak Adventures signage. Here's the Google Maps link: https://www.google.com/maps/place/CAPE+KAYAK+ADVENTURES/@-33.9078,18.3978,17z\n\nPlease arrive 15 minutes early for your safety briefing.",
+  "what_to_bring": "Here's what to bring:\n• Sunscreen (reef-safe preferred)\n• Hat and sunglasses (with a strap)\n• Towel and change of clothes\n• Water bottle\n• Light layers — it can get breezy on the water\n\nWe provide all kayaking equipment, life jackets, and a dry bag for valuables.",
+  "cancellation": "Our cancellation policy:\n• More than 24 hours before: Full refund\n• Less than 24 hours: No refund, but you can reschedule or convert to a voucher\n• Weather cancellations: Full refund or free reschedule",
+  "duration": "Tour durations:\n• Sea Kayak Tour: ~90 minutes\n• Sunset Paddle: ~90 minutes\n• Private Tour: ~120 minutes\n\nThis includes your safety briefing, time on the water, and getting changed.",
+  "safety": "Safety is our top priority! All trips include:\n• Professional guide with 10+ years experience\n• Full safety briefing\n• Life jackets for everyone\n• Stable double kayaks (no experience needed)\n• We monitor weather and sea conditions daily\n\nNo experience required — beginners are welcome!",
+  "weather": "We monitor conditions daily. If weather makes it unsafe, we'll contact you to reschedule or offer a full refund. Cape Town weather can be unpredictable, but that's part of the adventure!",
+  "pricing": "Our tour prices:\n• Sea Kayak Tour: R600 per person\n• Sunset Paddle: R750 per person\n• Private Tour: R1,200 per person\n\nGroup discounts available for 6+ people. We also offer gift vouchers!",
+  "parking": "Free street parking is available along Beach Road near Three Anchor Bay. It's usually easy to find a spot, especially for early morning tours.",
+  "age": "Ages 8 and up are welcome on our tours. Children under 16 must be accompanied by an adult. Our double kayaks make it easy for kids to join in!",
+  "groups": "We love groups! For 6+ people, you'll automatically get a group discount. For very large groups or team-building events, get in touch and we can arrange a private tour.",
+};
+
+function matchFaq(input: string): string | null {
+  const i = input.toLowerCase();
+  if (i.includes("where") || i.includes("meet") || i.includes("location") || i.includes("direction") || i.includes("address") || i.includes("find you")) return FAQ_DATA.meeting_point;
+  if (i.includes("bring") || i.includes("wear") || i.includes("need") || i.includes("pack")) return FAQ_DATA.what_to_bring;
+  if (i.includes("cancel") || i.includes("refund") || i.includes("policy")) return FAQ_DATA.cancellation;
+  if (i.includes("how long") || i.includes("duration") || i.includes("time does")) return FAQ_DATA.duration;
+  if (i.includes("safe") || i.includes("experience") || i.includes("beginner") || i.includes("swim") || i.includes("dangerous")) return FAQ_DATA.safety;
+  if (i.includes("weather") || i.includes("rain") || i.includes("wind") || i.includes("cold")) return FAQ_DATA.weather;
+  if (i.includes("price") || i.includes("cost") || i.includes("how much") || i.includes("rate") || i.includes("fee")) return FAQ_DATA.pricing;
+  if (i.includes("park") || i.includes("car")) return FAQ_DATA.parking;
+  if (i.includes("age") || i.includes("kid") || i.includes("child") || i.includes("old") || i.includes("young")) return FAQ_DATA.age;
+  if (i.includes("group") || i.includes("team") || i.includes("corporate") || i.includes("party")) return FAQ_DATA.groups;
+  return null;
+}
+
+type Message = { role: "user" | "bot"; text: string };
+
+export default function ChatWidget() {
+  const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([
+    { role: "bot", text: "Hi! 👋 I'm here to help with any questions about our kayak tours. Ask me anything!" },
+  ]);
+  const [input, setInput] = useState("");
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  function sendMessage() {
+    if (!input.trim()) return;
+    const userMsg = input.trim();
+    setMessages((prev) => [...prev, { role: "user", text: userMsg }]);
+    setInput("");
+
+    // Match FAQ
+    const answer = matchFaq(userMsg);
+    setTimeout(() => {
+      if (answer) {
+        setMessages((prev) => [...prev, { role: "bot", text: answer }]);
+      } else if (userMsg.toLowerCase().includes("book") || userMsg.toLowerCase().includes("reserve")) {
+        setMessages((prev) => [...prev, { role: "bot", text: "Ready to book? Head to our tours page and pick your adventure! You can also use a voucher code during checkout." }]);
+      } else if (userMsg.toLowerCase().includes("voucher") || userMsg.toLowerCase().includes("gift")) {
+        setMessages((prev) => [...prev, { role: "bot", text: "We offer gift vouchers for any of our tours! You can buy one from the Gift Voucher page in the menu. Each voucher has a credit value that gets applied to your booking." }]);
+      } else if (userMsg.toLowerCase().includes("thank") || userMsg.toLowerCase().includes("awesome") || userMsg.toLowerCase().includes("great")) {
+        setMessages((prev) => [...prev, { role: "bot", text: "You're welcome! 🛶 See you on the water!" }]);
+      } else {
+        setMessages((prev) => [...prev, { role: "bot", text: "Great question! I can help with info about our meeting point, what to bring, pricing, cancellation policy, safety, weather, parking, age requirements, and group bookings. What would you like to know?\n\nFor anything else, WhatsApp us at +27 XX XXX XXXX" }]);
+      }
+    }, 500);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+
+  return (
+    <>
+      {/* Chat Button */}
+      {!open && (
+        <button onClick={() => set          className="fixed bottom-6 right-6 w-14 h-14 bg-gray-900 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-800 transition-colors z-50          <span className="text-xl">💬</span>
+        </button>
+      )}
+
+      {/* Chat Window */}
+      {open && (
+        <div className="fixed bottom-6 right-6 w-80 sm:w-96 h-[28rem] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden z-50">
+          {/* Header */}
+          <div className="bg-gray-900 text-white p-3 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              <span>🛶</span>
+              <div>
+                <p className="text-sm font-medium">Cape Kayak</p>
+                <p className="text-xs text-gray-400">Ask us anything</p>
+              </div>
+            </div>
+            <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-white text-lg">✕</button>
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-auto p-3 space-y-3 bg-gray-50">
+            {messages.map((m, i) => (
+              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm ${
+                  m.role === "user"
+                    ? "bg-gray-900 text-white rounded-br-md"
+                    : "bg-white border border-gray-200 text-gray-900 rounded-bl-md"
+                }`}>
+                  <p className="whitespace-pre-wrap">{m.text}</p>
+                </div>
+              </div>
+            ))}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Input */}
+          <div className="p-3 border-t border-gray-200 bg-white shrink-0">
+            <div className="flex gap-2">
+              <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown}
+                placeholder="Ask a question..."
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
+              <button onClick={sendMessage} disabled={!input.trim()}
+                className="bg-gray-900 text-white px-3 py-2 rounded-lg text-sm hover:bg-gray-800 disabled:opacity-50">
+                Send
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
