@@ -11,20 +11,20 @@ function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Johannesburg" });
 }
 function gCalFmt(d: Date) {
-  var p = (n: number) => String(n).padStart(2, "0");
+  const p = (n: number) => String(n).padStart(2, "0");
   return d.getUTCFullYear() + p(d.getUTCMonth() + 1) + p(d.getUTCDate()) + "T" + p(d.getUTCHours()) + p(d.getUTCMinutes()) + "00Z";
 }
 
 function SuccessContent() {
-  var params = useSearchParams();
-  var ref = params.get("ref");
-  var [booking, setBooking] = useState<any>(null);
-  var [loading, setLoading] = useState(true);
+  const params = useSearchParams();
+  const ref = params.get("ref");
+  const [booking, setBooking] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!ref) { setLoading(false); return; }
     (async () => {
-      var { data } = await supabase.from("bookings")
+      const { data } = await supabase.from("bookings")
         .select("id, customer_name, email, phone, qty, total_amount, unit_price, status, created_at, tours(name, duration_minutes), slots(start_time)")
         .eq("id", ref).single();
       setBooking(data);
@@ -32,103 +32,103 @@ function SuccessContent() {
     })();
   }, [ref]);
 
-  if (loading) return <div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900" /></div>;
+  if (loading) return <div className="app-loader min-h-screen"><div className="spinner" /></div>;
 
   if (!booking) return (
-    <div className="max-w-md mx-auto px-4 py-16 text-center">
-      <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6"><span className="text-4xl">✅</span></div>
-      <h2 className="text-3xl font-bold mb-3">Payment Successful!</h2>
-      <p className="text-gray-500 mb-8">Your booking is confirmed. Check your email for details.</p>
-      <Link href="/" className="inline-block bg-gray-900 text-white px-8 py-3 rounded-xl text-sm font-semibold hover:bg-gray-800">Back to Home</Link>
+    <div className="app-container max-w-md py-16 text-center">
+      <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-[color:var(--accentSoft)]"><span className="text-4xl">✅</span></div>
+      <h2 className="headline-lg mb-3">Booking Confirmed</h2>
+      <p className="mb-8">Your payment was successful. Check your email for your booking details.</p>
+      <Link href="/" className="btn btn-primary px-8 py-3">Back to Tours</Link>
     </div>
   );
 
-  var startDate = booking.slots?.start_time ? new Date(booking.slots.start_time) : null;
-  var endDate = startDate ? new Date(startDate.getTime() + (booking.tours?.duration_minutes || 90) * 60 * 1000) : null;
-  var gCalUrl = startDate && endDate ? "https://www.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(booking.tours?.name || "Kayak Tour") + "&dates=" + gCalFmt(startDate) + "/" + gCalFmt(endDate) + "&location=" + encodeURIComponent("Three Anchor Bay, Beach Road, Sea Point, Cape Town") + "&details=" + encodeURIComponent("Ref: " + booking.id.substring(0, 8).toUpperCase() + ". Arrive 15 min early.") : null;
+  const startDate = booking.slots?.start_time ? new Date(booking.slots.start_time) : null;
+  const endDate = startDate ? new Date(startDate.getTime() + (booking.tours?.duration_minutes || 90) * 60 * 1000) : null;
+  const gCalUrl = startDate && endDate ? "https://www.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(booking.tours?.name || "Kayak Tour") + "&dates=" + gCalFmt(startDate) + "/" + gCalFmt(endDate) + "&location=" + encodeURIComponent("Three Anchor Bay, Beach Road, Sea Point, Cape Town") + "&details=" + encodeURIComponent("Ref: " + booking.id.substring(0, 8).toUpperCase() + ". Arrive 15 min early.") : null;
 
   return (
-    <div className="max-w-md mx-auto px-4 py-12">
-      <div className="text-center mb-8">
-        <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4"><span className="text-4xl">🎉</span></div>
-        <h2 className="text-3xl font-bold mb-2">You&apos;re Booked!</h2>
-        <p className="text-gray-500">We can&apos;t wait to see you on the water</p>
+    <div className="app-container max-w-md page-wrap">
+      <div className="mb-8 text-center">
+        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-[color:var(--accentSoft)]"><span className="text-4xl">🎉</span></div>
+        <h2 className="headline-lg mb-2">You&apos;re Confirmed</h2>
+        <p>Your kayak session is booked and ready.</p>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden mb-6">
-        <div className="bg-gray-900 text-white p-4">
-          <p className="text-xs text-gray-400 uppercase tracking-wider">Booking Confirmation</p>
-          <p className="text-lg font-bold mt-1">{booking.tours?.name}</p>
+      <div className="surface mb-6 overflow-hidden">
+        <div className="bg-[color:var(--accent)] p-4 text-white">
+          <p className="text-xs uppercase tracking-wider text-white/75">Booking Confirmation</p>
+          <p className="mt-1 text-lg font-bold">{booking.tours?.name}</p>
         </div>
-        <div className="p-5 space-y-4">
-          <div className="flex justify-between items-start">
+        <div className="space-y-4 p-5">
+          <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wider">Date &amp; Time</p>
-              <p className="font-semibold mt-0.5">{startDate ? fmtDate(booking.slots.start_time) : "—"}</p>
-              <p className="text-gray-600">{startDate ? fmtTime(booking.slots.start_time) : ""}</p>
+              <p className="text-xs uppercase tracking-wider">Date &amp; Time</p>
+              <p className="mt-0.5 font-semibold text-[color:var(--text)]">{startDate ? fmtDate(booking.slots.start_time) : "—"}</p>
+              <p>{startDate ? fmtTime(booking.slots.start_time) : ""}</p>
             </div>
             <div className="text-right">
-              <p className="text-xs text-gray-400 uppercase tracking-wider">Duration</p>
-              <p className="font-semibold mt-0.5">{booking.tours?.duration_minutes} min</p>
+              <p className="text-xs uppercase tracking-wider">Duration</p>
+              <p className="mt-0.5 font-semibold text-[color:var(--text)]">{booking.tours?.duration_minutes} min</p>
             </div>
           </div>
-          <div className="border-t border-gray-100 pt-4 flex justify-between">
+          <div className="flex justify-between border-t border-[color:var(--border)] pt-4">
             <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wider">Guest</p>
-              <p className="font-semibold mt-0.5">{booking.customer_name}</p>
-              <p className="text-sm text-gray-500">{booking.email}</p>
+              <p className="text-xs uppercase tracking-wider">Guest</p>
+              <p className="mt-0.5 font-semibold text-[color:var(--text)]">{booking.customer_name}</p>
+              <p className="text-sm">{booking.email}</p>
             </div>
             <div className="text-right">
-              <p className="text-xs text-gray-400 uppercase tracking-wider">People</p>
-              <p className="font-semibold mt-0.5">{booking.qty}</p>
+              <p className="text-xs uppercase tracking-wider">People</p>
+              <p className="mt-0.5 font-semibold text-[color:var(--text)]">{booking.qty}</p>
             </div>
           </div>
-          <div className="border-t border-gray-100 pt-4 flex justify-between items-center">
+          <div className="flex items-center justify-between border-t border-[color:var(--border)] pt-4">
             <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wider">Total Paid</p>
-              <p className="text-2xl font-bold mt-0.5">R{booking.total_amount}</p>
+              <p className="text-xs uppercase tracking-wider">Total Paid</p>
+              <p className="mt-0.5 text-2xl font-bold text-[color:var(--text)]">R{booking.total_amount}</p>
             </div>
-            <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-semibold">Confirmed</span>
+            <span className="status-pill status-success">Confirmed</span>
           </div>
-          <div className="border-t border-gray-100 pt-4">
-            <p className="text-xs text-gray-400 uppercase tracking-wider">Reference</p>
-            <p className="font-mono font-semibold mt-0.5">{booking.id.substring(0, 8).toUpperCase()}</p>
+          <div className="border-t border-[color:var(--border)] pt-4">
+            <p className="text-xs uppercase tracking-wider">Reference</p>
+            <p className="mt-0.5 font-mono font-semibold text-[color:var(--text)]">{booking.id.substring(0, 8).toUpperCase()}</p>
           </div>
         </div>
       </div>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
-        <p className="text-sm text-blue-800 font-medium">📧 Confirmation emailed to {booking.email}</p>
-        <p className="text-xs text-blue-600 mt-1">Check your inbox (and spam folder) for the full details.</p>
+      <div className="surface-muted mb-6 p-4 toast-enter">
+        <p className="text-sm font-medium text-[color:var(--text)]">📧 Confirmation emailed to {booking.email}</p>
+        <p className="mt-1 text-xs">Please check your inbox (and spam folder) for your receipt and details.</p>
       </div>
 
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
-        <p className="text-sm font-semibold text-amber-800 mb-2">📍 Meeting Point</p>
-        <p className="text-sm text-amber-700">Three Anchor Bay, Beach Road, Sea Point, Cape Town</p>
-        <p className="text-sm text-amber-700 mt-1">Please arrive <strong>15 minutes early</strong> for your safety briefing.</p>
+      <div className="surface-muted mb-6 p-4">
+        <p className="mb-2 text-sm font-semibold text-[color:var(--text)]">📍 Meeting Point</p>
+        <p className="text-sm">Three Anchor Bay, Beach Road, Sea Point, Cape Town</p>
+        <p className="mt-1 text-sm">Please arrive <strong>15 minutes early</strong> for your safety briefing.</p>
         <a href="https://www.google.com/maps/place/CAPE+KAYAK+ADVENTURES" target="_blank" rel="noopener noreferrer"
-          className="inline-block mt-2 text-xs text-amber-800 font-semibold underline hover:text-amber-900">Open in Google Maps →</a>
+          className="mt-2 inline-block text-xs font-semibold underline">Open in Google Maps</a>
       </div>
 
-      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-8">
-        <p className="text-sm font-semibold text-gray-800 mb-2">🎒 What to Bring</p>
-        <p className="text-sm text-gray-600">Sunscreen, hat, sunglasses (with strap), towel, change of clothes, water bottle. We provide all equipment.</p>
+      <div className="surface-muted mb-8 p-4">
+        <p className="mb-2 text-sm font-semibold text-[color:var(--text)]">🎒 What to Bring</p>
+        <p className="text-sm">Sunscreen, hat, sunglasses (with strap), towel, change of clothes, and water. We provide all equipment.</p>
       </div>
 
       <div className="space-y-3">
         {gCalUrl && (
           <div className="flex gap-2">
-            <a href={gCalUrl} target="_blank" rel="noopener noreferrer" className="flex-1 bg-white border-2 border-gray-200 text-gray-800 py-3 rounded-xl text-sm font-semibold text-center hover:bg-gray-50">📅 Google Calendar</a>
-            <a href={"data:text/calendar;charset=utf-8," + encodeURIComponent("BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:" + (booking.tours?.name || "Kayak Tour") + "\nDTSTART:" + gCalFmt(startDate!) + "\nDTEND:" + gCalFmt(endDate!) + "\nLOCATION:Three Anchor Bay, Beach Rd, Sea Point\nDESCRIPTION:Ref " + booking.id.substring(0, 8).toUpperCase() + ". Arrive 15 min early.\nEND:VEVENT\nEND:VCALENDAR")} download="kayak-booking.ics" className="flex-1 bg-white border-2 border-gray-200 text-gray-800 py-3 rounded-xl text-sm font-semibold text-center hover:bg-gray-50">📅 Apple Calendar</a>
+            <a href={gCalUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary flex-1 py-3 text-center">📅 Google Calendar</a>
+            <a href={"data:text/calendar;charset=utf-8," + encodeURIComponent("BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:" + (booking.tours?.name || "Kayak Tour") + "\nDTSTART:" + gCalFmt(startDate!) + "\nDTEND:" + gCalFmt(endDate!) + "\nLOCATION:Three Anchor Bay, Beach Rd, Sea Point\nDESCRIPTION:Ref " + booking.id.substring(0, 8).toUpperCase() + ". Arrive 15 min early.\nEND:VEVENT\nEND:VCALENDAR")} download="kayak-booking.ics" className="btn btn-secondary flex-1 py-3 text-center">📅 Apple Calendar</a>
           </div>
         )}
-        <Link href="/my-bookings" className="block bg-gray-900 text-white py-3 rounded-xl text-sm font-semibold text-center hover:bg-gray-800">View My Bookings</Link>
-        <Link href="/" className="block text-center text-gray-500 text-sm hover:text-gray-900">Back to Home</Link>
+        <Link href="/my-bookings" className="btn btn-primary w-full py-3 text-center">View My Bookings</Link>
+        <Link href="/" className="btn btn-ghost w-full text-center">Back to Tours</Link>
       </div>
     </div>
   );
 }
 
 export default function SuccessPage() {
-  return <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900" /></div>}><SuccessContent /></Suspense>;
+  return <Suspense fallback={<div className="app-loader min-h-screen"><div className="spinner" /></div>}><SuccessContent /></Suspense>;
 }

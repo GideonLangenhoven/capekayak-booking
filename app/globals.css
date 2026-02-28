@@ -1,3 +1,351 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  color-scheme: light;
+
+  /* Option A (active): Calm Premium */
+  --bg: #f5f5f5;
+  --surface: #ffffff;
+  --surface2: #f0f0f0;
+  --border: #d9d9d9;
+  --text: #121212;
+  --textMuted: #5e5e5e;
+  --accent: #000000;
+  --accentHover: #1a1a1a;
+  --accentSoft: #e9e9e9;
+  --cta: #14b8a6;
+  --ctaHover: #0d9488;
+  --success: #222222;
+  --warning: #b87a16;
+  --danger: #bf4540;
+  --focusRing: #2b2b2b;
+
+  /* Option B (reference): Bold Personality */
+  --b-bg: #f7f1e8;
+  --b-surface: #fffdf9;
+  --b-surface2: #f4e9d8;
+  --b-border: #dfcfb7;
+  --b-text: #2f2417;
+  --b-textMuted: #776756;
+  --b-accent: #b45a14;
+  --b-accentHover: #9e4a0f;
+  --b-accentSoft: #fde8d8;
+  --b-success: #222222;
+  --b-warning: #bd840e;
+  --b-danger: #bc4038;
+  --b-focusRing: #d67b1b;
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 10px 24px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 24px 44px rgba(0, 0, 0, 0.12);
+
+  --dur-fast: 170ms;
+  --dur-base: 200ms;
+  --ease-soft: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.theme-bold {
+  --bg: var(--b-bg);
+  --surface: var(--b-surface);
+  --surface2: var(--b-surface2);
+  --border: var(--b-border);
+  --text: var(--b-text);
+  --textMuted: var(--b-textMuted);
+  --accent: var(--b-accent);
+  --accentHover: var(--b-accentHover);
+  --accentSoft: var(--b-accentSoft);
+  --success: var(--b-success);
+  --warning: var(--b-warning);
+  --danger: var(--b-danger);
+  --focusRing: var(--b-focusRing);
+}
+
+@layer base {
+  html,
+  body {
+    min-height: 100%;
+  }
+
+  body {
+    background:
+      radial-gradient(circle at 8% -4%, rgba(0, 0, 0, 0.09), transparent 42%),
+      radial-gradient(circle at 92% -8%, rgba(0, 0, 0, 0.06), transparent 36%),
+      var(--bg);
+    color: var(--text);
+    font-family: "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    line-height: 1.55;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+
+  p {
+    color: var(--textMuted);
+    max-width: 70ch;
+  }
+
+  a,
+  button,
+  input,
+  textarea,
+  select {
+    transition:
+      color var(--dur-fast) var(--ease-soft),
+      border-color var(--dur-fast) var(--ease-soft),
+      background-color var(--dur-fast) var(--ease-soft),
+      box-shadow var(--dur-fast) var(--ease-soft),
+      transform var(--dur-fast) var(--ease-soft);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focusRing);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .app-container {
+    @apply mx-auto w-full max-w-5xl px-4;
+  }
+
+  .page-wrap {
+    @apply py-10 md:py-14;
+  }
+
+  .page-header {
+    @apply mb-8 md:mb-10;
+  }
+
+  .eyebrow {
+    color: var(--accent);
+    @apply text-xs font-semibold uppercase tracking-[0.14em];
+  }
+
+  .headline-display {
+    font-size: clamp(2rem, 4vw, 3.2rem);
+    line-height: 1.06;
+    @apply mt-3 font-semibold;
+  }
+
+  .headline-lg {
+    @apply text-3xl font-semibold tracking-tight md:text-4xl;
+  }
+
+  .headline-md {
+    @apply text-2xl font-semibold tracking-tight;
+  }
+
+  .subhead {
+    color: var(--textMuted);
+    @apply mt-3 text-base md:text-lg;
+  }
+
+  .surface {
+    background: color-mix(in srgb, var(--surface), transparent 0%);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    @apply rounded-2xl;
+  }
+
+  .surface-muted {
+    background: var(--surface2);
+    border: 1px solid color-mix(in srgb, var(--border), #ffffff 12%);
+    @apply rounded-xl;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-semibold no-underline;
+    transition:
+      background-color var(--dur-fast) var(--ease-soft),
+      color var(--dur-fast) var(--ease-soft),
+      border-color var(--dur-fast) var(--ease-soft),
+      box-shadow var(--dur-fast) var(--ease-soft),
+      transform var(--dur-fast) var(--ease-soft);
+  }
+
+  .btn:active {
+    transform: translateY(1px);
+  }
+
+  .btn-primary {
+    background: var(--cta);
+    border: 1px solid var(--cta);
+    color: #fff;
+    box-shadow: 0 8px 18px rgba(15, 118, 110, 0.24);
+  }
+
+  .btn-primary:hover {
+    background: var(--ctaHover);
+    border-color: var(--ctaHover);
+  }
+
+  .btn-secondary {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  .btn-secondary:hover {
+    background: color-mix(in srgb, var(--surface2), #ffffff 20%);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--textMuted);
+  }
+
+  .btn-ghost:hover {
+    color: var(--text);
+    background: color-mix(in srgb, var(--surface), transparent 0%);
+  }
+
+  .btn-destructive {
+    background: color-mix(in srgb, var(--danger), #ffffff 86%);
+    border: 1px solid color-mix(in srgb, var(--danger), #ffffff 76%);
+    color: var(--danger);
+  }
+
+  .btn-destructive:hover {
+    background: color-mix(in srgb, var(--danger), #ffffff 80%);
+  }
+
+  .btn:disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
+
+  .field {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    color: var(--text);
+    @apply w-full rounded-xl px-4 py-3 text-sm;
+  }
+
+  .field::placeholder {
+    color: color-mix(in srgb, var(--textMuted), #ffffff 24%);
+  }
+
+  .field:focus {
+    border-color: var(--focusRing);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--focusRing), transparent 82%);
+    outline: none;
+  }
+
+  .field-label {
+    color: color-mix(in srgb, var(--text), #ffffff 28%);
+    @apply mb-2 block text-sm font-semibold;
+  }
+
+  .help-text {
+    color: var(--textMuted);
+    @apply mt-1 text-xs;
+  }
+
+  .status-pill {
+    @apply inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold;
+  }
+
+  .status-success {
+    background: color-mix(in srgb, var(--success), #ffffff 84%);
+    color: var(--success);
+  }
+
+  .status-warning {
+    background: color-mix(in srgb, var(--warning), #ffffff 86%);
+    color: var(--warning);
+  }
+
+  .status-danger {
+    background: color-mix(in srgb, var(--danger), #ffffff 86%);
+    color: var(--danger);
+  }
+
+  .empty-state {
+    color: var(--textMuted);
+    border: 1px dashed color-mix(in srgb, var(--border), #ffffff 10%);
+    background: color-mix(in srgb, var(--surface2), #ffffff 25%);
+    @apply rounded-2xl px-6 py-12 text-center;
+  }
+
+  .skeleton {
+    background: linear-gradient(90deg, rgba(94, 94, 94, 0.08) 0%, rgba(94, 94, 94, 0.14) 50%, rgba(94, 94, 94, 0.08) 100%);
+    background-size: 220% 100%;
+    animation: shimmer 1.4s linear infinite;
+    @apply rounded-lg;
+  }
+
+  .app-loader {
+    @apply flex items-center justify-center py-20;
+  }
+
+  .spinner {
+    border: 2px solid color-mix(in srgb, var(--border), transparent 20%);
+    border-bottom-color: var(--accent);
+    @apply h-8 w-8 animate-spin rounded-full;
+  }
+
+  .panel-enter {
+    animation: panelIn var(--dur-base) var(--ease-soft);
+  }
+
+  .toast-enter {
+    animation: toastIn var(--dur-base) var(--ease-soft);
+  }
+}
+
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -20% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}

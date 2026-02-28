@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase";
 import Link from "next/link";
+import SectionHeader from "./components/ui/SectionHeader";
+import Card from "./components/ui/Card";
 
 const TOUR_IMAGES: Record<string, string> = {
   "Sea Kayak": "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=600&h=400&fit=crop",
@@ -15,53 +17,51 @@ export default function Home() {
 
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase.from("tours").select("*").order("base_price_per_person");
+      const { data, error } = await supabase.from("tours").select("*").eq("active", true).order("base_price_per_person");
       console.log("Tours:", data, error);
-      setTours(data || []);
+      setTours((data || []).filter((t: any) => !t.hidden));
       setLoading(false);
     })();
   }, []);
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" /></div>;
+  if (loading) return <div className="app-loader"><div className="spinner" /></div>;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-12">
-      <div className="text-center mb-12">
-        <h2 className="text-4xl font-bold tracking-tight">Paddle Cape Town</h2>
-        <p className="text-gray-500 mt-3 text-lg">Explore the Atlantic coastline by kayak. Unforgettable experiences since 1994.</p>
-      </div>
-      <div className="grid md:grid-cols-3 gap-6">
+    <div className="app-container page-wrap">
+      <SectionHeader
+        centered
+        eyebrow="Cape Town Sea Kayaking"
+        title="Find Your Perfect Paddle"
+        subtitle="Explore the Atlantic coastline by kayak with Cape Town's original guided team."
+        className="max-w-3xl"
+      />
+
+      <div className="grid gap-6 md:grid-cols-3">
         {tours.map((tour) => (
-          <div key={tour.id} className="group border border-gray-200 rounded-2xl overflow-hidden hover:shadow-lg transition-shadow">
-            <div className="h-48 bg-gray-100 overflow-hidden">
-              <img src={TOUR_IMAGES[tour.name] || TOUR_IMAGES["Sea Kayak"]} alt={tour.name}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+          <Card key={tour.id} className="group overflow-hidden panel-enter">
+            <div className="h-48 overflow-hidden bg-[color:var(--surface2)]">
+              <img src={tour.image_url || TOUR_IMAGES[tour.name] || TOUR_IMAGES["Sea Kayak"]} alt={tour.name}
+                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
             </div>
             <div className="p-5">
-              <h3 className="text-xl font-semibold">{tour.name}</h3>
-              <p className="text-gray-500 text-sm mt-1">{tour.duration_minutes} minutes</p>
-              <p className="text-gray-600 text-sm mt-3">{tour.description || "An incredible kayaking experience along Cape Town's stunning coastline."}</p>
-              <div className="flex items-center justify-between mt-5">
+              <h3 className="text-xl font-semibold text-[color:var(--text)]">{tour.name}</h3>
+              <p className="mt-1 text-sm text-[color:var(--textMuted)]">{tour.duration_minutes} minutes</p>
+              <p className="mt-3 text-sm text-[color:var(--textMuted)]">{tour.description || "An incredible kayaking experience along Cape Town's stunning coastline."}</p>
+              <div className="mt-5 flex items-center justify-between">
                 <div>
-                  <span className="text-2xl font-bold">R{tour.base_price_per_person}</span>
-                  <span className="text-gray-500 text-sm"> / person</span>
+                  <span className="text-2xl font-bold text-[color:var(--text)]">R{tour.base_price_per_person}</span>
+                  <span className="text-sm text-[color:var(--textMuted)]"> / person</span>
                 </div>
                 <Link href={"/book?tour=" + tour.id}
-                  className="bg-gray-900 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors">
-                  Book Now
+                  className="btn btn-primary px-4 py-2">
+                  Book Tour
                 </Link>
               </div>
             </div>
-          </div>
+          </Card>
         ))}
       </div>
-      <div className="mt-16 text-center">
-        <div className="inline-flex items-center gap-6 text-sm text-gray-500">
-          <span>📍 Three Anchor Bay, Sea Point</span>
-          <span>⭐ 4.9 rating (200+ reviews)</span>
-          <span>🛶 30+ years experience</span>
-        </div>
-      </div>
+
     </div>
   );
 }

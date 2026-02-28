@@ -2,13 +2,23 @@
 import { useState } from "react";
 import { supabase } from "../lib/supabase";
 import Link from "next/link";
+import Button from "../components/ui/Button";
+import { Input } from "../components/ui/Input";
+import Card from "../components/ui/Card";
 
 function fmtDate(iso: string) { return new Date(iso).toLocaleDateString("en-ZA", { weekday: "short", day: "numeric", month: "short", timeZone: "Africa/Johannesburg" }); }
 function fmtTime(iso: string) { return new Date(iso).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Johannesburg" }); }
 function fmtFull(iso: string) { return new Date(iso).toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Africa/Johannesburg" }); }
 function dateKey(iso: string) { return new Date(iso).toISOString().split("T")[0]; }
 
-var STATUS_STYLE: Record<string, string> = { PAID: "bg-emerald-100 text-emerald-700", CONFIRMED: "bg-emerald-100 text-emerald-700", HELD: "bg-yellow-100 text-yellow-700", PENDING: "bg-yellow-100 text-yellow-700", CANCELLED: "bg-red-100 text-red-700", COMPLETED: "bg-blue-100 text-blue-700" };
+var STATUS_STYLE: Record<string, string> = {
+  PAID: "status-success",
+  CONFIRMED: "status-success",
+  HELD: "status-warning",
+  PENDING: "status-warning",
+  CANCELLED: "status-danger",
+  COMPLETED: "bg-[color:var(--accentSoft)] text-[color:var(--accent)]",
+};
 var STATUS_LABEL: Record<string, string> = { PAID: "Confirmed", CONFIRMED: "Confirmed", HELD: "Awaiting Payment", PENDING: "Pending", CANCELLED: "Cancelled", COMPLETED: "Completed" };
 
 function MiniCalendar({ slots, onSelect }: { slots: any[]; onSelect: (id: string) => void }) {
@@ -41,46 +51,46 @@ function MiniCalendar({ slots, onSelect }: { slots: any[]; onSelect: (id: string
 
   return (
     <div>
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 mb-4">
+      <Card className="p-4 mb-4">
         <div className="flex items-center justify-between mb-3">
-          <button onClick={() => { if (vMonth === 0) { setVMonth(11); setVYear(vYear - 1); } else setVMonth(vMonth - 1); }} disabled={!canPrev} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 disabled:opacity-20 text-gray-600">◀</button>
-          <span className="text-sm font-semibold text-gray-800">{monthName}</span>
-          <button onClick={() => { if (vMonth === 11) { setVMonth(0); setVYear(vYear + 1); } else setVMonth(vMonth + 1); }} disabled={!canNext} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 disabled:opacity-20 text-gray-600">▶</button>
+          <button onClick={() => { if (vMonth === 0) { setVMonth(11); setVYear(vYear - 1); } else setVMonth(vMonth - 1); }} disabled={!canPrev} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[color:var(--surface2)] disabled:opacity-20 text-[color:var(--textMuted)]">◀</button>
+          <span className="text-sm font-semibold text-[color:var(--text)]">{monthName}</span>
+          <button onClick={() => { if (vMonth === 11) { setVMonth(0); setVYear(vYear + 1); } else setVMonth(vMonth + 1); }} disabled={!canNext} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[color:var(--surface2)] disabled:opacity-20 text-[color:var(--textMuted)]">▶</button>
         </div>
         <div className="grid grid-cols-7 gap-1 mb-1">
-          {dayNames.map(dn => <div key={dn} className="text-center text-xs font-medium text-gray-400 py-1">{dn}</div>)}
+          {dayNames.map(dn => <div key={dn} className="text-center text-xs font-medium text-[color:var(--textMuted)]/70 py-1">{dn}</div>)}
         </div>
         <div className="grid grid-cols-7 gap-1">
           {cells.map((c, i) => {
             if (!c) return <div key={"e" + i} />;
-            if (c.isPast || !c.hasSlots) return <div key={c.date} className="text-center py-2 text-sm text-gray-300 rounded-lg">{c.day}</div>;
+            if (c.isPast || !c.hasSlots) return <div key={c.date} className="text-center py-2 text-sm text-[color:var(--textMuted)]/35 rounded-lg">{c.day}</div>;
             var isSelected = selectedDate === c.date;
             return (
               <button key={c.date} onClick={() => setSelectedDate(c.date)}
-                className={"text-center py-2 text-sm font-semibold rounded-lg transition-colors relative " + (isSelected ? "bg-gray-900 text-white" : "text-gray-900 hover:bg-emerald-100")}>
+                className={"text-center py-2 text-sm font-semibold rounded-lg transition-colors relative " + (isSelected ? "bg-[color:var(--accent)] text-white" : "text-[color:var(--text)] hover:bg-[color:var(--accentSoft)]")}>
                 {c.day}
-                {!isSelected && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-emerald-500"></span>}
+                {!isSelected && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-[color:var(--success)]"></span>}
               </button>
             );
           })}
         </div>
-        <p className="text-xs text-gray-400 text-center mt-3">Green dots = available dates</p>
-      </div>
+        <p className="text-xs text-[color:var(--textMuted)] text-center mt-3">Dots indicate available dates.</p>
+      </Card>
 
       {selectedDate && daySlots.length > 0 && (
         <div className="space-y-2">
-          <p className="text-sm font-semibold text-gray-700">{fmtFull(daySlots[0].start_time)}</p>
+          <p className="text-sm font-semibold text-[color:var(--text)]">{fmtFull(daySlots[0].start_time)}</p>
           {daySlots.map((sl: any) => {
             var avail = sl.capacity_total - sl.booked - (sl.held || 0);
             return (
               <button key={sl.id} onClick={() => onSelect(sl.id)}
-                className="w-full text-left border border-gray-200 rounded-xl p-4 hover:border-gray-900 transition-colors bg-white">
+                className="w-full text-left border border-[color:var(--border)] rounded-xl p-4 hover:border-[color:var(--accent)] transition-colors bg-[color:var(--surface)]">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-semibold">{fmtTime(sl.start_time)}</p>
-                    <p className="text-sm text-gray-500">{avail} spots available</p>
+                    <p className="font-semibold text-[color:var(--text)]">{fmtTime(sl.start_time)}</p>
+                    <p className="text-sm text-[color:var(--textMuted)]">{avail} spots available</p>
                   </div>
-                  <span className="text-sm text-gray-400">Select →</span>
+                  <span className="text-sm text-[color:var(--textMuted)]">Select</span>
                 </div>
               </button>
             );
@@ -154,12 +164,12 @@ export default function MyBookings() {
 
   if (rescheduling) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-8">
-        <button onClick={() => { setRescheduling(null); setRescheduleSlots([]); }} className="text-sm text-gray-500 mb-6 hover:text-gray-900">← Back to bookings</button>
-        <h2 className="text-2xl font-bold mb-2">Reschedule</h2>
-        <p className="text-gray-500 mb-6">Pick a new date for your {rescheduling.tours?.name} ({rescheduling.qty} {rescheduling.qty === 1 ? "person" : "people"})</p>
-        {loadingSlots ? <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" /></div> :
-          rescheduleSlots.length === 0 ? <p className="text-gray-500 text-center py-12">No available slots with enough space. Please contact us.</p> :
+      <div className="app-container max-w-lg page-wrap">
+        <Button onClick={() => { setRescheduling(null); setRescheduleSlots([]); }} variant="ghost" className="mb-5 px-0">← Back to bookings</Button>
+        <h2 className="headline-md mb-2">Choose a New Date</h2>
+        <p className="mb-6">Pick a new date for your {rescheduling.tours?.name} ({rescheduling.qty} {rescheduling.qty === 1 ? "person" : "people"}).</p>
+        {loadingSlots ? <div className="app-loader py-12"><div className="spinner" /></div> :
+          rescheduleSlots.length === 0 ? <p className="empty-state py-12">No slots currently have enough space for this booking. Please contact us.</p> :
             <MiniCalendar slots={rescheduleSlots} onSelect={confirmReschedule} />
         }
       </div>
@@ -168,35 +178,34 @@ export default function MyBookings() {
 
   if (!loggedIn) {
     return (
-      <div className="max-w-md mx-auto px-4 py-16">
+      <div className="app-container max-w-md py-16">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4"><span className="text-3xl">📋</span></div>
-          <h2 className="text-2xl font-bold">My Bookings</h2>
-          <p className="text-gray-500 mt-2">Enter the email you used when booking.</p>
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[color:var(--accentSoft)]"><span className="text-3xl">📋</span></div>
+          <h2 className="headline-md">Access Your Bookings</h2>
+          <p className="mt-2">Enter the email address you used when booking.</p>
         </div>
-        <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setEmailError(""); }}
+        <Input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setEmailError(""); }}
           onKeyDown={(e) => e.key === "Enter" && lookupBookings()} placeholder="your@email.com"
-          className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gray-900 mb-2" />
-        {emailError && <p className="text-red-500 text-xs mb-2">{emailError}</p>}
-        <button onClick={lookupBookings} disabled={loading}
-          className="w-full bg-gray-900 text-white py-3.5 rounded-xl text-sm font-semibold hover:bg-gray-800 disabled:opacity-50">
-          {loading ? "Looking up..." : "View My Bookings"}
-        </button>
+          className="mb-2 py-3.5" />
+        {emailError && <p className="mb-2 text-xs text-[color:var(--danger)]">{emailError}</p>}
+        <Button onClick={lookupBookings} disabled={loading} fullWidth className="py-3.5">
+          {loading ? "Finding Bookings..." : "Find Bookings"}
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
+    <div className="app-container max-w-2xl page-wrap">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">My Bookings</h2>
-        <button onClick={() => { setLoggedIn(false); setBookings([]); setEmail(""); }} className="text-sm text-gray-500 hover:text-gray-900">Change Email</button>
+        <h2 className="headline-md">Your Bookings</h2>
+        <Button onClick={() => { setLoggedIn(false); setBookings([]); setEmail(""); }} variant="ghost" className="px-0 text-sm">Use Another Email</Button>
       </div>
-      <p className="text-gray-500 text-sm mb-6">{email}</p>
+      <p className="text-sm mb-6">{email}</p>
       {bookings.length === 0 ? (
-        <div className="text-center py-16">
-          <p className="text-gray-400 text-lg mb-4">No bookings found</p>
-          <Link href="/" className="inline-block bg-gray-900 text-white px-6 py-3 rounded-xl text-sm font-semibold hover:bg-gray-800">Browse Tours</Link>
+        <div className="empty-state py-16">
+          <p className="mb-4 text-lg text-[color:var(--textMuted)]">No bookings found for this email.</p>
+          <Link href="/" className="btn btn-primary">Browse Tours</Link>
         </div>
       ) : (
         <div className="space-y-4">
@@ -204,30 +213,29 @@ export default function MyBookings() {
             var isPast = b.slots?.start_time && new Date(b.slots.start_time) < new Date();
             var canModify = ["PAID", "CONFIRMED"].includes(b.status) && !isPast;
             return (
-              <div key={b.id} className="border border-gray-200 rounded-2xl p-5 hover:shadow-sm transition-shadow bg-white">
+              <Card key={b.id} className="p-5 hover:shadow-md transition-shadow">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <h3 className="font-semibold text-lg">{b.tours?.name}</h3>
-                    <p className="text-gray-500 text-sm mt-0.5">{b.slots?.start_time ? fmtDate(b.slots.start_time) + " at " + fmtTime(b.slots.start_time) : "No date"}</p>
+                    <h3 className="font-semibold text-lg text-[color:var(--text)]">{b.tours?.name}</h3>
+                    <p className="text-sm mt-0.5">{b.slots?.start_time ? fmtDate(b.slots.start_time) + " at " + fmtTime(b.slots.start_time) : "No date"}</p>
                   </div>
-                  <span className={"px-3 py-1 rounded-full text-xs font-semibold " + (STATUS_STYLE[b.status] || "bg-gray-100 text-gray-600")}>{STATUS_LABEL[b.status] || b.status}</span>
+                  <span className={"status-pill " + (STATUS_STYLE[b.status] || "bg-[color:var(--surface2)] text-[color:var(--textMuted)]")}>{STATUS_LABEL[b.status] || b.status}</span>
                 </div>
-                <div className="flex items-center gap-4 text-sm text-gray-500">
+                <div className="flex items-center gap-4 text-sm">
                   <span>{b.qty} {b.qty === 1 ? "person" : "people"}</span>
                   <span>R{b.total_amount}</span>
                   <span className="font-mono text-xs">Ref: {b.id.substring(0, 8).toUpperCase()}</span>
                 </div>
-                {b.refund_status === "REQUESTED" && <p className="text-orange-600 text-xs mt-2 font-medium">Refund pending</p>}
+                {b.refund_status === "REQUESTED" && <p className="text-xs mt-2 font-medium text-[color:var(--warning)]">Refund pending</p>}
                 {canModify && (
-                  <div className="flex gap-3 mt-4 pt-4 border-t border-gray-100">
-                    <button onClick={() => startReschedule(b)} className="text-sm text-gray-700 font-medium hover:text-gray-900 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50">Reschedule</button>
-                    <button onClick={() => cancelBooking(b.id, b.total_amount)} disabled={cancellingId === b.id}
-                      className="text-sm text-red-600 font-medium hover:text-red-800 px-4 py-2 border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50">
+                  <div className="flex gap-3 mt-4 pt-4 border-t border-[color:var(--border)]">
+                    <Button onClick={() => startReschedule(b)} variant="secondary" className="px-4 py-2">Reschedule</Button>
+                    <Button onClick={() => cancelBooking(b.id, b.total_amount)} disabled={cancellingId === b.id} variant="destructive" className="px-4 py-2">
                       {cancellingId === b.id ? "Cancelling..." : "Cancel Booking"}
-                    </button>
+                    </Button>
                   </div>
                 )}
-              </div>
+              </Card>
             );
           })}
         </div>
