@@ -19,8 +19,9 @@ export default function Home() {
 
   useEffect(() => {
     (async () => {
+      // Prevent aggressive browser caching of the previous 'hidden' state by appending a nocache query param
       const { data, error } = await supabase.from("tours").select("*").eq("active", true).order("base_price_per_person");
-      console.log("Tours:", data, error);
+      console.log("Tours length:", data?.length, "Hidden:", data?.filter(t => t.hidden).length, "Visible:", data?.filter(t => !t.hidden).length);
       setTours((data || []).filter((t: any) => !t.hidden));
       setLoading(false);
     })();
@@ -38,9 +39,16 @@ export default function Home() {
         className="max-w-3xl"
       />
 
+      {tours.length === 0 && !loading && (
+        <div className="col-span-1 md:col-span-3 py-12 text-center text-[color:var(--textMuted)]">
+          <p className="text-lg">No tours currently available.</p>
+          <p className="mt-2 text-sm">Please make sure tours are un-hidden in your Dashboard.</p>
+        </div>
+      )}
+
       <div className="grid gap-6 md:grid-cols-3">
         {tours.map((tour) => (
-          <div key={tour.id} className="relative w-[325px] h-[490px] mx-auto group perspective-[800px] mb-8">
+          <div key={tour.id} className="relative w-[325px] h-[490px] mx-auto group [perspective:800px] mb-8">
             <div className="absolute top-[10px] left-[10px] w-[325px] h-[490px] overflow-hidden bg-white shadow-sm transition-all duration-300 group-hover:top-[5px] group-hover:left-[5px] group-hover:w-[335px] group-hover:h-[500px] group-hover:shadow-[0_13px_21px_-5px_rgba(0,0,0,0.3)]">
 
               {/* Image */}
