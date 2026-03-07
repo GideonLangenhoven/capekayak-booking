@@ -59,7 +59,7 @@ export default function Home() {
               </div>
 
               {/* Stats Container (Slide Up) */}
-              <div className="absolute top-[386px] left-0 w-full h-[300px] bg-white p-[27px_35px_35px] transition-all duration-300 group-hover:top-[272px]">
+              <div className="absolute top-[386px] left-0 w-full h-[300px] bg-white px-8 pt-7 pb-8 transition-all duration-300 group-hover:top-[272px]">
                 <div className="float-right text-[#48cfad] text-[22px] font-semibold">
                   R{tour.base_price_per_person}
                 </div>
