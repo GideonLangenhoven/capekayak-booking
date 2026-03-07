@@ -1,9 +1,11 @@
 "use client";
-import { useState, useRef, useEffect, lazy, Suspense } from "react";
+import { useState, useRef, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import ChatCalendar from "./ChatCalendar";
+import { useTheme } from "./ThemeProvider";
 type Msg = { role: "user" | "bot"; text: string; buttons?: any[]; paymentUrl?: string; calendar?: any[] };
 export default function ChatWidget() {
+  var { chatbot_avatar } = useTheme();
   var [open, setOpen] = useState(false);
   var [msgs, setMsgs] = useState<Msg[]>([]);
   var [input, setInput] = useState("");
@@ -50,7 +52,17 @@ export default function ChatWidget() {
   }
   return (
     <>
-      {!open && <button onClick={() => setOpen(true)} className="fixed bottom-6 right-6 w-14 h-14 bg-gray-900 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-800 hover:scale-105 transition-all z-50"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>}
+      {!open && (
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-center">
+          <style>{`@keyframes bookPulse{0%,100%{opacity:1;transform:translateX(-50%) scale(1)}50%{opacity:.7;transform:translateX(-50%) scale(1.05)}}`}</style>
+          <span className="absolute -top-9 left-1/2 whitespace-nowrap rounded-full bg-gray-900 px-3 py-1 text-xs font-semibold text-white shadow-md" style={{ animation: "bookPulse 2s ease-in-out infinite" }}>Book here</span>
+          {chatbot_avatar ? (
+            <button onClick={() => setOpen(true)} className="w-16 h-16 rounded-full shadow-lg hover:scale-105 transition-all overflow-hidden bg-white border-2 border-gray-200" dangerouslySetInnerHTML={{ __html: `<dotlottie-wc src="${chatbot_avatar}" style="width:100%;height:100%" autoplay loop></dotlottie-wc>` }} />
+          ) : (
+            <button onClick={() => setOpen(true)} className="w-14 h-14 bg-gray-900 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-800 hover:scale-105 transition-all"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+          )}
+        </div>
+      )}
       {open && (
         <div className="fixed bottom-6 right-6 w-[22rem] h-[32rem] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden z-50" style={{animation:"su .2s ease-out"}}>
           <style>{`@keyframes su{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}@keyframes bl{0%,80%,100%{opacity:0}40%{opacity:1}}`}</style>

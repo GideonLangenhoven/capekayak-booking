@@ -4,6 +4,7 @@ import { supabase } from "./lib/supabase";
 import Link from "next/link";
 import SectionHeader from "./components/ui/SectionHeader";
 import Card from "./components/ui/Card";
+import { useTheme } from "./components/ThemeProvider";
 
 const TOUR_IMAGES: Record<string, string> = {
   "Sea Kayak": "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=600&h=400&fit=crop",
@@ -12,6 +13,7 @@ const TOUR_IMAGES: Record<string, string> = {
 };
 
 export default function Home() {
+  const theme = useTheme();
   const [tours, setTours] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,9 +32,9 @@ export default function Home() {
     <div className="app-container page-wrap">
       <SectionHeader
         centered
-        eyebrow="Cape Town Sea Kayaking"
-        title="Find Your Perfect Paddle"
-        subtitle="Explore the Atlantic coastline by kayak with Cape Town's original guided team."
+        eyebrow={theme.hero_eyebrow || "Cape Town Sea Kayaking"}
+        title={theme.hero_title || "Find Your Perfect Paddle"}
+        subtitle={theme.hero_subtitle || "Explore the Atlantic coastline by kayak with Cape Town's original guided team."}
         className="max-w-3xl"
       />
 

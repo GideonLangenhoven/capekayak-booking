@@ -87,8 +87,8 @@ function MiniCalendar({ slots, onSelect }: { slots: any[]; onSelect: (id: string
                 className="w-full text-left border border-[color:var(--border)] rounded-xl p-4 hover:border-[color:var(--accent)] transition-colors bg-[color:var(--surface)]">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-semibold text-[color:var(--text)]">{fmtTime(sl.start_time)}</p>
-                    <p className="text-sm text-[color:var(--textMuted)]">{avail} spots available</p>
+                    <p className="font-semibold text-[color:var(--text)]">{sl.tours?.name} &bull; {fmtTime(sl.start_time)}</p>
+                    <p className="text-sm text-[color:var(--textMuted)]">{avail} spots available &bull; R{sl.price_per_person_override ?? sl.tours?.base_price_per_person}/pp</p>
                   </div>
                   <span className="text-sm text-[color:var(--textMuted)]">Select</span>
                 </div>
@@ -111,6 +111,9 @@ export default function MyBookings() {
   var [rescheduleSlots, setRescheduleSlots] = useState<any[]>([]);
   var [loadingSlots, setLoadingSlots] = useState(false);
   var [emailError, setEmailError] = useState("");
+  var [rebookConfirmSlot, setRebookConfirmSlot] = useState<any>(null);
+  var [excessAction, setExcessAction] = useState("VOUCHER");
+  var [rebookLoading, setRebookLoading] = useState(false);
 
   async function lookupBookings() {
     if (!email.trim()) return;
@@ -143,26 +146,118 @@ export default function MyBookings() {
     setLoadingSlots(true);
     var now = new Date();
     var later = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
-    var { data } = await supabase.from("slots").select("*").eq("tour_id", b.tour_id).eq("status", "OPEN")
+    var { data } = await supabase.from("slots").select("*, tours(name, base_price_per_person)")
+      .eq("status", "OPEN").eq("business_id", b.business_id || "c8b439f5-c11e-4d46-b347-943df6f172b4")
       .gt("start_time", now.toISOString()).lt("start_time", later.toISOString()).order("start_time", { ascending: true });
     setRescheduleSlots((data || []).filter((s: any) => s.capacity_total - s.booked - (s.held || 0) >= b.qty && s.id !== b.slot_id));
     setLoadingSlots(false);
   }
 
-  async function confirmReschedule(newSlotId: string) {
+  function confirmReschedule(newSlotId: string) {
     if (!rescheduling) return;
-    var b = rescheduling;
-    var { data: oldSl } = await supabase.from("slots").select("booked").eq("id", b.slot_id).single();
-    if (oldSl) await supabase.from("slots").update({ booked: Math.max(0, oldSl.booked - b.qty) }).eq("id", b.slot_id);
-    var { data: newSl } = await supabase.from("slots").select("booked").eq("id", newSlotId).single();
-    if (newSl) await supabase.from("slots").update({ booked: newSl.booked + b.qty }).eq("id", newSlotId);
-    await supabase.from("bookings").update({ slot_id: newSlotId }).eq("id", b.id);
+    var sl = rescheduleSlots.find(s => s.id === newSlotId);
+    setRebookConfirmSlot(sl);
+  }
+
+  async function submitRebook() {
+    if (!rescheduling || !rebookConfirmSlot) return;
+    setRebookLoading(true);
+    var { data, error } = await supabase.functions.invoke("rebook-booking", {
+      body: {
+        booking_id: rescheduling.id,
+        new_slot_id: rebookConfirmSlot.id,
+        excess_action: excessAction,
+      }
+    });
+    setRebookLoading(false);
+
+    if (error || data?.error) {
+      alert("Failed to change booking: " + (error?.message || data?.error));
+      return;
+    }
+
+    if (data?.diff > 0) {
+      alert("Booking changed! The total increased by R" + data.diff + ". Please check your email or WhatsApp for the payment link to securely pay the outstanding balance.");
+      if (data.payment_url) {
+        window.open(data.payment_url, "_blank");
+      }
+    } else {
+      alert("Booking changes confirmed!");
+    }
+
     setRescheduling(null);
+    setRebookConfirmSlot(null);
     setRescheduleSlots([]);
     lookupBookings();
   }
 
   if (rescheduling) {
+    if (rebookConfirmSlot) {
+      var unitPrice = rebookConfirmSlot.price_per_person_override ?? rebookConfirmSlot.tours.base_price_per_person;
+      var newTotal = unitPrice * rescheduling.qty;
+      var diff = newTotal - Number(rescheduling.total_amount);
+
+      return (
+        <div className="app-container max-w-lg page-wrap py-12">
+          <Button onClick={() => setRebookConfirmSlot(null)} variant="ghost" className="mb-5 px-0">← Back to dates</Button>
+          <h2 className="headline-md mb-4">Confirm Your Change</h2>
+
+          <Card className="p-5 mb-6">
+            <h3 className="font-semibold mb-2">New Booking Details:</h3>
+            <ul className="text-sm space-y-1 mb-4">
+              <li><strong>Tour:</strong> {rebookConfirmSlot.tours.name}</li>
+              <li><strong>Date:</strong> {fmtFull(rebookConfirmSlot.start_time)}</li>
+              <li><strong>Time:</strong> {fmtTime(rebookConfirmSlot.start_time)}</li>
+              <li><strong>People:</strong> {rescheduling.qty}</li>
+            </ul>
+
+            <div className="border-t border-[color:var(--border)] pt-4">
+              <div className="flex justify-between text-sm mb-1">
+                <span>Original Price Paid:</span>
+                <span>R{rescheduling.total_amount}</span>
+              </div>
+              <div className="flex justify-between font-semibold">
+                <span>New Total:</span>
+                <span>R{newTotal}</span>
+              </div>
+            </div>
+          </Card>
+
+          {diff > 0 && (
+            <div className="mb-6 p-4 rounded-xl bg-[color:var(--warning)]/10 text-[color:var(--warning)] text-sm border border-[color:var(--warning)]/20">
+              <strong>Payment Required:</strong> You will need to pay the outstanding balance of <strong>R{diff}</strong>. Upon confirming, we will send you a secure payment link via email and WhatsApp to complete the change.
+            </div>
+          )}
+
+          {diff < 0 && (
+            <div className="mb-6">
+              <p className="font-semibold text-[color:var(--text)] mb-3">You have R{Math.abs(diff)} remaining credit. How would you like to receive it?</p>
+              <div className="space-y-3">
+                <label className="flex items-start gap-3 p-4 border border-[color:var(--border)] rounded-xl cursor-pointer hover:border-[color:var(--accent)] transition-colors">
+                  <input type="radio" value="VOUCHER" checked={excessAction === "VOUCHER"} onChange={() => setExcessAction("VOUCHER")} className="mt-1" />
+                  <div>
+                    <span className="font-semibold block">Store Credit (Gift Voucher)</span>
+                    <span className="text-sm text-[color:var(--textMuted)]">Receive a voucher code valid for 1 year that you can use yourself or give to a friend. Automatically sent to your email and WhatsApp!</span>
+                  </div>
+                </label>
+                <label className="flex items-start gap-3 p-4 border border-[color:var(--border)] rounded-xl cursor-pointer hover:border-[color:var(--accent)] transition-colors">
+                  <input type="radio" value="REFUND" checked={excessAction === "REFUND"} onChange={() => setExcessAction("REFUND")} className="mt-1" />
+                  <div>
+                    <span className="font-semibold block">Refund to Original Payment</span>
+                    <span className="text-sm text-[color:var(--textMuted)]">We will submit a refund request for R{Math.abs(diff)}. Funds usually reflect within 5-7 business days depending on your bank.</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+          )}
+
+          <Button onClick={submitRebook} disabled={rebookLoading} fullWidth className="py-4 font-semibold">
+            {rebookLoading ? "Processing..." : "Confirm Booking Change"}
+          </Button>
+        </div>
+      );
+    }
+
     return (
       <div className="app-container max-w-lg page-wrap">
         <Button onClick={() => { setRescheduling(null); setRescheduleSlots([]); }} variant="ghost" className="mb-5 px-0">← Back to bookings</Button>
