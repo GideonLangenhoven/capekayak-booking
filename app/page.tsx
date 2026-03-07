@@ -40,27 +40,42 @@ export default function Home() {
 
       <div className="grid gap-6 md:grid-cols-3">
         {tours.map((tour) => (
-          <Card key={tour.id} className="group overflow-hidden panel-enter">
-            <div className="h-48 overflow-hidden bg-[color:var(--surface2)]">
-              <img src={tour.image_url || TOUR_IMAGES[tour.name] || TOUR_IMAGES["Sea Kayak"]} alt={tour.name}
-                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
-            </div>
-            <div className="p-5">
-              <h3 className="text-xl font-semibold text-[color:var(--text)]">{tour.name}</h3>
-              <p className="mt-1 text-sm text-[color:var(--textMuted)]">{tour.duration_minutes} minutes</p>
-              <p className="mt-3 text-sm text-[color:var(--textMuted)]">{tour.description || "An incredible kayaking experience along Cape Town's stunning coastline."}</p>
-              <div className="mt-5 flex items-center justify-between">
-                <div>
-                  <span className="text-2xl font-bold text-[color:var(--text)]">R{tour.base_price_per_person}</span>
-                  <span className="text-sm text-[color:var(--textMuted)]"> / person</span>
-                </div>
+          <div key={tour.id} className="relative w-[325px] h-[490px] mx-auto group perspective-[800px] mb-8">
+            <div className="absolute top-[10px] left-[10px] w-[325px] h-[490px] overflow-hidden bg-white shadow-sm transition-all duration-300 group-hover:top-[5px] group-hover:left-[5px] group-hover:w-[335px] group-hover:h-[500px] group-hover:shadow-[0_13px_21px_-5px_rgba(0,0,0,0.3)]">
+
+              {/* Image */}
+              <div className="absolute top-0 left-0 w-full h-[390px]">
+                <img src={tour.image_url || TOUR_IMAGES[tour.name] || TOUR_IMAGES["Sea Kayak"]} alt={tour.name}
+                  className="w-full h-full object-cover" />
+
+                {/* Overlay */}
+                <div className="absolute inset-0 bg-[#48cfad] opacity-0 transition-opacity duration-300 group-hover:opacity-70"></div>
+
+                {/* Book Details Button */}
                 <Link href={"/book?tour=" + tour.id}
-                  className="btn btn-primary px-4 py-2">
+                  className="absolute top-[112px] left-1/2 -ml-[85px] w-[172px] border-2 border-white text-white text-[19px] text-center uppercase font-bold py-2.5 opacity-0 transition-all duration-300 group-hover:opacity-100 group-hover:w-[152px] group-hover:-ml-[76px] group-hover:text-[15px] group-hover:top-[115px] hover:bg-white hover:text-[#48cfad] z-10">
                   Book Tour
                 </Link>
               </div>
+
+              {/* Stats Container (Slide Up) */}
+              <div className="absolute top-[386px] left-0 w-full h-[300px] bg-white p-[27px_35px_35px] transition-all duration-300 group-hover:top-[272px]">
+                <div className="float-right text-[#48cfad] text-[22px] font-semibold">
+                  R{tour.base_price_per_person}
+                </div>
+                <div className="text-[22px] text-[#393c45] font-sans truncate pr-2">
+                  {tour.name}
+                </div>
+                <p className="text-[16px] text-[#b1b1b3] py-[2px] mb-5">
+                  {tour.duration_minutes} minutes
+                </p>
+                <div className="mt-2 text-sm text-[#969699] line-clamp-3">
+                  {tour.description || "An incredible kayaking experience along Cape Town's stunning coastline."}
+                </div>
+              </div>
+
             </div>
-          </Card>
+          </div>
         ))}
       </div>
 
