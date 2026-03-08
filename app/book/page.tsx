@@ -228,14 +228,17 @@ function BookingFlow() {
                       {t.name}
                     </div>
 
-                    <div className="opacity-0 transition-opacity duration-300 sm:group-hover:opacity-100 mt-2">
-                      <div className="font-semibold text-[18px]" style={{ color: 'var(--hoverOverlay, #48cfad)' }}>
-                        R{t.base_price_per_person}<span className="text-[12px] font-normal text-[#b1b1b3] ml-0.5">/pp</span>
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 mt-1 transition-all duration-300 sm:group-hover:mt-2">
+                      <div className="font-semibold text-[16px]" style={{ color: 'var(--hoverOverlay, #48cfad)' }}>
+                        R{t.base_price_per_person}<span className="text-[11px] font-normal text-[#b1b1b3] ml-0.5">/pp</span>
                       </div>
-                      <p className="text-xs text-[#b1b1b3] mt-0.5 mb-2 sm:mb-3">
-                        {t.duration_minutes} min
-                      </p>
-                      <div className="text-xs text-[#969699] line-clamp-3 leading-relaxed">
+                      <div className="text-xs text-[#b1b1b3]">
+                        • {t.duration_minutes} min
+                      </div>
+                    </div>
+
+                    <div className="opacity-0 transition-opacity duration-300 sm:group-hover:opacity-100 mt-2">
+                      <div className="text-[11px] sm:text-xs text-[#969699] line-clamp-4 leading-relaxed">
                         {t.description || "An incredible kayaking experience along Cape Town's stunning coastline."}
                       </div>
                     </div>
