@@ -203,26 +203,46 @@ function BookingFlow() {
       {/* STEP 1: Tour */}
       {step === "tour" && (
         <div>
-          <h2 className="text-3xl font-bold mb-2">Choose Your Adventure</h2>
-          <p className="text-gray-500 mb-8">Select a tour to see available dates.</p>
-          <div className="space-y-4">
+          <h2 className="text-3xl font-bold mb-2 text-center">Choose Your Adventure</h2>
+          <p className="text-gray-500 mb-10 text-center">Select a tour to see available dates.</p>
+          <div className="grid gap-8 justify-items-center" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
             {tours.map(t => (
-              <button key={t.id} onClick={() => { setSelectedTour(t); setStep("calendar"); loadSlots(t.id); }}
-                className="w-full text-left border border-gray-200 rounded-2xl overflow-hidden hover:border-gray-400 hover:shadow-md transition-all group">
-                <div className="flex flex-col sm:flex-row">
-                  <div className="sm:w-48 h-32 sm:h-auto bg-gray-100 overflow-hidden shrink-0">
-                    <img src={IMG[t.name] || IMG["Sea Kayak"]} alt={t.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              <div key={t.id} className="relative w-full max-w-[325px] aspect-[325/490] mx-auto group cursor-pointer"
+                onClick={() => { setSelectedTour(t); setStep("calendar"); loadSlots(t.id); }}>
+                <div className="absolute inset-0 top-[6px] left-[6px] right-[-6px] bottom-[-6px] sm:top-[10px] sm:left-[10px] sm:right-[-10px] sm:bottom-[-10px] overflow-hidden bg-white shadow-sm transition-all duration-300 sm:group-hover:inset-0 sm:group-hover:top-[5px] sm:group-hover:left-[5px] sm:group-hover:right-[-5px] sm:group-hover:bottom-[-5px] sm:group-hover:shadow-[0_13px_21px_-5px_rgba(0,0,0,0.3)]">
+
+                  {/* Image */}
+                  <div className="absolute top-0 left-0 w-full h-[65%]">
+                    <img src={t.image_url || IMG[t.name] || IMG["Sea Kayak"]} alt={t.name}
+                      className="w-full h-full object-cover" />
+
+                    {/* Teal Overlay */}
+                    <div className="absolute inset-0 bg-[#48cfad] opacity-30 sm:opacity-0 transition-opacity duration-300 sm:group-hover:opacity-70" />
+
+                    {/* Select Tour Button */}
+                    <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-2 border-white text-white text-sm sm:text-base text-center uppercase font-bold px-6 py-2.5 opacity-100 sm:opacity-0 transition-all duration-300 sm:group-hover:opacity-100 hover:bg-white hover:text-[#48cfad] z-10 whitespace-nowrap">
+                      Select Tour
+                    </span>
                   </div>
-                  <div className="flex-1 p-5">
-                    <h3 className="text-xl font-semibold">{t.name}</h3>
-                    <p className="text-gray-500 text-sm mt-1">{t.duration_minutes} min · {t.description || "An incredible kayaking experience along Cape Town's coastline."}</p>
-                    <div className="flex items-center justify-between mt-4">
-                      <div><span className="text-2xl font-bold">R{t.base_price_per_person}</span><span className="text-gray-400 text-sm ml-1">/person</span></div>
-                      <span className="bg-gray-900 text-white px-5 py-2 rounded-lg text-sm font-medium group-hover:bg-gray-700">Select →</span>
+
+                  {/* Stats Container (slides up on hover) */}
+                  <div className="absolute top-[62%] sm:top-[78%] left-0 w-full h-[50%] bg-white px-6 sm:px-8 pt-5 sm:pt-7 pb-6 sm:pb-8 transition-all duration-300 sm:group-hover:top-[55%]">
+                    <div className="float-right text-[#48cfad] text-lg sm:text-[22px] font-semibold">
+                      R{t.base_price_per_person}<span className="text-xs sm:text-sm font-normal text-[#b1b1b3] ml-0.5">/pp</span>
+                    </div>
+                    <div className="text-lg sm:text-[22px] text-[#393c45] font-sans truncate pr-2">
+                      {t.name}
+                    </div>
+                    <p className="text-sm sm:text-[16px] text-[#b1b1b3] py-[2px] mb-3 sm:mb-5">
+                      {t.duration_minutes} minutes
+                    </p>
+                    <div className="text-xs sm:text-sm text-[#969699] line-clamp-3">
+                      {t.description || "An incredible kayaking experience along Cape Town's stunning coastline."}
                     </div>
                   </div>
+
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         </div>

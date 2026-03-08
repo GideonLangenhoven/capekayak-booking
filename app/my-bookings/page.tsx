@@ -101,8 +101,17 @@ function MiniCalendar({ slots, onSelect }: { slots: any[]; onSelect: (id: string
   );
 }
 
+function normalizePhone(raw: string): string {
+  var digits = raw.replace(/\D/g, "");
+  if (digits.startsWith("27") && digits.length >= 11) digits = "0" + digits.slice(2);
+  if (digits.startsWith("0") && digits.length === 10) return "+27" + digits.slice(1);
+  if (digits.length === 9 && !digits.startsWith("0")) return "+27" + digits;
+  return "+27" + digits.replace(/^0+/, "");
+}
+
 export default function MyBookings() {
   var [email, setEmail] = useState("");
+  var [phone, setPhone] = useState("");
   var [loggedIn, setLoggedIn] = useState(false);
   var [bookings, setBookings] = useState<any[]>([]);
   var [loading, setLoading] = useState(false);
@@ -111,19 +120,31 @@ export default function MyBookings() {
   var [rescheduleSlots, setRescheduleSlots] = useState<any[]>([]);
   var [loadingSlots, setLoadingSlots] = useState(false);
   var [emailError, setEmailError] = useState("");
+  var [phoneError, setPhoneError] = useState("");
+  var [loginError, setLoginError] = useState("");
   var [rebookConfirmSlot, setRebookConfirmSlot] = useState<any>(null);
   var [excessAction, setExcessAction] = useState("VOUCHER");
   var [rebookLoading, setRebookLoading] = useState(false);
 
   async function lookupBookings() {
-    if (!email.trim()) return;
+    if (!email.trim() || !phone.trim()) return;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setEmailError("Please enter a valid email"); return; }
+    var phoneDigits = phone.replace(/\D/g, "");
+    if (phoneDigits.length < 9 || phoneDigits.length > 12) { setPhoneError("Please enter a valid phone number"); return; }
     setEmailError("");
+    setPhoneError("");
+    setLoginError("");
     setLoading(true);
+    var norm = normalizePhone(phone);
     var { data } = await supabase.from("bookings")
       .select("id, customer_name, email, phone, qty, total_amount, status, refund_status, created_at, unit_price, tour_id, slot_id, slots(start_time), tours(name)")
-      .eq("email", email.toLowerCase()).order("created_at", { ascending: false });
-    setBookings(data || []);
+      .eq("email", email.toLowerCase()).eq("phone", norm).order("created_at", { ascending: false });
+    if (!data || data.length === 0) {
+      setLoginError("No bookings found for this email and phone number combination. Please check your details and try again.");
+      setLoading(false);
+      return;
+    }
+    setBookings(data);
     setLoggedIn(true);
     setLoading(false);
   }
@@ -277,13 +298,18 @@ export default function MyBookings() {
         <div className="text-center mb-8">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[color:var(--accentSoft)]"><span className="text-3xl">📋</span></div>
           <h2 className="headline-md">Access Your Bookings</h2>
-          <p className="mt-2">Enter the email address you used when booking.</p>
+          <p className="mt-2">Enter the email and phone number you used when booking.</p>
         </div>
-        <Input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setEmailError(""); }}
+        <Input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setEmailError(""); setLoginError(""); }}
           onKeyDown={(e) => e.key === "Enter" && lookupBookings()} placeholder="your@email.com"
           className="mb-2 py-3.5" />
         {emailError && <p className="mb-2 text-xs text-[color:var(--danger)]">{emailError}</p>}
-        <Button onClick={lookupBookings} disabled={loading} fullWidth className="py-3.5">
+        <Input type="tel" value={phone} onChange={(e) => { setPhone(e.target.value); setPhoneError(""); setLoginError(""); }}
+          onKeyDown={(e) => e.key === "Enter" && lookupBookings()} placeholder="081 234 5678"
+          className="mb-2 py-3.5" />
+        {phoneError && <p className="mb-2 text-xs text-[color:var(--danger)]">{phoneError}</p>}
+        {loginError && <p className="mb-3 text-sm text-[color:var(--danger)] text-center">{loginError}</p>}
+        <Button onClick={lookupBookings} disabled={loading || !email.trim() || !phone.trim()} fullWidth className="py-3.5">
           {loading ? "Finding Bookings..." : "Find Bookings"}
         </Button>
       </div>
@@ -294,12 +320,12 @@ export default function MyBookings() {
     <div className="app-container max-w-2xl page-wrap">
       <div className="flex items-center justify-between mb-6">
         <h2 className="headline-md">Your Bookings</h2>
-        <Button onClick={() => { setLoggedIn(false); setBookings([]); setEmail(""); }} variant="ghost" className="px-0 text-sm">Use Another Email</Button>
+        <Button onClick={() => { setLoggedIn(false); setBookings([]); setEmail(""); setPhone(""); setLoginError(""); }} variant="ghost" className="px-0 text-sm">Log Out</Button>
       </div>
-      <p className="text-sm mb-6">{email}</p>
+      <p className="text-sm mb-6">{email} &bull; {phone}</p>
       {bookings.length === 0 ? (
         <div className="empty-state py-16">
-          <p className="mb-4 text-lg text-[color:var(--textMuted)]">No bookings found for this email.</p>
+          <p className="mb-4 text-lg text-[color:var(--textMuted)]">No bookings found for this account.</p>
           <Link href="/" className="btn btn-primary">Browse Tours</Link>
         </div>
       ) : (
