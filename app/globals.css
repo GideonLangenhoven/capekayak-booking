@@ -56,6 +56,13 @@
   --dur-fast: 170ms;
   --dur-base: 200ms;
   --ease-soft: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* Headings typography that can be manually altered */
+  --h-font-weight: 700;
+  --h1-font-size: 2.25rem;
+  --h2-font-size: 1.875rem;
+  --h3-font-size: 1.5rem;
+  --h4-font-size: 1.25rem;
 }
 
 .theme-bold {
@@ -72,6 +79,76 @@
   --warning: var(--b-warning);
   --danger: var(--b-danger);
   --focusRing: var(--b-focusRing);
+}
+
+/* 1. Gentle Sea Breeze */
+.theme-gentle-sea-breeze {
+  --bg: #E1E5F2; /* Lavender */
+  --surface: #FFFFFF; /* White */
+  --surface2: #BFDBF7; /* Pale Sky */
+  --border: #1F7A8C; /* Teal */
+  --text: #022B3A; /* Jet Black */
+  --textMuted: #1F7A8C; /* Teal */
+  --accent: #1F7A8C; /* Teal */
+  --accentHover: #022B3A; /* Jet Black */
+  --accentSoft: #BFDBF7; /* Pale Sky */
+  --focusRing: #1F7A8C; /* Teal */
+}
+
+/* 2. Earthy Green */
+.theme-earthy-green {
+  --bg: #CAD2C5; /* Ash Grey */
+  --surface: #F2F4F0; /* Brighter Ash Grey */
+  --surface2: #CAD2C5; /* Ash Grey */
+  --border: #84A98C; /* Muted Teal */
+  --text: #2F3E46; /* Charcoal Blue (Dark for visibility) */
+  --textMuted: #354F52; /* Dark Slate Grey */
+  --accent: #52796F; /* Deep Teal */
+  --accentHover: #354F52; /* Dark Slate Grey */
+  --accentSoft: rgba(82, 121, 111, 0.2);
+  --focusRing: #52796F; /* Deep Teal */
+}
+
+/* 3. Cherry Blossom */
+.theme-cherry-blossom {
+  --bg: #D8C99B; /* Wheat */
+  --surface: #F8F5EE; /* Lighter Wheat */
+  --surface2: #D8C99B; /* Wheat */
+  --border: #D8973C; /* Golden Apricot */
+  --text: #273E47; /* Charcoal Blue */
+  --textMuted: #A4243B; /* Cherry Rose */
+  --accent: #BD632F; /* Autumn Ember */
+  --accentHover: #A4243B; /* Cherry Rose */
+  --accentSoft: rgba(189, 99, 47, 0.2);
+  --focusRing: #BD632F; /* Autumn Ember */
+}
+
+/* 4. Soft Sand */
+.theme-soft-sand {
+  --bg: #F5EBE0; /* Linen */
+  --surface: #FFFFFF; /* White */
+  --surface2: #EDEDE9; /* Parchment */
+  --border: #D6CCC2; /* Bone */
+  --text: #4A4036; /* Dark brown for high contrast / visibility */
+  --textMuted: #807469; /* Medium brown */
+  --accent: #D5BDAF; /* Almond Silk */
+  --accentHover: #D6CCC2; /* Bone */
+  --accentSoft: #E3D5CA; /* Almond Cream */
+  --focusRing: #D5BDAF; /* Almond Silk */
+}
+
+/* 5. Golden Summer Fields */
+.theme-golden-summer-fields {
+  --bg: #FEFAE0; /* Cornsilk */
+  --surface: #FFFFFF; /* White */
+  --surface2: #FAEDCD; /* Papaya Whip */
+  --border: #E9EDC9; /* Beige */
+  --text: #3D4A27; /* Dark green/brown for visibility */
+  --textMuted: #5A6941; /* Dark sage */
+  --accent: #D4A373; /* Light Bronze */
+  --accentHover: #CCD5AE; /* Dry Sage */
+  --accentSoft: #E9EDC9; /* Beige */
+  --focusRing: #D4A373; /* Light Bronze */
 }
 
 @layer base {
@@ -98,7 +175,13 @@
   h4 {
     color: var(--text);
     letter-spacing: -0.02em;
+    font-weight: var(--h-font-weight);
   }
+
+  h1 { font-size: var(--h1-font-size); }
+  h2 { font-size: var(--h2-font-size); }
+  h3 { font-size: var(--h3-font-size); }
+  h4 { font-size: var(--h4-font-size); }
 
   p {
     color: var(--textMuted);
