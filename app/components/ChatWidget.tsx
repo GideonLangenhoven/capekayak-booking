@@ -57,14 +57,14 @@ export default function ChatWidget() {
           <style>{`@keyframes bookPulse{0%,100%{opacity:1;transform:translateX(-50%) scale(1)}50%{opacity:.7;transform:translateX(-50%) scale(1.05)}}`}</style>
           <span className="absolute -top-9 left-1/2 whitespace-nowrap rounded-full bg-gray-900 px-3 py-1 text-xs font-semibold text-white shadow-md" style={{ animation: "bookPulse 2s ease-in-out infinite" }}>Book here</span>
           {chatbot_avatar ? (
-            <button onClick={() => setOpen(true)} className="w-16 h-16 rounded-full shadow-lg hover:scale-105 transition-all overflow-hidden bg-white border-2 border-gray-200" dangerouslySetInnerHTML={{ __html: `<dotlottie-wc src="${chatbot_avatar}" style="width:100%;height:100%" autoplay loop></dotlottie-wc>` }} />
+            <button onClick={() => setOpen(true)} className="w-20 h-20 rounded-full shadow-lg hover:scale-105 transition-all overflow-hidden bg-white border-2 border-gray-200" dangerouslySetInnerHTML={{ __html: `<dotlottie-wc src="${chatbot_avatar}" style="width:100%;height:100%" autoplay loop></dotlottie-wc>` }} />
           ) : (
-            <button onClick={() => setOpen(true)} className="w-14 h-14 bg-gray-900 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-800 hover:scale-105 transition-all"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+            <button onClick={() => setOpen(true)} className="w-20 h-20 bg-gray-900 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-800 hover:scale-105 transition-all"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg></button>
           )}
         </div>
       )}
       {open && (
-        <div className="fixed bottom-6 right-6 w-[22rem] h-[32rem] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden z-50" style={{animation:"su .2s ease-out"}}>
+        <div className="fixed bottom-6 right-6 w-[22rem] h-[32rem] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden z-50" style={{ animation: "su .2s ease-out" }}>
           <style>{`@keyframes su{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}@keyframes bl{0%,80%,100%{opacity:0}40%{opacity:1}}`}</style>
           <div className="bg-gray-900 text-white p-4 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3"><div className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center text-lg">🛶</div><div><p className="text-sm font-semibold">Cape Kayak</p><div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400"></span><p className="text-xs text-gray-400">Online</p></div></div></div>
@@ -73,7 +73,7 @@ export default function ChatWidget() {
           <div className="flex-1 overflow-auto p-4 space-y-3 bg-gray-50">
             {msgs.map((m, i) => (
               <div key={i}>
-                <div className={"flex " + (m.role === "user" ? "justify-end" : "justify-start")} style={{animation:"su .15s ease-out"}}>
+                <div className={"flex " + (m.role === "user" ? "justify-end" : "justify-start")} style={{ animation: "su .15s ease-out" }}>
                   {m.role === "bot" && <div className="w-7 h-7 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs mr-2 shrink-0 mt-1">🛶</div>}
                   <div className={"max-w-[80%] px-3.5 py-2.5 text-sm leading-relaxed " + (m.role === "user" ? "bg-gray-900 text-white rounded-2xl rounded-br-md" : "bg-white border border-gray-200 text-gray-800 rounded-2xl rounded-bl-md shadow-sm")}><p className="whitespace-pre-wrap">{m.text}</p></div>
                 </div>
@@ -95,13 +95,13 @@ export default function ChatWidget() {
                 )}
               </div>
             ))}
-            {typing && <div className="flex justify-start" style={{animation:"su .15s ease-out"}}><div className="w-7 h-7 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs mr-2 shrink-0">🛶</div><div className="bg-white border border-gray-200 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm"><div className="flex gap-1"><span className="w-2 h-2 rounded-full bg-gray-400" style={{animation:"bl 1.4s infinite 0s"}}/><span className="w-2 h-2 rounded-full bg-gray-400" style={{animation:"bl 1.4s infinite .2s"}}/><span className="w-2 h-2 rounded-full bg-gray-400" style={{animation:"bl 1.4s infinite .4s"}}/></div></div></div>}
-            <div ref={endRef}/>
+            {typing && <div className="flex justify-start" style={{ animation: "su .15s ease-out" }}><div className="w-7 h-7 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs mr-2 shrink-0">🛶</div><div className="bg-white border border-gray-200 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm"><div className="flex gap-1"><span className="w-2 h-2 rounded-full bg-gray-400" style={{ animation: "bl 1.4s infinite 0s" }} /><span className="w-2 h-2 rounded-full bg-gray-400" style={{ animation: "bl 1.4s infinite .2s" }} /><span className="w-2 h-2 rounded-full bg-gray-400" style={{ animation: "bl 1.4s infinite .4s" }} /></div></div></div>}
+            <div ref={endRef} />
           </div>
           <div className="p-3 border-t border-gray-200 bg-white shrink-0">
             <div className="flex gap-2">
-              <input ref={inRef} type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="Type a message..." disabled={typing} className="flex-1 px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:opacity-50"/>
-              <button onClick={() => send()} disabled={!input.trim() || typing} className="bg-gray-900 text-white w-10 h-10 rounded-xl flex items-center justify-center hover:bg-gray-800 disabled:opacity-30 shrink-0"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
+              <input ref={inRef} type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="Type a message..." disabled={typing} className="flex-1 px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:opacity-50" />
+              <button onClick={() => send()} disabled={!input.trim() || typing} className="bg-gray-900 text-white w-10 h-10 rounded-xl flex items-center justify-center hover:bg-gray-800 disabled:opacity-30 shrink-0"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg></button>
             </div>
           </div>
         </div>
