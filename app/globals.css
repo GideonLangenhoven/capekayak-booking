@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Card CTA button hover — uses admin-configurable overlay color */
+.card-cta-btn:hover {
+  background-color: white;
+  color: var(--hoverOverlay, #48cfad);
+}
+
 :root {
   color-scheme: light;
 

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import SectionHeader from "./components/ui/SectionHeader";
 import Card from "./components/ui/Card";
 import { useTheme } from "./components/ThemeProvider";
@@ -14,6 +14,7 @@ const TOUR_IMAGES: Record<string, string> = {
 
 export default function Home() {
   const theme = useTheme();
+  const router = useRouter();
   const [tours, setTours] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -46,39 +47,39 @@ export default function Home() {
         </div>
       )}
 
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-8 justify-items-center" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
         {tours.map((tour) => (
-          <div key={tour.id} className="relative w-[325px] h-[490px] mx-auto group [perspective:800px] mb-8">
-            <div className="absolute top-[10px] left-[10px] w-[325px] h-[490px] overflow-hidden bg-white shadow-sm transition-all duration-300 group-hover:top-[5px] group-hover:left-[5px] group-hover:w-[335px] group-hover:h-[500px] group-hover:shadow-[0_13px_21px_-5px_rgba(0,0,0,0.3)]">
+          <div key={tour.id} className="relative w-[228px] h-[343px] mx-auto group cursor-pointer mb-4"
+            onClick={() => router.push("/book?tour=" + tour.id)}>
+            <div className="absolute top-[7px] left-[7px] w-[228px] h-[343px] overflow-hidden bg-white shadow-sm rounded-2xl transition-all duration-300 group-hover:top-[3px] group-hover:left-[3px] group-hover:w-[234px] group-hover:h-[349px] group-hover:shadow-[0_13px_21px_-5px_rgba(0,0,0,0.3)]">
 
               {/* Image */}
-              <div className="absolute top-0 left-0 w-full h-[390px]">
+              <div className="absolute top-0 left-0 w-full h-[65%]">
                 <img src={tour.image_url || TOUR_IMAGES[tour.name] || TOUR_IMAGES["Sea Kayak"]} alt={tour.name}
                   className="w-full h-full object-cover" />
-
-                {/* Overlay */}
-                <div className="absolute inset-0 bg-[#48cfad] opacity-0 transition-opacity duration-300 group-hover:opacity-70"></div>
-
-                {/* Book Details Button */}
-                <Link href={"/book?tour=" + tour.id}
-                  className="absolute top-[112px] left-1/2 -ml-[85px] w-[172px] border-2 border-white text-white text-[19px] text-center uppercase font-bold py-2.5 opacity-0 transition-all duration-300 group-hover:opacity-100 group-hover:w-[152px] group-hover:-ml-[76px] group-hover:text-[15px] group-hover:top-[115px] hover:bg-white hover:text-[#48cfad] z-10">
+                <div className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-70"
+                  style={{ backgroundColor: 'var(--hoverOverlay, #48cfad)' }} />
+                <span className="card-cta-btn absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-2 border-white text-white text-sm text-center uppercase font-bold px-5 py-2 opacity-0 transition-all duration-300 group-hover:opacity-100 z-10 whitespace-nowrap">
                   Book Tour
-                </Link>
+                </span>
               </div>
 
-              {/* Stats Container (Slide Up) */}
-              <div className="absolute top-[386px] left-0 w-full h-[300px] bg-white px-8 pt-7 pb-8 transition-all duration-300 group-hover:top-[272px]">
-                <div className="float-right text-[#48cfad] text-[22px] font-semibold">
-                  R{tour.base_price_per_person}
-                </div>
-                <div className="text-[22px] text-[#393c45] font-sans truncate pr-2">
+              {/* Stats (slides up on hover) */}
+              <div className="absolute top-[65%] left-0 w-full h-[65%] bg-white px-5 pt-4 pb-5 transition-all duration-300 group-hover:top-[35%] text-left">
+                <div className="text-[30px] text-[#393c45] font-semibold tracking-tight leading-tight line-clamp-2">
                   {tour.name}
                 </div>
-                <p className="text-[16px] text-[#b1b1b3] py-[2px] mb-5">
-                  {tour.duration_minutes} minutes
-                </p>
-                <div className="mt-2 text-sm text-[#969699] line-clamp-3">
-                  {tour.description || "An incredible kayaking experience along Cape Town's stunning coastline."}
+
+                <div className="opacity-0 transition-opacity duration-300 group-hover:opacity-100 mt-2">
+                  <div className="font-semibold text-[18px]" style={{ color: 'var(--hoverOverlay, #48cfad)' }}>
+                    R{tour.base_price_per_person}<span className="text-[12px] font-normal text-[#b1b1b3] ml-0.5">/pp</span>
+                  </div>
+                  <p className="text-xs text-[#b1b1b3] mt-0.5 mb-2">
+                    {tour.duration_minutes} min
+                  </p>
+                  <div className="text-xs text-[#969699] line-clamp-3 leading-relaxed">
+                    {tour.description || "An incredible kayaking experience along Cape Town's stunning coastline."}
+                  </div>
                 </div>
               </div>
 

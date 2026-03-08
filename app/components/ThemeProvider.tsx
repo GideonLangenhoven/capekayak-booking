@@ -8,6 +8,7 @@ type ThemeData = {
   color_cta: string | null;
   color_bg: string | null;
   color_nav: string | null;
+  color_hover: string | null;
   chatbot_avatar: string | null;
   hero_eyebrow: string | null;
   hero_title: string | null;
@@ -17,7 +18,7 @@ type ThemeData = {
   logo_url: string | null;
 };
 
-var ThemeCtx = createContext<ThemeData>({ color_main: null, color_secondary: null, color_cta: null, color_bg: null, color_nav: null, chatbot_avatar: null, hero_eyebrow: null, hero_title: null, hero_subtitle: null, business_name: null, business_tagline: null, logo_url: null });
+var ThemeCtx = createContext<ThemeData>({ color_main: null, color_secondary: null, color_cta: null, color_bg: null, color_nav: null, color_hover: null, chatbot_avatar: null, hero_eyebrow: null, hero_title: null, hero_subtitle: null, business_name: null, business_tagline: null, logo_url: null });
 
 export function useTheme() { return useContext(ThemeCtx); }
 
@@ -41,11 +42,11 @@ function lighten(hex: string, pct: number) {
 }
 
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {
-  var [theme, setTheme] = useState<ThemeData>({ color_main: null, color_secondary: null, color_cta: null, color_bg: null, color_nav: null, chatbot_avatar: null, hero_eyebrow: null, hero_title: null, hero_subtitle: null, business_name: null, business_tagline: null, logo_url: null });
+  var [theme, setTheme] = useState<ThemeData>({ color_main: null, color_secondary: null, color_cta: null, color_bg: null, color_nav: null, color_hover: null, chatbot_avatar: null, hero_eyebrow: null, hero_title: null, hero_subtitle: null, business_name: null, business_tagline: null, logo_url: null });
 
   useEffect(() => {
     (async () => {
-      var { data } = await supabase.from("businesses").select("color_main, color_secondary, color_cta, color_bg, color_nav, chatbot_avatar, hero_eyebrow, hero_title, hero_subtitle, business_name, business_tagline, logo_url").limit(1).single();
+      var { data } = await supabase.from("businesses").select("color_main, color_secondary, color_cta, color_bg, color_nav, color_hover, chatbot_avatar, hero_eyebrow, hero_title, hero_subtitle, business_name, business_tagline, logo_url").limit(1).single();
       if (data) setTheme(data);
     })();
     // Load dotlottie script for animated avatars
@@ -81,6 +82,9 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
     if (theme.color_nav) {
       root.style.setProperty("--surface", theme.color_nav);
       root.style.setProperty("--border", darken(theme.color_nav, 12));
+    }
+    if (theme.color_hover) {
+      root.style.setProperty("--hoverOverlay", theme.color_hover);
     }
   }, [theme]);
 
