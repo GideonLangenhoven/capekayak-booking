@@ -23,7 +23,6 @@ export default function Header() {
           </div>
         </Link>
         <nav className="flex items-center gap-1 text-sm">
-          <Link href="/" className="btn btn-ghost px-3 py-2">Tours</Link>
           <Link href="/voucher" className="btn btn-ghost px-3 py-2">Gift Voucher</Link>
           <Link href="/my-bookings" className="btn btn-primary px-4 py-2">My Bookings</Link>
         </nav>
