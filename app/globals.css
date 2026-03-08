@@ -83,75 +83,169 @@
 
 /* 1. Gentle Sea Breeze */
 .theme-gentle-sea-breeze {
-  --bg: #E1E5F2; /* Lavender */
-  --surface: #FFFFFF; /* White */
-  --surface2: #BFDBF7; /* Pale Sky */
-  --border: #1F7A8C; /* Teal */
-  --text: #022B3A; /* Jet Black */
-  --textMuted: #1F7A8C; /* Teal */
-  --accent: #1F7A8C; /* Teal */
-  --accentHover: #022B3A; /* Jet Black */
-  --accentSoft: #BFDBF7; /* Pale Sky */
-  --focusRing: #1F7A8C; /* Teal */
+  --bg: #E1E5F2;
+  /* Lavender */
+  --surface: #FFFFFF;
+  /* White */
+  --surface2: #BFDBF7;
+  /* Pale Sky */
+  --border: #1F7A8C;
+  /* Teal */
+  --text: #022B3A;
+  /* Jet Black */
+  --textMuted: #1F7A8C;
+  /* Teal */
+  --accent: #1F7A8C;
+  /* Teal */
+  --accentHover: #022B3A;
+  /* Jet Black */
+  --accentSoft: #BFDBF7;
+  /* Pale Sky */
+  --focusRing: #1F7A8C;
+  /* Teal */
 }
 
 /* 2. Earthy Green */
 .theme-earthy-green {
-  --bg: #CAD2C5; /* Ash Grey */
-  --surface: #F2F4F0; /* Brighter Ash Grey */
-  --surface2: #CAD2C5; /* Ash Grey */
-  --border: #84A98C; /* Muted Teal */
-  --text: #2F3E46; /* Charcoal Blue (Dark for visibility) */
-  --textMuted: #354F52; /* Dark Slate Grey */
-  --accent: #52796F; /* Deep Teal */
-  --accentHover: #354F52; /* Dark Slate Grey */
+  --bg: #CAD2C5;
+  /* Ash Grey */
+  --surface: #F2F4F0;
+  /* Brighter Ash Grey */
+  --surface2: #CAD2C5;
+  /* Ash Grey */
+  --border: #84A98C;
+  /* Muted Teal */
+  --text: #2F3E46;
+  /* Charcoal Blue (Dark for visibility) */
+  --textMuted: #354F52;
+  /* Dark Slate Grey */
+  --accent: #52796F;
+  /* Deep Teal */
+  --accentHover: #354F52;
+  /* Dark Slate Grey */
   --accentSoft: rgba(82, 121, 111, 0.2);
-  --focusRing: #52796F; /* Deep Teal */
+  --focusRing: #52796F;
+  /* Deep Teal */
 }
 
 /* 3. Cherry Blossom */
 .theme-cherry-blossom {
-  --bg: #D8C99B; /* Wheat */
-  --surface: #F8F5EE; /* Lighter Wheat */
-  --surface2: #D8C99B; /* Wheat */
-  --border: #D8973C; /* Golden Apricot */
-  --text: #273E47; /* Charcoal Blue */
-  --textMuted: #A4243B; /* Cherry Rose */
-  --accent: #BD632F; /* Autumn Ember */
-  --accentHover: #A4243B; /* Cherry Rose */
+  --bg: #D8C99B;
+  /* Wheat */
+  --surface: #F8F5EE;
+  /* Lighter Wheat */
+  --surface2: #D8C99B;
+  /* Wheat */
+  --border: #D8973C;
+  /* Golden Apricot */
+  --text: #273E47;
+  /* Charcoal Blue */
+  --textMuted: #A4243B;
+  /* Cherry Rose */
+  --accent: #BD632F;
+  /* Autumn Ember */
+  --accentHover: #A4243B;
+  /* Cherry Rose */
   --accentSoft: rgba(189, 99, 47, 0.2);
-  --focusRing: #BD632F; /* Autumn Ember */
+  --focusRing: #BD632F;
+  /* Autumn Ember */
 }
 
 /* 4. Soft Sand */
 .theme-soft-sand {
-  --bg: #F5EBE0; /* Linen */
-  --surface: #FFFFFF; /* White */
-  --surface2: #EDEDE9; /* Parchment */
-  --border: #D6CCC2; /* Bone */
-  --text: #4A4036; /* Dark brown for high contrast / visibility */
-  --textMuted: #807469; /* Medium brown */
-  --accent: #D5BDAF; /* Almond Silk */
-  --accentHover: #D6CCC2; /* Bone */
-  --accentSoft: #E3D5CA; /* Almond Cream */
-  --focusRing: #D5BDAF; /* Almond Silk */
+  --bg: #F5EBE0;
+  /* Linen */
+  --surface: #FFFFFF;
+  /* White */
+  --surface2: #EDEDE9;
+  /* Parchment */
+  --border: #D6CCC2;
+  /* Bone */
+  --text: #4A4036;
+  /* Dark brown for high contrast / visibility */
+  --textMuted: #807469;
+  /* Medium brown */
+  --accent: #D5BDAF;
+  /* Almond Silk */
+  --accentHover: #D6CCC2;
+  /* Bone */
+  --accentSoft: #E3D5CA;
+  /* Almond Cream */
+  --focusRing: #D5BDAF;
+  /* Almond Silk */
 }
 
 /* 5. Golden Summer Fields */
 .theme-golden-summer-fields {
-  --bg: #FEFAE0; /* Cornsilk */
-  --surface: #FFFFFF; /* White */
-  --surface2: #FAEDCD; /* Papaya Whip */
-  --border: #E9EDC9; /* Beige */
-  --text: #3D4A27; /* Dark green/brown for visibility */
-  --textMuted: #5A6941; /* Dark sage */
-  --accent: #D4A373; /* Light Bronze */
-  --accentHover: #CCD5AE; /* Dry Sage */
-  --accentSoft: #E9EDC9; /* Beige */
-  --focusRing: #D4A373; /* Light Bronze */
+  --bg: #FEFAE0;
+  /* Cornsilk */
+  --surface: #FFFFFF;
+  /* White */
+  --surface2: #FAEDCD;
+  /* Papaya Whip */
+  --border: #E9EDC9;
+  /* Beige */
+  --text: #3D4A27;
+  /* Dark green/brown for visibility */
+  --textMuted: #5A6941;
+  /* Dark sage */
+  --accent: #D4A373;
+  /* Light Bronze */
+  --accentHover: #CCD5AE;
+  /* Dry Sage */
+  --accentSoft: #E9EDC9;
+  /* Beige */
+  --focusRing: #D4A373;
+  /* Light Bronze */
+}
+
+/* 6. Pastel Dreams */
+.theme-pastel-dreams {
+  --bg: #FCF6BD;
+  /* Lemon Chiffon */
+  --surface: #FFFFFF;
+  /* White */
+  --surface2: #D0F4DE;
+  /* Frosted Mint */
+  --border: #A9DEF9;
+  /* Icy Blue */
+  --text: #2D3748;
+  /* Dark grey-blue for readability */
+  --textMuted: #4A5568;
+  --accent: #FF99C8;
+  /* Baby Pink */
+  --accentHover: #E4C1F9;
+  /* Mauve */
+  --accentSoft: rgba(255, 153, 200, 0.2);
+  --focusRing: #FF99C8;
+  /* Baby Pink */
+}
+
+/* 7. Purple Haze */
+.theme-purple-haze {
+  --bg: #E8D7F1;
+  /* Lavender Veil */
+  --surface: #F8F4FA;
+  /* Lightened Veil */
+  --surface2: #D3BCCC;
+  /* Thistle */
+  --border: #A167A5;
+  /* Vintage Lavender */
+  --text: #0E273C;
+  /* Deep Space Blue */
+  --textMuted: #4A306D;
+  /* Indigo Velvet */
+  --accent: #A167A5;
+  /* Vintage Lavender */
+  --accentHover: #4A306D;
+  /* Indigo Velvet */
+  --accentSoft: rgba(161, 103, 165, 0.2);
+  --focusRing: #A167A5;
+  /* Vintage Lavender */
 }
 
 @layer base {
+
   html,
   body {
     min-height: 100%;
@@ -178,10 +272,21 @@
     font-weight: var(--h-font-weight);
   }
 
-  h1 { font-size: var(--h1-font-size); }
-  h2 { font-size: var(--h2-font-size); }
-  h3 { font-size: var(--h3-font-size); }
-  h4 { font-size: var(--h4-font-size); }
+  h1 {
+    font-size: var(--h1-font-size);
+  }
+
+  h2 {
+    font-size: var(--h2-font-size);
+  }
+
+  h3 {
+    font-size: var(--h3-font-size);
+  }
+
+  h4 {
+    font-size: var(--h4-font-size);
+  }
 
   p {
     color: var(--textMuted);
@@ -402,6 +507,7 @@
     opacity: 0;
     transform: translateY(8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -413,6 +519,7 @@
     opacity: 0;
     transform: translateY(12px) scale(0.99);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -423,6 +530,7 @@
   from {
     background-position: 200% 0;
   }
+
   to {
     background-position: -20% 0;
   }
@@ -434,19 +542,68 @@
   line-height: 1.7;
   color: var(--text);
 }
-.prose h1 { font-size: 1.75rem; font-weight: 700; margin: 1.2em 0 0.5em; letter-spacing: -0.02em; }
-.prose h2 { font-size: 1.4rem; font-weight: 600; margin: 1em 0 0.4em; letter-spacing: -0.02em; }
-.prose h3 { font-size: 1.15rem; font-weight: 600; margin: 0.8em 0 0.3em; }
-.prose p { margin: 0.6em 0; color: var(--textMuted); }
-.prose ul, .prose ol { padding-left: 1.5em; margin: 0.6em 0; color: var(--textMuted); }
-.prose ul { list-style-type: disc; }
-.prose ol { list-style-type: decimal; }
-.prose li { margin: 0.25em 0; }
-.prose strong { font-weight: 600; color: var(--text); }
-.prose a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
-.prose a:hover { color: var(--accentHover); }
+
+.prose h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 1.2em 0 0.5em;
+  letter-spacing: -0.02em;
+}
+
+.prose h2 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin: 1em 0 0.4em;
+  letter-spacing: -0.02em;
+}
+
+.prose h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 0.8em 0 0.3em;
+}
+
+.prose p {
+  margin: 0.6em 0;
+  color: var(--textMuted);
+}
+
+.prose ul,
+.prose ol {
+  padding-left: 1.5em;
+  margin: 0.6em 0;
+  color: var(--textMuted);
+}
+
+.prose ul {
+  list-style-type: disc;
+}
+
+.prose ol {
+  list-style-type: decimal;
+}
+
+.prose li {
+  margin: 0.25em 0;
+}
+
+.prose strong {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.prose a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.prose a:hover {
+  color: var(--accentHover);
+}
 
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {
