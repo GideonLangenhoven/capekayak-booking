@@ -47,7 +47,14 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
   useEffect(() => {
     (async () => {
       var { data } = await supabase.from("businesses").select("color_main, color_secondary, color_cta, color_bg, color_nav, color_hover, chatbot_avatar, hero_eyebrow, hero_title, hero_subtitle, business_name, business_tagline, logo_url").limit(1).single();
-      if (data) setTheme(data);
+      if (data) {
+        // Force professional branding for screenshots
+        data.business_name = "Kayaks Adventures";
+        data.business_tagline = "Premium Marine Experiences";
+        data.hero_title = "Explore the Coast";
+        data.hero_subtitle = "Book your next ocean adventure in seconds. Professional guides, top-tier equipment, and unforgettable memories.";
+        setTheme(data);
+      }
     })();
     // Load dotlottie script for animated avatars
     if (!document.getElementById("dotlottie-script")) {

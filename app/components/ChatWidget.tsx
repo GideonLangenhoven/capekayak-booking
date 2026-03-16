@@ -5,7 +5,7 @@ import ChatCalendar from "./ChatCalendar";
 import { useTheme } from "./ThemeProvider";
 type Msg = { role: "user" | "bot"; text: string; buttons?: any[]; paymentUrl?: string; calendar?: any[] };
 export default function ChatWidget() {
-  var { chatbot_avatar } = useTheme();
+  var { chatbot_avatar, business_name } = useTheme();
   var [open, setOpen] = useState(false);
   var [msgs, setMsgs] = useState<Msg[]>([]);
   var [input, setInput] = useState("");
@@ -54,8 +54,17 @@ export default function ChatWidget() {
     <>
       {!open && (
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-center">
-          <style>{`@keyframes bookPulse{0%,100%{opacity:1;transform:translateX(-50%) scale(1)}50%{opacity:.7;transform:translateX(-50%) scale(1.05)}}`}</style>
-          <span className="absolute -top-9 left-1/2 whitespace-nowrap rounded-full bg-gray-900 px-3 py-1 text-xs font-semibold text-white shadow-md" style={{ animation: "bookPulse 2s ease-in-out infinite" }}>Book here</span>
+          <style>{`
+            @keyframes blurFadeInOut {
+              0%   { opacity:0; text-shadow:0 0 40px #fff; transform:translateX(-50%) scale(1.3); }
+              20%, 75% { opacity:1; text-shadow:0 0 1px #fff;  transform:translateX(-50%) scale(1);   }
+              100% { opacity:0; text-shadow:0 0 50px #fff; transform:translateX(-50%) scale(0);   }
+            }
+          `}</style>
+          <span
+            className="absolute -top-9 left-1/2 whitespace-nowrap text-[21px] font-semibold text-black"
+            style={{ animation: "blurFadeInOut 3s ease-in-out infinite" }}
+          >Book here</span>
           {chatbot_avatar ? (
             <button onClick={() => setOpen(true)} className="w-20 h-20 rounded-full shadow-lg hover:scale-105 transition-all overflow-hidden bg-white border-2 border-gray-200" dangerouslySetInnerHTML={{ __html: `<dotlottie-wc src="${chatbot_avatar}" style="width:100%;height:100%" autoplay loop></dotlottie-wc>` }} />
           ) : (
@@ -67,7 +76,7 @@ export default function ChatWidget() {
         <div className="fixed bottom-6 right-6 w-[22rem] h-[32rem] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden z-50" style={{ animation: "su .2s ease-out" }}>
           <style>{`@keyframes su{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}@keyframes bl{0%,80%,100%{opacity:0}40%{opacity:1}}`}</style>
           <div className="bg-gray-900 text-white p-4 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-3"><div className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center text-lg">🛶</div><div><p className="text-sm font-semibold">Cape Kayak</p><div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400"></span><p className="text-xs text-gray-400">Online</p></div></div></div>
+            <div className="flex items-center gap-3"><div className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center text-lg">🛶</div><div><p className="text-sm font-semibold">{business_name || "Kayaks"}</p><div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400"></span><p className="text-xs text-gray-400">Online</p></div></div></div>
             <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10">✕</button>
           </div>
           <div className="flex-1 overflow-auto p-4 space-y-3 bg-gray-50">

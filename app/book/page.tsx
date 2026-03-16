@@ -17,7 +17,7 @@ function getFirstDay(y: number, m: number) { return new Date(y, m, 1).getDay(); 
 function BookingFlow() {
   const params = useSearchParams();
   const tourId = params.get("tour");
-  const [step, setStep] = useState<"tour" | "calendar" | "details" | "payment">("tour");
+  const [step, setStep] = useState<"calendar" | "details" | "payment">("calendar");
   const [tours, setTours] = useState<any[]>([]);
   const [selectedTour, setSelectedTour] = useState<any>(null);
   const [allSlots, setAllSlots] = useState<any[]>([]);
@@ -48,7 +48,7 @@ function BookingFlow() {
     (async () => {
       const { data } = await supabase.from("tours").select("*").order("base_price_per_person");
       setTours(data || []);
-      if (tourId) { const t = (data || []).find((x: any) => x.id === tourId); if (t) { setSelectedTour(t); setStep("calendar"); loadSlots(t.id); } }
+      if (tourId) { const t = (data || []).find((x: any) => x.id === tourId); if (t) { setSelectedTour(t); loadSlots(t.id); } }
       setLoading(false);
     })();
   }, [tourId]);
@@ -182,8 +182,8 @@ function BookingFlow() {
     <div className="max-w-3xl mx-auto px-4 py-8">
       {/* Progress */}
       <div className="flex items-center gap-1 mb-10">
-        {[{ l: "Tour", s: "tour" }, { l: "Date & Time", s: "calendar" }, { l: "Details", s: "details" }, { l: "Payment", s: "payment" }].map((x, i) => {
-          const steps = ["tour", "calendar", "details", "payment"];
+        {[{ l: "Date & Time", s: "calendar" }, { l: "Details", s: "details" }, { l: "Payment", s: "payment" }].map((x, i) => {
+          const steps = ["calendar", "details", "payment"];
           const ci = steps.indexOf(step);
           const active = i <= ci;
           return (
@@ -194,68 +194,16 @@ function BookingFlow() {
                 </div>
                 <span className={"text-sm hidden sm:block " + (active ? "text-gray-900 font-medium" : "text-gray-400")}>{x.l}</span>
               </div>
-              {i < 3 && <div className={"h-0.5 flex-1 mx-2 rounded " + (active && i < ci ? "bg-gray-900" : "bg-gray-200")} />}
+              {i < 2 && <div className={"h-0.5 flex-1 mx-2 rounded " + (active && i < ci ? "bg-gray-900" : "bg-gray-200")} />}
             </div>
           );
         })}
       </div>
 
-      {/* STEP 1: Tour */}
-      {step === "tour" && (
-        <div>
-          <h2 className="text-3xl font-bold mb-2 text-center">Choose Your Adventure</h2>
-          <p className="text-gray-500 mb-10 text-center">Select a tour to see available dates.</p>
-          <div className="grid gap-8 justify-items-center" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-            {tours.map(t => (
-              <div key={t.id} className="relative w-full max-w-[228px] aspect-[228/343] mx-auto group cursor-pointer"
-                onClick={() => { setSelectedTour(t); setStep("calendar"); loadSlots(t.id); }}>
-                <div className="absolute inset-0 top-[4px] left-[4px] right-[-4px] bottom-[-4px] sm:top-[7px] sm:left-[7px] sm:right-[-7px] sm:bottom-[-7px] overflow-hidden bg-white shadow-sm rounded-2xl transition-all duration-300 sm:group-hover:inset-0 sm:group-hover:top-[3px] sm:group-hover:left-[3px] sm:group-hover:right-[-3px] sm:group-hover:bottom-[-3px] sm:group-hover:shadow-[0_13px_21px_-5px_rgba(0,0,0,0.3)]">
-
-                  {/* Image */}
-                  <div className="absolute top-0 left-0 w-full h-[65%]">
-                    <img src={t.image_url || IMG[t.name] || IMG["Sea Kayak"]} alt={t.name}
-                      className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 opacity-30 sm:opacity-0 transition-opacity duration-300 sm:group-hover:opacity-70"
-                      style={{ backgroundColor: 'var(--hoverOverlay, #48cfad)' }} />
-                    <span className="card-cta-btn absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-2 border-white text-white text-xs sm:text-sm text-center uppercase font-bold px-5 py-2 opacity-100 sm:opacity-0 transition-all duration-300 sm:group-hover:opacity-100 z-10 whitespace-nowrap">
-                      Select Tour
-                    </span>
-                  </div>
-
-                  {/* Stats (slides up on hover) */}
-                  <div className="absolute top-[65%] left-0 w-full h-[65%] bg-white px-4 sm:px-5 pt-3 sm:pt-4 pb-4 sm:pb-5 transition-all duration-300 sm:group-hover:top-[35%] text-left">
-                    <div className="text-[30px] text-[#393c45] font-semibold tracking-tight leading-tight line-clamp-2">
-                      {t.name}
-                    </div>
-
-                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 mt-1 transition-all duration-300 sm:group-hover:mt-2">
-                      <div className="font-semibold text-[16px]" style={{ color: 'var(--hoverOverlay, #48cfad)' }}>
-                        R{t.base_price_per_person}<span className="text-[11px] font-normal text-[#b1b1b3] ml-0.5">/pp</span>
-                      </div>
-                      <div className="text-xs text-[#b1b1b3]">
-                        • {t.duration_minutes} min
-                      </div>
-                    </div>
-
-                    <div className="opacity-0 transition-opacity duration-300 sm:group-hover:opacity-100 mt-2">
-                      <div className="text-[11px] sm:text-xs text-[#969699] line-clamp-4 leading-relaxed">
-                        {t.description || "An incredible kayaking experience along Cape Town's stunning coastline."}
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* STEP 2: Calendar */}
+      {/* STEP 1: Calendar */}
       {step === "calendar" && (
         <div>
-          <button onClick={() => { setStep("tour"); setSelectedTour(null); setSelectedDate(null); setSelectedSlot(null); }}
-            className="text-sm text-gray-500 mb-6 hover:text-gray-900">← Back to tours</button>
+          <a href="/" className="text-sm text-gray-500 mb-6 hover:text-gray-900 inline-block">← Back to tours</a>
           <div className="flex items-center gap-4 mb-8 p-4 bg-gray-50 rounded-xl">
             <div className="w-12 h-12 bg-gray-900 text-white rounded-xl flex items-center justify-center text-xl">🛶</div>
             <div><h3 className="font-semibold text-lg">{selectedTour?.name}</h3><p className="text-gray-500 text-sm">{selectedTour?.duration_minutes} min · R{selectedTour?.base_price_per_person}/pp</p></div>
@@ -295,7 +243,7 @@ function BookingFlow() {
         </div>
       )}
 
-      {/* STEP 3: Details */}
+      {/* STEP 2: Details */}
       {step === "details" && (
         <div>
           <button onClick={() => setStep("calendar")} className="text-sm text-gray-500 mb-6 hover:text-gray-900">← Back to calendar</button>
@@ -361,7 +309,7 @@ function BookingFlow() {
         </div>
       )}
 
-      {/* STEP 4: Payment */}
+      {/* STEP 3: Payment */}
       {step === "payment" && (
         <div className="text-center py-16 max-w-md mx-auto">
           {paymentUrl === "FREE" ? (

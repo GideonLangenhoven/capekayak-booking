@@ -101,17 +101,72 @@ function MiniCalendar({ slots, onSelect }: { slots: any[]; onSelect: (id: string
   );
 }
 
-function normalizePhone(raw: string): string {
-  var digits = raw.replace(/\D/g, "");
-  if (digits.startsWith("27") && digits.length >= 11) digits = "0" + digits.slice(2);
-  if (digits.startsWith("0") && digits.length === 10) return "+27" + digits.slice(1);
-  if (digits.length === 9 && !digits.startsWith("0")) return "+27" + digits;
-  return "+27" + digits.replace(/^0+/, "");
+const DIAL_CODES = [
+  { code: "+27",  flag: "🇿🇦", country: "South Africa" },
+  { code: "+1",   flag: "🇺🇸", country: "United States" },
+  { code: "+1",   flag: "🇨🇦", country: "Canada" },
+  { code: "+44",  flag: "🇬🇧", country: "United Kingdom" },
+  { code: "+61",  flag: "🇦🇺", country: "Australia" },
+  { code: "+64",  flag: "🇳🇿", country: "New Zealand" },
+  { code: "+49",  flag: "🇩🇪", country: "Germany" },
+  { code: "+33",  flag: "🇫🇷", country: "France" },
+  { code: "+31",  flag: "🇳🇱", country: "Netherlands" },
+  { code: "+32",  flag: "🇧🇪", country: "Belgium" },
+  { code: "+41",  flag: "🇨🇭", country: "Switzerland" },
+  { code: "+43",  flag: "🇦🇹", country: "Austria" },
+  { code: "+34",  flag: "🇪🇸", country: "Spain" },
+  { code: "+39",  flag: "🇮🇹", country: "Italy" },
+  { code: "+351", flag: "🇵🇹", country: "Portugal" },
+  { code: "+46",  flag: "🇸🇪", country: "Sweden" },
+  { code: "+47",  flag: "🇳🇴", country: "Norway" },
+  { code: "+45",  flag: "🇩🇰", country: "Denmark" },
+  { code: "+358",flag: "🇫🇮", country: "Finland" },
+  { code: "+353",flag: "🇮🇪", country: "Ireland" },
+  { code: "+48",  flag: "🇵🇱", country: "Poland" },
+  { code: "+420",flag: "🇨🇿", country: "Czech Republic" },
+  { code: "+36",  flag: "🇭🇺", country: "Hungary" },
+  { code: "+40",  flag: "🇷🇴", country: "Romania" },
+  { code: "+7",   flag: "🇷🇺", country: "Russia" },
+  { code: "+380",flag: "🇺🇦", country: "Ukraine" },
+  { code: "+90",  flag: "🇹🇷", country: "Turkey" },
+  { code: "+972",flag: "🇮🇱", country: "Israel" },
+  { code: "+971",flag: "🇦🇪", country: "UAE" },
+  { code: "+966",flag: "🇸🇦", country: "Saudi Arabia" },
+  { code: "+254",flag: "🇰🇪", country: "Kenya" },
+  { code: "+255",flag: "🇹🇿", country: "Tanzania" },
+  { code: "+256",flag: "🇺🇬", country: "Uganda" },
+  { code: "+260",flag: "🇿🇲", country: "Zambia" },
+  { code: "+263",flag: "🇿🇼", country: "Zimbabwe" },
+  { code: "+267",flag: "🇧🇼", country: "Botswana" },
+  { code: "+264",flag: "🇳🇦", country: "Namibia" },
+  { code: "+268",flag: "🇸🇿", country: "Eswatini" },
+  { code: "+266",flag: "🇱🇸", country: "Lesotho" },
+  { code: "+258",flag: "🇲🇿", country: "Mozambique" },
+  { code: "+213",flag: "🇩🇿", country: "Algeria" },
+  { code: "+20",  flag: "🇪🇬", country: "Egypt" },
+  { code: "+234",flag: "🇳🇬", country: "Nigeria" },
+  { code: "+233",flag: "🇬🇭", country: "Ghana" },
+  { code: "+91",  flag: "🇮🇳", country: "India" },
+  { code: "+86",  flag: "🇨🇳", country: "China" },
+  { code: "+81",  flag: "🇯🇵", country: "Japan" },
+  { code: "+82",  flag: "🇰🇷", country: "South Korea" },
+  { code: "+65",  flag: "🇸🇬", country: "Singapore" },
+  { code: "+60",  flag: "🇲🇾", country: "Malaysia" },
+  { code: "+66",  flag: "🇹🇭", country: "Thailand" },
+  { code: "+55",  flag: "🇧🇷", country: "Brazil" },
+  { code: "+54",  flag: "🇦🇷", country: "Argentina" },
+  { code: "+52",  flag: "🇲🇽", country: "Mexico" },
+];
+
+function normalizePhone(dialCode: string, digits: string): string {
+  var clean = digits.replace(/\D/g, "").replace(/^0+/, "");
+  return dialCode + clean;
 }
 
 export default function MyBookings() {
   var [email, setEmail] = useState("");
-  var [phone, setPhone] = useState("");
+  var [dialCode, setDialCode] = useState("+27");
+  var [phoneDigits, setPhoneDigits] = useState("");
   var [loggedIn, setLoggedIn] = useState(false);
   var [bookings, setBookings] = useState<any[]>([]);
   var [loading, setLoading] = useState(false);
@@ -125,19 +180,73 @@ export default function MyBookings() {
   var [rebookConfirmSlot, setRebookConfirmSlot] = useState<any>(null);
   var [excessAction, setExcessAction] = useState("VOUCHER");
   var [rebookLoading, setRebookLoading] = useState(false);
+  var [reviewingId, setReviewingId] = useState<string | null>(null);
+
+  function getHrsBefore(b: any) {
+    if (!b.slots?.start_time) return 999;
+    var start = new Date(b.slots.start_time).getTime();
+    var now = new Date().getTime();
+    return (start - now) / (1000 * 60 * 60);
+  }
+
+  async function requestAdminReview(b: any, action: string) {
+    if (!confirm("Your trip is within 24 hours. Would you like to send a request to our team to review this " + action + "?")) return;
+    setReviewingId(b.id);
+    var hrs = getHrsBefore(b);
+    var msg = `[URGENT] Request to ${action.toUpperCase()} for booking ${b.id.substring(0, 8).toUpperCase()} (Trip in ${Math.round(hrs)}h). Customer: ${b.customer_name}`;
+    await supabase.from("chat_messages").insert({
+      business_id: b.business_id || "c8b439f5-c11e-4d46-b347-943df6f172b4",
+      phone: b.phone,
+      direction: "IN",
+      body: msg,
+      sender: b.customer_name
+    });
+    alert("Request sent! Our team will review your request and get back to you shortly.");
+    setReviewingId(null);
+  }
+
+  async function requestRefund(b: any) {
+    if (getHrsBefore(b) < 24) return requestAdminReview(b, "refund");
+    if (!confirm("Request a full refund for this booking?")) return;
+    setReviewingId(b.id);
+    await supabase.from("bookings").update({ refund_status: "REQUESTED", refund_amount: b.total_amount }).eq("id", b.id);
+    alert("Refund request submitted for approval. Once reviewed by our team, it usually takes 5-7 business days to reflect.");
+    lookupBookings();
+    setReviewingId(null);
+  }
+
+  async function convertToVoucher(b: any) {
+    if (getHrsBefore(b) < 24) return requestAdminReview(b, "convert to voucher");
+    if (!confirm("Convert this booking to a gift voucher?")) return;
+    setReviewingId(b.id);
+    // In a real app, this should call an edge function to generate the voucher. 
+    // For now we mark it for admin action.
+    await supabase.from("bookings").update({ status: "CANCELLED", refund_status: "NONE", cancellation_reason: "Converted to voucher via web" }).eq("id", b.id);
+    const msg = `[VOUCHER REQUEST] Please generate a voucher for ${b.customer_name} (Booking ${b.id.substring(0, 8).toUpperCase()} - R${b.total_amount})`;
+    await supabase.from("chat_messages").insert({
+      business_id: b.business_id || "c8b439f5-c11e-4d46-b347-943df6f172b4",
+      phone: b.phone,
+      direction: "IN",
+      body: msg,
+      sender: b.customer_name
+    });
+    alert("Request received! We'll send your voucher code via email and WhatsApp shortly.");
+    lookupBookings();
+    setReviewingId(null);
+  }
 
   async function lookupBookings() {
-    if (!email.trim() || !phone.trim()) return;
+    if (!email.trim() || !phoneDigits.trim()) return;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setEmailError("Please enter a valid email"); return; }
-    var phoneDigits = phone.replace(/\D/g, "");
-    if (phoneDigits.length < 9 || phoneDigits.length > 12) { setPhoneError("Please enter a valid phone number"); return; }
+    var cleanDigits = phoneDigits.replace(/\D/g, "");
+    if (cleanDigits.length < 6 || cleanDigits.length > 12) { setPhoneError("Please enter a valid phone number"); return; }
     setEmailError("");
     setPhoneError("");
     setLoginError("");
     setLoading(true);
-    var norm = normalizePhone(phone);
+    var norm = normalizePhone(dialCode, phoneDigits);
     var { data } = await supabase.from("bookings")
-      .select("id, customer_name, email, phone, qty, total_amount, status, refund_status, created_at, unit_price, tour_id, slot_id, slots(start_time), tours(name)")
+      .select("id, business_id, customer_name, email, phone, qty, total_amount, status, refund_status, created_at, unit_price, tour_id, slot_id, slots(start_time), tours(name)")
       .eq("email", email.toLowerCase()).eq("phone", norm).order("created_at", { ascending: false });
     if (!data || data.length === 0) {
       setLoginError("No bookings found for this email and phone number combination. Please check your details and try again.");
@@ -150,10 +259,13 @@ export default function MyBookings() {
   }
 
   async function cancelBooking(id: string, total: number) {
-    if (!confirm("Cancel this booking? You'll receive a full refund.")) return;
-    setCancellingId(id);
     var b = bookings.find(x => x.id === id);
-    await supabase.from("bookings").update({ status: "CANCELLED", cancelled_at: new Date().toISOString(), cancellation_reason: "Cancelled via web", refund_status: "REQUESTED", refund_amount: total }).eq("id", id);
+    if (!b) return;
+    if (getHrsBefore(b) < 24) return requestAdminReview(b, "cancel");
+    if (!confirm("Cancel this booking? A refund request (less 5% booking fee) will be submitted to our team for approval.")) return;
+    setCancellingId(id);
+    var refundAmt = Math.round(total * 0.95 * 100) / 100;
+    await supabase.from("bookings").update({ status: "CANCELLED", cancelled_at: new Date().toISOString(), cancellation_reason: "Cancelled via web", refund_status: "REQUESTED", refund_amount: refundAmt }).eq("id", id);
     if (b?.slot_id) {
       var { data: sl } = await supabase.from("slots").select("booked").eq("id", b.slot_id).single();
       if (sl) await supabase.from("slots").update({ booked: Math.max(0, sl.booked - b.qty) }).eq("id", b.slot_id);
@@ -304,12 +416,35 @@ export default function MyBookings() {
           onKeyDown={(e) => e.key === "Enter" && lookupBookings()} placeholder="your@email.com"
           className="mb-2 py-3.5" />
         {emailError && <p className="mb-2 text-xs text-[color:var(--danger)]">{emailError}</p>}
-        <Input type="tel" value={phone} onChange={(e) => { setPhone(e.target.value); setPhoneError(""); setLoginError(""); }}
-          onKeyDown={(e) => e.key === "Enter" && lookupBookings()} placeholder="081 234 5678"
-          className="mb-2 py-3.5" />
+
+        {/* Phone with dial-code selector */}
+        <div className="mb-2">
+          <div className="flex gap-2">
+            <select
+              value={dialCode}
+              onChange={(e) => setDialCode(e.target.value)}
+              className="shrink-0 border-2 border-[color:var(--border)] rounded-xl px-2 py-3.5 text-sm bg-[color:var(--surface)] text-[color:var(--text)] focus:outline-none focus:border-[color:var(--accent)] cursor-pointer"
+              style={{ minWidth: "110px" }}
+            >
+              {DIAL_CODES.map((d, i) => (
+                <option key={d.country + i} value={d.code}>
+                  {d.flag} {d.code} {d.country}
+                </option>
+              ))}
+            </select>
+            <Input
+              type="tel"
+              value={phoneDigits}
+              onChange={(e) => { setPhoneDigits(e.target.value); setPhoneError(""); setLoginError(""); }}
+              onKeyDown={(e) => e.key === "Enter" && lookupBookings()}
+              placeholder="81 234 5678"
+              className="flex-1 py-3.5"
+            />
+          </div>
+        </div>
         {phoneError && <p className="mb-2 text-xs text-[color:var(--danger)]">{phoneError}</p>}
         {loginError && <p className="mb-3 text-sm text-[color:var(--danger)] text-center">{loginError}</p>}
-        <Button onClick={lookupBookings} disabled={loading || !email.trim() || !phone.trim()} fullWidth className="py-3.5">
+        <Button onClick={lookupBookings} disabled={loading || !email.trim() || !phoneDigits.trim()} fullWidth className="py-3.5">
           {loading ? "Finding Bookings..." : "Find Bookings"}
         </Button>
       </div>
@@ -320,9 +455,9 @@ export default function MyBookings() {
     <div className="app-container max-w-2xl page-wrap">
       <div className="flex items-center justify-between mb-6">
         <h2 className="headline-md">Your Bookings</h2>
-        <Button onClick={() => { setLoggedIn(false); setBookings([]); setEmail(""); setPhone(""); setLoginError(""); }} variant="ghost" className="px-0 text-sm">Log Out</Button>
+        <Button onClick={() => { setLoggedIn(false); setBookings([]); setEmail(""); setDialCode("+27"); setPhoneDigits(""); setLoginError(""); }} variant="ghost" className="px-0 text-sm">Log Out</Button>
       </div>
-      <p className="text-sm mb-6">{email} &bull; {phone}</p>
+      <p className="text-sm mb-6">{email} &bull; {dialCode} {phoneDigits}</p>
       {bookings.length === 0 ? (
         <div className="empty-state py-16">
           <p className="mb-4 text-lg text-[color:var(--textMuted)]">No bookings found for this account.</p>
@@ -348,14 +483,25 @@ export default function MyBookings() {
                   <span className="font-mono text-xs">Ref: {b.id.substring(0, 8).toUpperCase()}</span>
                 </div>
                 {b.refund_status === "REQUESTED" && <p className="text-xs mt-2 font-medium text-[color:var(--warning)]">Refund pending</p>}
-                {canModify && (
-                  <div className="flex gap-3 mt-4 pt-4 border-t border-[color:var(--border)]">
-                    <Button onClick={() => startReschedule(b)} variant="secondary" className="px-4 py-2">Reschedule</Button>
-                    <Button onClick={() => cancelBooking(b.id, b.total_amount)} disabled={cancellingId === b.id} variant="destructive" className="px-4 py-2">
-                      {cancellingId === b.id ? "Cancelling..." : "Cancel Booking"}
-                    </Button>
-                  </div>
-                )}
+                
+                <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-[color:var(--border)]">
+                  {["PAID", "CONFIRMED"].includes(b.status) && !isPast && (
+                    <>
+                      <Button onClick={() => getHrsBefore(b) < 24 ? requestAdminReview(b, "reschedule") : startReschedule(b)} variant="secondary" className="px-3 py-1.5 text-sm">Reschedule</Button>
+                      <Button onClick={() => getHrsBefore(b) < 24 ? requestAdminReview(b, "edit guests") : alert("To add or remove people, please contact us on WhatsApp so we can adjust your payment or refund the difference.")} variant="secondary" className="px-3 py-1.5 text-sm">Edit Guests</Button>
+                      <Button onClick={() => cancelBooking(b.id, b.total_amount)} disabled={cancellingId === b.id || reviewingId === b.id} variant="destructive" className="px-3 py-1.5 text-sm">
+                        {cancellingId === b.id ? "Cancelling..." : "Cancel"}
+                      </Button>
+                    </>
+                  )}
+                  {b.status === "CANCELLED" && (b.refund_status === "NONE" || !b.refund_status) && (
+                    <>
+                      <Button onClick={() => startReschedule(b)} variant="primary" className="px-3 py-1.5 text-sm">Reschedule Trip</Button>
+                      <Button onClick={() => convertToVoucher(b)} disabled={reviewingId === b.id} variant="secondary" className="px-3 py-1.5 text-sm font-semibold">Convert to Voucher</Button>
+                      <Button onClick={() => requestRefund(b)} disabled={reviewingId === b.id} variant="ghost" className="px-3 py-1.5 text-sm text-[color:var(--danger)]">Request Refund</Button>
+                    </>
+                  )}
+                </div>
               </Card>
             );
           })}

@@ -4,8 +4,8 @@ import { useTheme } from "./ThemeProvider";
 
 export default function Header() {
   var theme = useTheme();
-  var name = theme.business_name || "Cape Kayak Adventures";
-  var tagline = theme.business_tagline || "Cape Town\u2019s Original Since 1994";
+  var name = theme.business_name || "Kayaks Adventures";
+  var tagline = theme.business_tagline || "The Original Since 1994";
   var logoUrl = theme.logo_url;
 
   return (
