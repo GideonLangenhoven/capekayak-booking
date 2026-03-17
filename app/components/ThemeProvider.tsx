@@ -3,6 +3,7 @@ import { useEffect, useState, createContext, useContext } from "react";
 import { supabase } from "../lib/supabase";
 
 type ThemeData = {
+  id: string | null;
   color_main: string | null;
   color_secondary: string | null;
   color_cta: string | null;
@@ -16,9 +17,13 @@ type ThemeData = {
   business_name: string | null;
   business_tagline: string | null;
   logo_url: string | null;
+  timezone: string | null;
+  what_to_bring: string | null;
+  what_to_wear: string | null;
+  directions: string | null;
 };
 
-var ThemeCtx = createContext<ThemeData>({ color_main: null, color_secondary: null, color_cta: null, color_bg: null, color_nav: null, color_hover: null, chatbot_avatar: null, hero_eyebrow: null, hero_title: null, hero_subtitle: null, business_name: null, business_tagline: null, logo_url: null });
+var ThemeCtx = createContext<ThemeData>({ id: null, color_main: null, color_secondary: null, color_cta: null, color_bg: null, color_nav: null, color_hover: null, chatbot_avatar: null, hero_eyebrow: null, hero_title: null, hero_subtitle: null, business_name: null, business_tagline: null, logo_url: null, timezone: null, what_to_bring: null, what_to_wear: null, directions: null });
 
 export function useTheme() { return useContext(ThemeCtx); }
 
@@ -42,11 +47,11 @@ function lighten(hex: string, pct: number) {
 }
 
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {
-  var [theme, setTheme] = useState<ThemeData>({ color_main: null, color_secondary: null, color_cta: null, color_bg: null, color_nav: null, color_hover: null, chatbot_avatar: null, hero_eyebrow: null, hero_title: null, hero_subtitle: null, business_name: null, business_tagline: null, logo_url: null });
+  var [theme, setTheme] = useState<ThemeData>({ id: null, color_main: null, color_secondary: null, color_cta: null, color_bg: null, color_nav: null, color_hover: null, chatbot_avatar: null, hero_eyebrow: null, hero_title: null, hero_subtitle: null, business_name: null, business_tagline: null, logo_url: null, timezone: null, what_to_bring: null, what_to_wear: null, directions: null });
 
   useEffect(() => {
     (async () => {
-      var { data } = await supabase.from("businesses").select("color_main, color_secondary, color_cta, color_bg, color_nav, color_hover, chatbot_avatar, hero_eyebrow, hero_title, hero_subtitle, business_name, business_tagline, logo_url").limit(1).single();
+      var { data } = await supabase.from("businesses").select("id, color_main, color_secondary, color_cta, color_bg, color_nav, color_hover, chatbot_avatar, hero_eyebrow, hero_title, hero_subtitle, business_name, business_tagline, logo_url, timezone, what_to_bring, what_to_wear, directions").limit(1).single();
       if (data) {
         // Force professional branding for screenshots
         data.business_name = "Kayaks Adventures";

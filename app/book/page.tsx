@@ -2,20 +2,32 @@
 import { useEffect, useState, Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
+import { useTheme } from "../components/ThemeProvider";
 
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-ZA", { weekday: "short", day: "numeric", month: "short", timeZone: "Africa/Johannesburg" });
+function fmtDate(iso: string, tz: string) {
+  return new Date(iso).toLocaleDateString("en-ZA", { weekday: "short", day: "numeric", month: "short", timeZone: tz });
 }
-function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Johannesburg" });
+function fmtTime(iso: string, tz: string) {
+  return new Date(iso).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit", timeZone: tz });
 }
 function fmtMonth(d: Date) { return d.toLocaleDateString("en-ZA", { month: "long", year: "numeric" }); }
+
+function dateKeyInTz(iso: string, tz: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "numeric", day: "numeric" }).formatToParts(new Date(iso));
+  const y = parts.find(p => p.type === "year")?.value ?? "";
+  const m = parts.find(p => p.type === "month")?.value ?? "1";
+  const d = parts.find(p => p.type === "day")?.value ?? "1";
+  // Match the calYear-calMonth(0-indexed)-day key format used by the calendar
+  return `${y}-${Number(m) - 1}-${Number(d)}`;
+}
 function isSameDay(a: Date, b: Date) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
 function getDaysInMonth(y: number, m: number) { return new Date(y, m + 1, 0).getDate(); }
 function getFirstDay(y: number, m: number) { return new Date(y, m, 1).getDay(); }
 
 function BookingFlow() {
   const params = useSearchParams();
+  const theme = useTheme();
+  const tz = theme.timezone || "Africa/Johannesburg";
   const tourId = params.get("tour");
   const [step, setStep] = useState<"calendar" | "details" | "payment">("calendar");
   const [tours, setTours] = useState<any[]>([]);
@@ -45,13 +57,15 @@ function BookingFlow() {
   };
 
   useEffect(() => {
+    if (!theme.id) return; // wait for ThemeProvider to resolve business id
     (async () => {
-      const { data } = await supabase.from("tours").select("*").order("base_price_per_person");
+      const q = supabase.from("tours").select("*").eq("business_id", theme.id).order("base_price_per_person");
+      const { data } = await q;
       setTours(data || []);
       if (tourId) { const t = (data || []).find((x: any) => x.id === tourId); if (t) { setSelectedTour(t); loadSlots(t.id); } }
       setLoading(false);
     })();
-  }, [tourId]);
+  }, [tourId, theme.id]);
 
   async function loadSlots(tid: string) {
     const now = new Date();
@@ -63,9 +77,9 @@ function BookingFlow() {
 
   const availDates = useMemo(() => {
     const ds = new Set<string>();
-    allSlots.forEach(s => { const d = new Date(s.start_time); ds.add(d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate()); });
+    allSlots.forEach(s => { ds.add(dateKeyInTz(s.start_time, tz)); });
     return ds;
-  }, [allSlots]);
+  }, [allSlots, tz]);
 
   const daySlots = useMemo(() => {
     if (!selectedDate) return [];
@@ -211,7 +225,7 @@ function BookingFlow() {
           <div className="grid md:grid-cols-2 gap-8">
             <div><h2 className="text-xl font-bold mb-4">Pick a Date</h2>{renderCalendar()}</div>
             <div>
-              <h2 className="text-xl font-bold mb-4">{selectedDate ? "Times for " + fmtDate(selectedDate.toISOString()) : "Select a date"}</h2>
+              <h2 className="text-xl font-bold mb-4">{selectedDate ? "Times for " + fmtDate(selectedDate.toISOString(), tz) : "Select a date"}</h2>
               {!selectedDate ? (
                 <div className="text-center py-12 text-gray-400"><p className="text-4xl mb-3">📅</p><p>Tap a highlighted date to see available times.</p></div>
               ) : daySlots.length === 0 ? (
@@ -226,7 +240,7 @@ function BookingFlow() {
                         className={"w-full text-left rounded-xl p-4 transition-all border " + (isSel ? "border-gray-900 bg-gray-900 text-white shadow-lg" : "border-gray-200 bg-white hover:border-gray-400")}>
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className={"text-lg font-semibold " + (isSel ? "text-white" : "")}>{fmtTime(s.start_time)}</p>
+                            <p className={"text-lg font-semibold " + (isSel ? "text-white" : "")}>{fmtTime(s.start_time, tz)}</p>
                             <p className={"text-sm " + (isSel ? "text-gray-300" : "text-gray-500")}>{a} {a === 1 ? "spot" : "spots"} left</p>
                           </div>
                           {isSel ? <span className="bg-white text-gray-900 px-4 py-1.5 rounded-lg text-sm font-medium">Selected ✓</span>
@@ -289,8 +303,8 @@ function BookingFlow() {
                 <h3 className="font-bold mb-4">Booking Summary</h3>
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between"><span className="text-gray-500">Tour</span><span className="font-medium">{selectedTour?.name}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Date</span><span className="font-medium">{selectedSlot && fmtDate(selectedSlot.start_time)}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Time</span><span className="font-medium">{selectedSlot && fmtTime(selectedSlot.start_time)}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Date</span><span className="font-medium">{selectedSlot && fmtDate(selectedSlot.start_time, tz)}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Time</span><span className="font-medium">{selectedSlot && fmtTime(selectedSlot.start_time, tz)}</span></div>
                   <div className="flex justify-between"><span className="text-gray-500">Guests</span><span className="font-medium">{qty}</span></div>
                   <div className="border-t border-gray-200 pt-3 mt-3">
                     <div className="flex justify-between"><span className="text-gray-500">R{selectedTour?.base_price_per_person} × {qty}</span><span>R{baseTotal}</span></div>
@@ -320,8 +334,8 @@ function BookingFlow() {
               <div className="bg-gray-50 rounded-2xl p-6 text-left mb-8 space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-gray-500">Reference</span><span className="font-mono font-bold">{bookingRef}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500">Tour</span><span className="font-medium">{selectedTour?.name}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Date</span><span className="font-medium">{selectedSlot && fmtDate(selectedSlot.start_time)}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Time</span><span className="font-medium">{selectedSlot && fmtTime(selectedSlot.start_time)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Date</span><span className="font-medium">{selectedSlot && fmtDate(selectedSlot.start_time, tz)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Time</span><span className="font-medium">{selectedSlot && fmtTime(selectedSlot.start_time, tz)}</span></div>
               </div>
               <a href="/" className="block bg-gray-900 text-white py-3 rounded-xl text-sm font-semibold hover:bg-gray-800">Browse More Tours</a>
               <a href="/my-bookings" className="block text-gray-500 text-sm mt-3 hover:text-gray-900">View My Bookings</a>

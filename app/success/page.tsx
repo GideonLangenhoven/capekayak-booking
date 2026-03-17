@@ -3,6 +3,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../lib/supabase";
+import { useTheme } from "../components/ThemeProvider";
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Africa/Johannesburg" });
@@ -17,6 +18,7 @@ function gCalFmt(d: Date) {
 
 function SuccessContent() {
   const params = useSearchParams();
+  const theme = useTheme();
   const ref = params.get("ref");
   const [booking, setBooking] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -29,6 +31,10 @@ function SuccessContent() {
         .eq("id", ref).single();
       setBooking(data);
       setLoading(false);
+      // Trigger confirmation email/WhatsApp as a fallback if the Yoco webhook missed it
+      if (data?.status === "PAID" || data?.status === "COMPLETED") {
+        supabase.functions.invoke("confirm-booking", { body: { booking_id: data.id } }).catch(() => {});
+      }
     })();
   }, [ref]);
 
@@ -45,7 +51,8 @@ function SuccessContent() {
 
   const startDate = booking.slots?.start_time ? new Date(booking.slots.start_time) : null;
   const endDate = startDate ? new Date(startDate.getTime() + (booking.tours?.duration_minutes || 90) * 60 * 1000) : null;
-  const gCalUrl = startDate && endDate ? "https://www.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(booking.tours?.name || "Kayak Tour") + "&dates=" + gCalFmt(startDate) + "/" + gCalFmt(endDate) + "&location=" + encodeURIComponent("Three Anchor Bay, Beach Road, Sea Point, Cape Town") + "&details=" + encodeURIComponent("Ref: " + booking.id.substring(0, 8).toUpperCase() + ". Arrive 15 min early.") : null;
+  const meetingLocation = theme.directions || "See confirmation email for meeting point";
+  const gCalUrl = startDate && endDate ? "https://www.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(booking.tours?.name || "Kayak Tour") + "&dates=" + gCalFmt(startDate) + "/" + gCalFmt(endDate) + "&location=" + encodeURIComponent(meetingLocation) + "&details=" + encodeURIComponent("Ref: " + booking.id.substring(0, 8).toUpperCase() + ". Arrive 15 min early.") : null;
 
   return (
     <div className="app-container max-w-md page-wrap">
@@ -102,24 +109,25 @@ function SuccessContent() {
         <p className="mt-1 text-xs">Please check your inbox (and spam folder) for your receipt and details.</p>
       </div>
 
-      <div className="surface-muted mb-6 p-4">
-        <p className="mb-2 text-sm font-semibold text-[color:var(--text)]">📍 Meeting Point</p>
-        <p className="text-sm">Three Anchor Bay, Beach Road, Sea Point, Cape Town</p>
-        <p className="mt-1 text-sm">Please arrive <strong>15 minutes early</strong> for your safety briefing.</p>
-        <a href="https://www.google.com/maps/place/CAPE+KAYAK+ADVENTURES" target="_blank" rel="noopener noreferrer"
-          className="mt-2 inline-block text-xs font-semibold underline">Open in Google Maps</a>
-      </div>
+      {theme.directions && (
+        <div className="surface-muted mb-6 p-4">
+          <p className="mb-2 text-sm font-semibold text-[color:var(--text)]">📍 Meeting Point</p>
+          <p className="text-sm whitespace-pre-line">{theme.directions}</p>
+        </div>
+      )}
 
-      <div className="surface-muted mb-8 p-4">
-        <p className="mb-2 text-sm font-semibold text-[color:var(--text)]">🎒 What to Bring</p>
-        <p className="text-sm">Sunscreen, hat, sunglasses (with strap), towel, change of clothes, and water. We provide all equipment.</p>
-      </div>
+      {theme.what_to_bring && (
+        <div className="surface-muted mb-8 p-4">
+          <p className="mb-2 text-sm font-semibold text-[color:var(--text)]">🎒 What to Bring</p>
+          <p className="text-sm">{theme.what_to_bring}</p>
+        </div>
+      )}
 
       <div className="space-y-3">
         {gCalUrl && (
           <div className="flex gap-2">
             <a href={gCalUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary flex-1 py-3 text-center">📅 Google Calendar</a>
-            <a href={"data:text/calendar;charset=utf-8," + encodeURIComponent("BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:" + (booking.tours?.name || "Kayak Tour") + "\nDTSTART:" + gCalFmt(startDate!) + "\nDTEND:" + gCalFmt(endDate!) + "\nLOCATION:Three Anchor Bay, Beach Rd, Sea Point\nDESCRIPTION:Ref " + booking.id.substring(0, 8).toUpperCase() + ". Arrive 15 min early.\nEND:VEVENT\nEND:VCALENDAR")} download="kayak-booking.ics" className="btn btn-secondary flex-1 py-3 text-center">📅 Apple Calendar</a>
+            <a href={"data:text/calendar;charset=utf-8," + encodeURIComponent("BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:" + (booking.tours?.name || "Kayak Tour") + "\nDTSTART:" + gCalFmt(startDate!) + "\nDTEND:" + gCalFmt(endDate!) + "\nLOCATION:" + meetingLocation + "\nDESCRIPTION:Ref " + booking.id.substring(0, 8).toUpperCase() + ". Arrive 15 min early.\nEND:VEVENT\nEND:VCALENDAR")} download="kayak-booking.ics" className="btn btn-secondary flex-1 py-3 text-center">📅 Apple Calendar</a>
           </div>
         )}
         <Link href="/my-bookings" className="btn btn-primary w-full py-3 text-center">View My Bookings</Link>

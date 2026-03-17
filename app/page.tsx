@@ -19,14 +19,13 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!theme.id) return; // wait for ThemeProvider to resolve business id
     (async () => {
-      // Prevent aggressive browser caching of the previous 'hidden' state by appending a nocache query param
-      const { data, error } = await supabase.from("tours").select("*").eq("active", true).order("base_price_per_person");
-      console.log("Tours length:", data?.length, "Hidden:", data?.filter(t => t.hidden).length, "Visible:", data?.filter(t => !t.hidden).length);
+      const { data } = await supabase.from("tours").select("*").eq("business_id", theme.id).eq("active", true).order("base_price_per_person");
       setTours((data || []).filter((t: any) => !t.hidden));
       setLoading(false);
     })();
-  }, []);
+  }, [theme.id]);
 
   if (loading) return <div className="app-loader"><div className="spinner" /></div>;
 
