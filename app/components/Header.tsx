@@ -4,9 +4,11 @@ import { useTheme } from "./ThemeProvider";
 
 export default function Header() {
   var theme = useTheme();
-  var name = theme.business_name || "Kayaks Adventures";
-  var tagline = theme.business_tagline || "The Original Since 1994";
+  var name = theme.business_name || "Book Your Tour";
+  var tagline = theme.business_tagline || "";
   var logoUrl = theme.logo_url;
+  var voucherLabel = theme.nav_gift_voucher_label || "Gift Voucher";
+  var bookingsLabel = theme.nav_my_bookings_label || "My Bookings";
 
   return (
     <header className="sticky top-0 z-40 border-b border-[color:var(--border)] bg-[color:var(--surface)] backdrop-blur">
@@ -19,12 +21,12 @@ export default function Header() {
           )}
           <div>
             <h1 className="text-base font-semibold leading-tight text-[color:var(--text)] sm:text-lg">{name}</h1>
-            <p className="text-xs text-[color:var(--textMuted)]">{tagline}</p>
+            {tagline && <p className="text-xs text-[color:var(--textMuted)]">{tagline}</p>}
           </div>
         </Link>
         <nav className="flex items-center gap-1 text-sm">
-          <Link href="/voucher" className="btn btn-ghost px-3 py-2">Gift Voucher</Link>
-          <Link href="/my-bookings" className="btn btn-primary px-4 py-2">My Bookings</Link>
+          <Link href="/voucher" className="btn btn-ghost px-3 py-2">{voucherLabel}</Link>
+          <Link href="/my-bookings" className="btn btn-primary px-4 py-2">{bookingsLabel}</Link>
         </nav>
       </div>
     </header>

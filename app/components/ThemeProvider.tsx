@@ -21,9 +21,26 @@ type ThemeData = {
   what_to_bring: string | null;
   what_to_wear: string | null;
   directions: string | null;
+  nav_gift_voucher_label: string | null;
+  nav_my_bookings_label: string | null;
+  card_cta_label: string | null;
+  chat_widget_label: string | null;
+  footer_line_one: string | null;
+  footer_line_two: string | null;
 };
 
-var ThemeCtx = createContext<ThemeData>({ id: null, color_main: null, color_secondary: null, color_cta: null, color_bg: null, color_nav: null, color_hover: null, chatbot_avatar: null, hero_eyebrow: null, hero_title: null, hero_subtitle: null, business_name: null, business_tagline: null, logo_url: null, timezone: null, what_to_bring: null, what_to_wear: null, directions: null });
+var defaults: ThemeData = {
+  id: null, color_main: null, color_secondary: null, color_cta: null,
+  color_bg: null, color_nav: null, color_hover: null, chatbot_avatar: null,
+  hero_eyebrow: null, hero_title: null, hero_subtitle: null,
+  business_name: null, business_tagline: null, logo_url: null,
+  timezone: null, what_to_bring: null, what_to_wear: null, directions: null,
+  nav_gift_voucher_label: null, nav_my_bookings_label: null,
+  card_cta_label: null, chat_widget_label: null,
+  footer_line_one: null, footer_line_two: null,
+};
+
+var ThemeCtx = createContext<ThemeData>(defaults);
 
 export function useTheme() { return useContext(ThemeCtx); }
 
@@ -47,17 +64,12 @@ function lighten(hex: string, pct: number) {
 }
 
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {
-  var [theme, setTheme] = useState<ThemeData>({ id: null, color_main: null, color_secondary: null, color_cta: null, color_bg: null, color_nav: null, color_hover: null, chatbot_avatar: null, hero_eyebrow: null, hero_title: null, hero_subtitle: null, business_name: null, business_tagline: null, logo_url: null, timezone: null, what_to_bring: null, what_to_wear: null, directions: null });
+  var [theme, setTheme] = useState<ThemeData>(defaults);
 
   useEffect(() => {
     (async () => {
-      var { data } = await supabase.from("businesses").select("id, color_main, color_secondary, color_cta, color_bg, color_nav, color_hover, chatbot_avatar, hero_eyebrow, hero_title, hero_subtitle, business_name, business_tagline, logo_url, timezone, what_to_bring, what_to_wear, directions").limit(1).single();
+      var { data } = await supabase.from("businesses").select("id, color_main, color_secondary, color_cta, color_bg, color_nav, color_hover, chatbot_avatar, hero_eyebrow, hero_title, hero_subtitle, business_name, business_tagline, logo_url, timezone, what_to_bring, what_to_wear, directions, nav_gift_voucher_label, nav_my_bookings_label, card_cta_label, chat_widget_label, footer_line_one, footer_line_two").limit(1).single();
       if (data) {
-        // Force professional branding for screenshots
-        data.business_name = "Kayaks Adventures";
-        data.business_tagline = "Premium Marine Experiences";
-        data.hero_title = "Explore the Coast";
-        data.hero_subtitle = "Book your next ocean adventure in seconds. Professional guides, top-tier equipment, and unforgettable memories.";
         setTheme(data);
       }
     })();
@@ -97,6 +109,10 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
     }
     if (theme.color_hover) {
       root.style.setProperty("--hoverOverlay", theme.color_hover);
+    }
+    // Update page title with business name
+    if (theme.business_name) {
+      document.title = theme.business_name + " | Book Your Tour";
     }
   }, [theme]);
 
