@@ -195,7 +195,7 @@ export default function MyBookings() {
     var hrs = getHrsBefore(b);
     var msg = `[URGENT] Request to ${action.toUpperCase()} for booking ${b.id.substring(0, 8).toUpperCase()} (Trip in ${Math.round(hrs)}h). Customer: ${b.customer_name}`;
     await supabase.from("chat_messages").insert({
-      business_id: b.business_id || "c8b439f5-c11e-4d46-b347-943df6f172b4",
+      business_id: b.business_id,
       phone: b.phone,
       direction: "IN",
       body: msg,
@@ -224,7 +224,7 @@ export default function MyBookings() {
     await supabase.from("bookings").update({ status: "CANCELLED", refund_status: "NONE", cancellation_reason: "Converted to voucher via web" }).eq("id", b.id);
     const msg = `[VOUCHER REQUEST] Please generate a voucher for ${b.customer_name} (Booking ${b.id.substring(0, 8).toUpperCase()} - R${b.total_amount})`;
     await supabase.from("chat_messages").insert({
-      business_id: b.business_id || "c8b439f5-c11e-4d46-b347-943df6f172b4",
+      business_id: b.business_id,
       phone: b.phone,
       direction: "IN",
       body: msg,
@@ -280,7 +280,7 @@ export default function MyBookings() {
     var now = new Date();
     var later = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
     var { data } = await supabase.from("slots").select("*, tours(name, base_price_per_person)")
-      .eq("status", "OPEN").eq("business_id", b.business_id || "c8b439f5-c11e-4d46-b347-943df6f172b4")
+      .eq("status", "OPEN").eq("business_id", b.business_id)
       .gt("start_time", now.toISOString()).lt("start_time", later.toISOString()).order("start_time", { ascending: true });
     setRescheduleSlots((data || []).filter((s: any) => s.capacity_total - s.booked - (s.held || 0) >= b.qty && s.id !== b.slot_id));
     setLoadingSlots(false);
