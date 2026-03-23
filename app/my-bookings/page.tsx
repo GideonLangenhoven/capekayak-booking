@@ -376,7 +376,7 @@ export default function MyBookings() {
     // to handle normalization differences (e.g. 27 vs 027 vs +27 prefix variants)
     var phoneTail = norm.replace(/\D/g, "").slice(-9);
     var { data } = await supabase.from("bookings")
-      .select("id, business_id, customer_name, email, phone, qty, total_amount, status, refund_status, refund_amount, created_at, unit_price, tour_id, slot_id, custom_fields, converted_to_voucher_id, cancelled_at, cancellation_reason, payment_method, waiver_status, waiver_token, slots(start_time, capacity_total, booked, held), tours(name, meeting_point, what_to_bring)")
+      .select("id, business_id, customer_name, email, phone, qty, total_amount, status, refund_status, refund_amount, created_at, unit_price, tour_id, slot_id, custom_fields, converted_to_voucher_id, cancelled_at, cancellation_reason, payment_method, waiver_status, waiver_token, slots(start_time, capacity_total, booked, held), tours(name)")
       .eq("email", email.toLowerCase()).order("created_at", { ascending: false });
     // Filter by phone: match if last 9 digits are the same
     var matched = (data || []).filter(function (b: any) {
