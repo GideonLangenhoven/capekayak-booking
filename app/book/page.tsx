@@ -49,6 +49,10 @@ function BookingFlow() {
   const [submitting, setSubmitting] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState("");
   const [bookingRef, setBookingRef] = useState("");
+  const [voucherRemainders, setVoucherRemainders] = useState<{ code: string; remaining: number }[]>([]);
+  const [soldOutMsg, setSoldOutMsg] = useState("");
+  const [tourNotFound, setTourNotFound] = useState(false);
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
 
   const IMG: Record<string, string> = {
     "Sea Kayak": "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800&h=500&fit=crop",
@@ -62,16 +66,28 @@ function BookingFlow() {
       const q = supabase.from("tours").select("*").eq("business_id", theme.id).order("base_price_per_person");
       const { data } = await q;
       setTours(data || []);
-      if (tourId) { const t = (data || []).find((x: any) => x.id === tourId); if (t) { setSelectedTour(t); loadSlots(t.id); } }
+      if (tourId) {
+        const t = (data || []).find((x: any) => x.id === tourId);
+        if (t && !t.hidden && t.active !== false) {
+          setSelectedTour(t);
+          loadSlots(t.id);
+        } else {
+          // Tour is hidden, inactive, or doesn't exist
+          setTourNotFound(true);
+        }
+      }
       setLoading(false);
     })();
   }, [tourId, theme.id]);
 
+  const BOOKING_CUTOFF_MINUTES = 60;
+
   async function loadSlots(tid: string) {
     const now = new Date();
+    const cutoff = new Date(now.getTime() + BOOKING_CUTOFF_MINUTES * 60 * 1000);
     const later = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
     const { data } = await supabase.from("slots").select("*").eq("tour_id", tid).eq("status", "OPEN")
-      .gt("start_time", now.toISOString()).lt("start_time", later.toISOString()).order("start_time", { ascending: true });
+      .gt("start_time", cutoff.toISOString()).lt("start_time", later.toISOString()).order("start_time", { ascending: true });
     setAllSlots((data || []).filter((s: any) => s.capacity_total - s.booked - (s.held || 0) > 0));
   }
 
@@ -87,7 +103,36 @@ function BookingFlow() {
   }, [allSlots, selectedDate]);
 
   const baseTotal = selectedTour ? selectedTour.base_price_per_person * qty : 0;
-  const finalTotal = Math.max(0, baseTotal - voucherTotal);
+  // Compute effective voucher credit: sequential deduction with FREE_TRIP pax limit + peak arbitrage
+  const effectiveVoucherCredit = useMemo(() => {
+    if (!selectedTour || vouchers.length === 0) return 0;
+    const pricePerPerson = selectedTour.base_price_per_person;
+    let remaining = baseTotal;
+    for (const v of vouchers) {
+      if (remaining <= 0) break;
+      if (v.type === "FREE_TRIP") {
+        // FREE_TRIP: only covers pax_limit guests
+        const coveredPax = Math.min(v.pax_limit || 1, qty);
+        const slotCost = pricePerPerson * coveredPax;
+        // Peak arbitrage: if slot price > purchase_value, treat as credit for purchase_value
+        if (slotCost > v.purchase_value) {
+          // Downgrade to credit voucher behavior — only covers the purchase_value amount
+          const credit = Math.min(v.purchase_value, remaining);
+          remaining -= credit;
+        } else {
+          // Normal FREE_TRIP — covers the full slot cost for pax_limit guests
+          const credit = Math.min(v.value, slotCost, remaining);
+          remaining -= credit;
+        }
+      } else {
+        // CREDIT voucher: sequential drain
+        const credit = Math.min(v.value, remaining);
+        remaining -= credit;
+      }
+    }
+    return baseTotal - remaining;
+  }, [vouchers, baseTotal, qty, selectedTour]);
+  const finalTotal = Math.max(0, baseTotal - effectiveVoucherCredit);
   const avail = selectedSlot ? selectedSlot.capacity_total - selectedSlot.booked - (selectedSlot.held || 0) : 10;
 
   async function applyVoucher() {
@@ -101,9 +146,20 @@ function BookingFlow() {
     if (data.status === "REDEEMED") { setVoucherError("Already redeemed"); return; }
     if (data.status !== "ACTIVE") { setVoucherError("Not valid"); return; }
     if (data.expires_at && new Date(data.expires_at) < new Date()) { setVoucherError("Expired"); return; }
-    const val = Number(data.value || data.purchase_amount || 0);
-    setVouchers([...vouchers, { id: data.id, code, value: val }]);
-    setVoucherTotal(voucherTotal + val);
+    const bal = Number(data.current_balance ?? data.value ?? data.purchase_amount ?? 0);
+    if (bal <= 0) { setVoucherError("No balance remaining"); return; }
+
+    // If voucher is tour-specific but that tour is hidden/inactive, treat as generic CREDIT
+    let effectiveType = data.type;
+    if (data.tour_name && data.type === "FREE_TRIP") {
+      const linkedTour = tours.find((t: any) => t.name === data.tour_name);
+      if (!linkedTour || linkedTour.hidden || !linkedTour.active) {
+        effectiveType = "CREDIT";
+      }
+    }
+
+    setVouchers([...vouchers, { id: data.id, code, value: bal, type: effectiveType, pax_limit: data.pax_limit ?? 1, purchase_value: Number(data.purchase_value ?? data.purchase_amount ?? data.value ?? 0) }]);
+    setVoucherTotal(voucherTotal + bal);
     setVoucherCode("");
   }
 
@@ -114,24 +170,108 @@ function BookingFlow() {
     setSubmitting(true);
     const { data: booking, error } = await supabase.from("bookings").insert({
       business_id: selectedTour.business_id, tour_id: selectedTour.id, slot_id: selectedSlot.id,
-      customer_name: name, phone: phone || "", email: email.toLowerCase(),
+      customer_name: name, phone: phone ? phone.replace(/[^\d]/g, "").replace(/^0/, "27") : "", email: email.toLowerCase(),
       qty, unit_price: selectedTour.base_price_per_person, total_amount: finalTotal, original_total: baseTotal,
       status: "PENDING", source: "WEB",
+      marketing_opt_in: marketingOptIn || null,
     }).select().single();
     if (error || !booking) { alert("Something went wrong."); setSubmitting(false); return; }
     setBookingRef(booking.id.substring(0, 8).toUpperCase());
 
     if (finalTotal <= 0) {
       await supabase.from("bookings").update({ status: "PAID", yoco_payment_id: "VOUCHER_WEB" }).eq("id", booking.id);
-      for (const v of vouchers) await supabase.from("vouchers").update({ status: "REDEEMED", redeemed_at: new Date().toISOString(), redeemed_booking_id: booking.id }).eq("id", v.id);
+      // Sequential voucher deduction using atomic RPC (prevents double-spend race conditions)
+      const pricePerPerson = selectedTour.base_price_per_person;
+      let remainingCost = baseTotal;
+      const remainders: { code: string; remaining: number }[] = [];
+      for (const v of vouchers) {
+        if (remainingCost <= 0) break;
+        // Compute how much this voucher should cover (FREE_TRIP pax limit + peak arbitrage)
+        let deductionAmount = remainingCost;
+        if (v.type === "FREE_TRIP") {
+          const coveredPax = Math.min(v.pax_limit || 1, qty);
+          const slotCost = pricePerPerson * coveredPax;
+          if (slotCost > v.purchase_value) {
+            deductionAmount = Math.min(v.purchase_value, remainingCost);
+          } else {
+            deductionAmount = Math.min(slotCost, remainingCost);
+          }
+        }
+        // Atomic deduction via RPC — drains this voucher fully before moving to next
+        const { data: rpcResult } = await supabase.rpc("deduct_voucher_balance", { p_voucher_id: v.id, p_amount: deductionAmount });
+        if (rpcResult?.success) {
+          const deducted = Number(rpcResult.deducted);
+          const remaining = Number(rpcResult.remaining);
+          remainingCost -= deducted;
+          await supabase.from("vouchers").update({ redeemed_booking_id: booking.id }).eq("id", v.id);
+          if (remaining > 0) {
+            remainders.push({ code: v.code, remaining });
+            try {
+              await supabase.functions.invoke("send-email", {
+                body: {
+                  type: "VOUCHER_BALANCE",
+                  data: {
+                    email: email.toLowerCase(),
+                    customer_name: name,
+                    voucher_code: v.code,
+                    original_value: v.value,
+                    amount_used: deducted,
+                    remaining_balance: remaining,
+                    booking_ref: booking.id.substring(0, 8).toUpperCase(),
+                    tour_name: selectedTour.name,
+                    business_id: selectedTour.business_id,
+                  },
+                },
+              });
+            } catch (e) { console.error("VOUCHER_BALANCE_EMAIL_ERR:", e); }
+          }
+        }
+      }
       const { data: sl } = await supabase.from("slots").select("booked").eq("id", selectedSlot.id).single();
       if (sl) await supabase.from("slots").update({ booked: sl.booked + qty }).eq("id", selectedSlot.id);
+      // Send confirmation email for voucher-fully-paid bookings (no Yoco webhook fires)
+      try {
+        await supabase.functions.invoke("send-email", {
+          body: {
+            type: "BOOKING_CONFIRM",
+            data: {
+              email: email.toLowerCase(),
+              booking_id: booking.id,
+              business_id: selectedTour.business_id,
+              customer_name: name,
+              ref: booking.id.substring(0, 8).toUpperCase(),
+              payment_reference: "VOUCHER_WEB",
+              tour_name: selectedTour.name,
+              tour_date: selectedSlot.start_time,
+              start_time: selectedSlot.start_time,
+              qty,
+              total_amount: baseTotal,
+              invoice_number: "",
+            },
+          },
+        });
+      } catch (e) { console.error("VOUCHER_CONFIRM_EMAIL_ERR:", e); }
+      setVoucherRemainders(remainders);
       setPaymentUrl("FREE"); setStep("payment"); setSubmitting(false); return;
     }
 
-    await supabase.from("holds").insert({ booking_id: booking.id, slot_id: selectedSlot.id, expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(), status: "ACTIVE" });
-    const { data: sl2 } = await supabase.from("slots").select("held").eq("id", selectedSlot.id).single();
-    if (sl2) await supabase.from("slots").update({ held: (sl2.held || 0) + qty }).eq("id", selectedSlot.id);
+    // Atomic capacity check + hold creation to prevent overbooking
+    const { data: holdResult, error: holdError } = await supabase.rpc("create_hold_with_capacity_check", {
+      p_booking_id: booking.id,
+      p_slot_id: selectedSlot.id,
+      p_qty: qty,
+      p_expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+    });
+    if (holdError || !holdResult?.success) {
+      // Capacity exceeded or hold failed — clean up the booking and redirect to calendar
+      await supabase.from("bookings").update({ status: "CANCELLED", cancellation_reason: "No capacity" }).eq("id", booking.id);
+      setSoldOutMsg(holdResult?.error || "This slot just sold out! Please select another time.");
+      setSelectedSlot(null);
+      setStep("calendar");
+      setSubmitting(false);
+      if (selectedTour) loadSlots(selectedTour.id);
+      return;
+    }
     await supabase.from("bookings").update({ status: "HELD" }).eq("id", booking.id);
 
     const yocoRes = await supabase.functions.invoke("create-checkout", {
@@ -192,6 +332,19 @@ function BookingFlow() {
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" /></div>;
 
+  if (tourNotFound) return (
+    <div className="max-w-lg mx-auto px-4 py-16 text-center">
+      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+        <span className="text-3xl">🚫</span>
+      </div>
+      <h2 className="text-2xl font-bold text-gray-900 mb-3">This tour is no longer available</h2>
+      <p className="text-gray-500 mb-8">The tour you are looking for may have been removed or is currently unavailable. Check out our current adventures!</p>
+      <a href="/" className="inline-block bg-gray-900 text-white px-8 py-3 rounded-xl text-sm font-semibold hover:bg-gray-800 shadow-md">
+        Browse Available Tours
+      </a>
+    </div>
+  );
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       {/* Progress */}
@@ -217,6 +370,16 @@ function BookingFlow() {
       {/* STEP 1: Calendar */}
       {step === "calendar" && (
         <div>
+          {soldOutMsg && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3">
+              <span className="text-red-500 text-xl">⚠</span>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-red-800">{soldOutMsg}</p>
+                <p className="text-xs text-red-600 mt-0.5">Available slots have been refreshed below.</p>
+              </div>
+              <button onClick={() => setSoldOutMsg("")} className="text-red-400 hover:text-red-600 text-lg">&times;</button>
+            </div>
+          )}
           <a href="/" className="text-sm text-gray-500 mb-6 hover:text-gray-900 inline-block">← Back to tours</a>
           <div className="flex items-center gap-4 mb-8 p-4 bg-gray-50 rounded-xl">
             <div className="w-12 h-12 bg-gray-900 text-white rounded-xl flex items-center justify-center text-xl">🛶</div>
@@ -250,6 +413,9 @@ function BookingFlow() {
                     );
                   })}
                 </div>
+              )}
+              {selectedDate && daySlots.length > 0 && (
+                <p className="text-xs text-gray-400 mt-3 flex items-center gap-1"><span>&#9432;</span> Bookings close 1 hour before departure</p>
               )}
               {selectedSlot && <button onClick={() => setStep("details")} className="w-full mt-4 bg-gray-900 text-white py-3 rounded-xl text-sm font-semibold hover:bg-gray-800 shadow-md">Continue →</button>}
             </div>
@@ -297,6 +463,11 @@ function BookingFlow() {
                   </div>
                 ))}
               </div>
+              <label className="flex items-start gap-3 mt-4 cursor-pointer">
+                <input type="checkbox" checked={marketingOptIn} onChange={e => setMarketingOptIn(e.target.checked)}
+                  className="mt-1 w-4 h-4 shrink-0 rounded border-gray-300" />
+                <span className="text-xs text-gray-500 leading-relaxed">I agree to receive marketing messages and promotions. You can opt out at any time by replying STOP.</span>
+              </label>
             </div>
             <div className="md:col-span-2">
               <div className="bg-gray-50 rounded-2xl p-5 sticky top-6">
@@ -308,7 +479,7 @@ function BookingFlow() {
                   <div className="flex justify-between"><span className="text-gray-500">Guests</span><span className="font-medium">{qty}</span></div>
                   <div className="border-t border-gray-200 pt-3 mt-3">
                     <div className="flex justify-between"><span className="text-gray-500">R{selectedTour?.base_price_per_person} × {qty}</span><span>R{baseTotal}</span></div>
-                    {voucherTotal > 0 && <div className="flex justify-between text-emerald-600 mt-1"><span>Voucher credit</span><span>−R{Math.min(voucherTotal, baseTotal)}</span></div>}
+                    {effectiveVoucherCredit > 0 && <div className="flex justify-between text-emerald-600 mt-1"><span>Voucher credit</span><span>−R{effectiveVoucherCredit}</span></div>}
                   </div>
                   <div className="border-t border-gray-200 pt-3"><div className="flex justify-between text-lg font-bold"><span>Total</span><span>{finalTotal <= 0 ? "FREE" : "R" + finalTotal}</span></div></div>
                 </div>
@@ -337,6 +508,18 @@ function BookingFlow() {
                 <div className="flex justify-between"><span className="text-gray-500">Date</span><span className="font-medium">{selectedSlot && fmtDate(selectedSlot.start_time, tz)}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500">Time</span><span className="font-medium">{selectedSlot && fmtTime(selectedSlot.start_time, tz)}</span></div>
               </div>
+              {voucherRemainders.length > 0 && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 text-left mb-8">
+                  <p className="text-sm font-semibold text-emerald-800 mb-2">Voucher Balance Remaining</p>
+                  {voucherRemainders.map((vr) => (
+                    <div key={vr.code} className="flex justify-between text-sm py-1">
+                      <span className="font-mono text-emerald-700">{vr.code}</span>
+                      <span className="font-bold text-emerald-700">R{vr.remaining} credit</span>
+                    </div>
+                  ))}
+                  <p className="text-xs text-emerald-600 mt-2">Use your remaining credit on your next booking. Details sent to your email.</p>
+                </div>
+              )}
               <a href="/" className="block bg-gray-900 text-white py-3 rounded-xl text-sm font-semibold hover:bg-gray-800">Browse More Tours</a>
               <a href="/my-bookings" className="block text-gray-500 text-sm mt-3 hover:text-gray-900">View My Bookings</a>
             </>

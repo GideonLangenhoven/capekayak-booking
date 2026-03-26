@@ -28,11 +28,29 @@ function WaiverContent() {
   const [acceptRisk, setAcceptRisk] = useState(false);
   const [guardianConsent, setGuardianConsent] = useState(false);
 
+  // Minor/guardian fields
+  const [participantDobs, setParticipantDobs] = useState<string[]>([]);
+  const [guardianName, setGuardianName] = useState("");
+  const [guardianIdNumber, setGuardianIdNumber] = useState("");
+  const [guardianSignature, setGuardianSignature] = useState("");
+
+  function calcAge(dob: string): number {
+    if (!dob) return 99;
+    const birth = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+    return age;
+  }
+
+  const hasMinor = participantDobs.some(d => d && calcAge(d) < 18);
+
   useEffect(() => {
     if (!bookingId || !token) { setLoading(false); return; }
     (async () => {
       const { data: b } = await supabase.from("bookings")
-        .select("id, business_id, customer_name, qty, waiver_status, waiver_token, waiver_signed_at, waiver_signed_name, waiver_payload, slots(start_time)")
+        .select("id, business_id, customer_name, qty, waiver_status, waiver_token, waiver_token_expires_at, waiver_signed_at, waiver_signed_name, waiver_payload, slots(start_time)")
         .eq("id", bookingId)
         .maybeSingle();
 
@@ -42,8 +60,21 @@ function WaiverContent() {
         return;
       }
 
+      // Check token expiry
+      if (b.waiver_token_expires_at && new Date(b.waiver_token_expires_at) < new Date()) {
+        setError("This waiver link has expired. Please contact the operator to request a new link.");
+        setLoading(false);
+        return;
+      }
+
+      // If already signed, strip PII from the data before setting state
+      if (b.waiver_status === "SIGNED") {
+        b.waiver_payload = null;
+      }
+
       setBooking(b);
       setSignerName(b.customer_name || "");
+      setParticipantDobs(Array(b.qty || 1).fill(""));
 
       if (b.business_id) {
         const { data: biz } = await supabase.from("businesses")
@@ -60,6 +91,10 @@ function WaiverContent() {
     e.preventDefault();
     if (!signerName.trim()) { setError("Please enter your full name."); return; }
     if (!acceptRisk || !guardianConsent) { setError("Please accept all required confirmations."); return; }
+    if (hasMinor && (!guardianName.trim() || !guardianIdNumber.trim() || !guardianSignature.trim())) {
+      setError("A minor is listed — please complete the parent/guardian countersignature section.");
+      return;
+    }
 
     setSubmitting(true);
     setError("");
@@ -73,6 +108,12 @@ function WaiverContent() {
         accept_risk: true,
         guardian_consent: true,
         user_agent: navigator.userAgent || null,
+        participant_dobs: participantDobs.filter(d => d) || null,
+        ...(hasMinor ? {
+          guardian_name: guardianName.trim(),
+          guardian_id_number: guardianIdNumber.trim(),
+          guardian_signature: guardianSignature.trim(),
+        } : {}),
       },
     }).eq("id", bookingId).eq("waiver_token", token);
 
@@ -200,6 +241,8 @@ function WaiverContent() {
               I consent to the Operator photographing or filming me and the guests on this booking during the activity and using such images for marketing, social media, or promotional purposes without compensation, unless I notify the Operator&apos;s guide in person before the activity begins.</p>
               <p className="mb-2"><strong>8. Governing Law</strong><br/>
               This waiver is governed by the laws of the Republic of South Africa. Any dispute shall be subject to the jurisdiction of the South African courts. This document constitutes the entire agreement between the parties regarding assumption of risk and release of liability and supersedes any prior representations.</p>
+              <p className="mb-2"><strong>9. Minors &amp; Guardian Consent</strong><br/>
+              If any participant is under 18 years of age, a parent or legal guardian must provide their full name, ID number, and countersignature below. The guardian assumes full responsibility for the minor&apos;s participation and agrees to all terms of this waiver on their behalf.</p>
               <p className="text-xs text-[color:var(--textMuted)]">By submitting this form you confirm that you have read, understood and agreed to all of the above terms on behalf of yourself and all guests listed on this booking.</p>
             </div>
 
@@ -228,6 +271,58 @@ function WaiverContent() {
                   placeholder="Any medical conditions, injuries, mobility limitations, dietary requirements, or notes about any guest in this booking."
                   className="w-full rounded-2xl border border-[color:var(--border)] px-4 py-3 text-base bg-[color:var(--card)] outline-none resize-y focus:ring-2 focus:ring-[color:var(--accent)]" />
               </div>
+
+              {/* Participant Date of Birth */}
+              <div>
+                <label className="block text-sm font-semibold mb-2">Date of Birth for each participant</label>
+                <p className="text-xs text-[color:var(--textMuted)] mb-3">Required to verify if any participant is a minor. If under 18, a parent/guardian countersignature is required below.</p>
+                <div className="space-y-2">
+                  {participantDobs.map((dob, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <span className="text-sm text-[color:var(--textMuted)] w-24 shrink-0">Guest {i + 1}</span>
+                      <input type="date" value={dob}
+                        onChange={e => {
+                          const updated = [...participantDobs];
+                          updated[i] = e.target.value;
+                          setParticipantDobs(updated);
+                        }}
+                        max={new Date().toISOString().split("T")[0]}
+                        className="flex-1 rounded-2xl border border-[color:var(--border)] px-4 py-2.5 text-sm bg-[color:var(--card)] outline-none focus:ring-2 focus:ring-[color:var(--accent)]" />
+                      {dob && calcAge(dob) < 18 && (
+                        <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-lg">Minor ({calcAge(dob)}y)</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Guardian Countersignature — shown only if a minor is detected */}
+              {hasMinor && (
+                <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-5 space-y-4">
+                  <div>
+                    <p className="text-sm font-bold text-amber-800 mb-1">Parent / Guardian Countersignature Required</p>
+                    <p className="text-xs text-amber-700">One or more participants is under 18. A parent or legal guardian must provide their details and sign below.</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-2">Guardian full name *</label>
+                    <input type="text" value={guardianName} onChange={e => setGuardianName(e.target.value)}
+                      placeholder="Parent or legal guardian full name" required
+                      className="w-full rounded-2xl border border-[color:var(--border)] px-4 py-3 text-base bg-white outline-none focus:ring-2 focus:ring-amber-400" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-2">Guardian SA ID or passport number *</label>
+                    <input type="text" value={guardianIdNumber} onChange={e => setGuardianIdNumber(e.target.value)}
+                      placeholder="e.g. 8001015009087 or A12345678" autoComplete="off" required
+                      className="w-full rounded-2xl border border-[color:var(--border)] px-4 py-3 text-base bg-white outline-none focus:ring-2 focus:ring-amber-400" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-2">Guardian signature (type your full name to sign) *</label>
+                    <input type="text" value={guardianSignature} onChange={e => setGuardianSignature(e.target.value)}
+                      placeholder="Type your full name as signature" required
+                      className="w-full rounded-2xl border border-[color:var(--border)] px-4 py-3 text-base bg-white outline-none focus:ring-2 focus:ring-amber-400 italic" />
+                  </div>
+                </div>
+              )}
 
               <label className="flex gap-3 items-start rounded-2xl border border-[color:var(--border)] bg-[color:var(--bg)] p-4 cursor-pointer">
                 <input type="checkbox" checked={acceptRisk} onChange={e => setAcceptRisk(e.target.checked)}

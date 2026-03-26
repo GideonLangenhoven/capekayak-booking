@@ -29,8 +29,6 @@ type ThemeData = {
   footer_line_two: string | null;
 };
 
-var THEME_COLUMNS = "id, color_main, color_secondary, color_cta, color_bg, color_nav, color_hover, chatbot_avatar, hero_eyebrow, hero_title, hero_subtitle, business_name, business_tagline, logo_url, timezone, what_to_bring, what_to_wear, directions, nav_gift_voucher_label, nav_my_bookings_label, card_cta_label, chat_widget_label, footer_line_one, footer_line_two";
-
 var defaults: ThemeData = {
   id: null, color_main: null, color_secondary: null, color_cta: null,
   color_bg: null, color_nav: null, color_hover: null, chatbot_avatar: null,
@@ -41,6 +39,18 @@ var defaults: ThemeData = {
   card_cta_label: null, chat_widget_label: null,
   footer_line_one: null, footer_line_two: null,
 };
+
+/** Map a raw DB row (which may have extra or missing columns) to ThemeData safely */
+function toTheme(row: Record<string, unknown> | null): ThemeData {
+  if (!row) return defaults;
+  var t: ThemeData = { ...defaults };
+  for (var key of Object.keys(defaults) as (keyof ThemeData)[]) {
+    if (key in row && row[key] !== undefined) {
+      (t as any)[key] = row[key];
+    }
+  }
+  return t;
+}
 
 var ThemeCtx = createContext<ThemeData>(defaults);
 
@@ -78,8 +88,8 @@ async function resolveBusiness(): Promise<ThemeData> {
   // 1. Environment variable — most reliable, set once per Vercel deployment
   var envBusinessId = process.env.NEXT_PUBLIC_BUSINESS_ID || "";
   if (envBusinessId) {
-    var { data: envBiz } = await supabase.from("businesses").select(THEME_COLUMNS).eq("id", envBusinessId).maybeSingle();
-    if (envBiz) return envBiz;
+    var { data: envBiz } = await supabase.from("businesses").select("*").eq("id", envBusinessId).maybeSingle();
+    if (envBiz) return toTheme(envBiz);
   }
 
   // 2. Query parameter override (e.g. ?business_id=xxx for testing)
@@ -87,41 +97,41 @@ async function resolveBusiness(): Promise<ThemeData> {
     var params = new URLSearchParams(window.location.search);
     var paramId = params.get("business_id");
     if (paramId) {
-      var { data: paramBiz } = await supabase.from("businesses").select(THEME_COLUMNS).eq("id", paramId).maybeSingle();
-      if (paramBiz) return paramBiz;
+      var { data: paramBiz } = await supabase.from("businesses").select("*").eq("id", paramId).maybeSingle();
+      if (paramBiz) return toTheme(paramBiz);
     }
   }
 
   // 3. Match current domain against booking_site_url in the businesses table
   var origin = typeof window !== "undefined" ? window.location.origin : "";
   if (origin) {
-    var { data: allBiz } = await supabase.from("businesses").select(THEME_COLUMNS + ", booking_site_url");
+    var { data: allBiz } = await supabase.from("businesses").select("*");
     if (allBiz && allBiz.length > 0) {
       var normOrigin = origin.replace(/\/+$/, "").toLowerCase();
 
       for (var i = 0; i < allBiz.length; i++) {
-        var siteUrl = String(allBiz[i].booking_site_url || "").replace(/\/+$/, "").toLowerCase();
+        var siteUrl = String((allBiz[i] as any).booking_site_url || "").replace(/\/+$/, "").toLowerCase();
         if (siteUrl && normOrigin === siteUrl) {
-          return allBiz[i];
+          return toTheme(allBiz[i]);
         }
         if (siteUrl) {
           try {
             var parsed = new URL(siteUrl);
             if (parsed.origin.toLowerCase() === normOrigin) {
-              return allBiz[i];
+              return toTheme(allBiz[i]);
             }
           } catch { /* invalid URL, skip */ }
         }
       }
 
       // 4. Fallback: first business (single-tenant compatibility)
-      return allBiz[0];
+      return toTheme(allBiz[0]);
     }
   }
 
   // Ultimate fallback: just grab the first one
-  var { data: fallback } = await supabase.from("businesses").select(THEME_COLUMNS).limit(1).single();
-  return fallback || defaults;
+  var { data: fallback } = await supabase.from("businesses").select("*").limit(1).single();
+  return toTheme(fallback);
 }
 
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {

@@ -77,7 +77,10 @@ export default function ChatWidget() {
           <style>{`@keyframes su{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}@keyframes bl{0%,80%,100%{opacity:0}40%{opacity:1}}`}</style>
           <div className="bg-gray-900 text-white p-4 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3"><div className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center text-lg">🛶</div><div><p className="text-sm font-semibold">{business_name || "Kayaks"}</p><div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400"></span><p className="text-xs text-gray-400">Online</p></div></div></div>
-            <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10">✕</button>
+            <div className="flex items-center gap-1">
+              <button onClick={() => { setMsgs([]); setSt({ step: "IDLE" }); greeted.current = false; setTimeout(() => { greeted.current = true; setTyping(true); setTimeout(() => { setTyping(false); setMsgs([{ role: "bot", text: "Hi there! 🛶 How can I help?" }]); }, 900 + Math.random() * 500); }, 400); }} className="text-gray-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10" title="New chat"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+              <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10" title="Close">✕</button>
+            </div>
           </div>
           <div className="flex-1 overflow-auto p-4 space-y-3 bg-gray-50">
             {msgs.map((m, i) => (

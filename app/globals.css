@@ -346,7 +346,7 @@
 
   .subhead {
     color: var(--textMuted);
-    @apply mt-3 text-base md:text-lg;
+    @apply mt-3 hidden text-base md:block md:text-lg;
   }
 
   .surface {

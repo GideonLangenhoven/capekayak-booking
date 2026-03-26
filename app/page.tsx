@@ -16,6 +16,7 @@ export default function Home() {
   const theme = useTheme();
   const router = useRouter();
   const [tours, setTours] = useState<any[]>([]);
+  const [comboOffers, setComboOffers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,6 +24,14 @@ export default function Home() {
     (async () => {
       const { data } = await supabase.from("tours").select("*").eq("business_id", theme.id).eq("active", true).order("base_price_per_person");
       setTours((data || []).filter((t: any) => !t.hidden));
+
+      // Load combo offers where this business is either side
+      const { data: combos } = await supabase.from("combo_offers")
+        .select("*, tour_a:tours!combo_offers_tour_a_id_fkey(id, name, image_url, duration_minutes), tour_b:tours!combo_offers_tour_b_id_fkey(id, name, image_url, duration_minutes)")
+        .or(`business_a_id.eq.${theme.id},business_b_id.eq.${theme.id}`)
+        .eq("active", true)
+        .order("sort_order", { ascending: true });
+      setComboOffers(combos || []);
       setLoading(false);
     })();
   }, [theme.id]);
@@ -101,6 +110,78 @@ export default function Home() {
           </div>
         ))}
       </div>
+
+      {/* Combo Packages */}
+      {comboOffers.length > 0 && (
+        <div className="mt-16">
+          <SectionHeader
+            centered
+            eyebrow="Save More"
+            title="Combo Packages"
+            subtitle="Bundle two adventures together and save."
+            className="max-w-3xl"
+          />
+          <div className="grid gap-8 justify-items-center" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
+            {comboOffers.map((combo) => {
+              const tourA = combo.tour_a;
+              const tourB = combo.tour_b;
+              const savings = combo.original_price - combo.combo_price;
+              return (
+                <div key={combo.id} className="relative w-full max-w-[380px] mx-auto group cursor-pointer"
+                  onClick={() => router.push("/combo/" + combo.id)}>
+                  <div className="overflow-hidden bg-white shadow-sm rounded-2xl transition-all duration-300 hover:shadow-[0_13px_21px_-5px_rgba(0,0,0,0.2)] hover:-translate-y-1">
+                    {/* Dual image strip */}
+                    <div className="flex h-[180px]">
+                      <div className="w-1/2 relative overflow-hidden">
+                        <img src={tourA?.image_url || TOUR_IMAGES[tourA?.name] || TOUR_IMAGES["Sea Kayak"]} alt={tourA?.name}
+                          className="w-full h-full object-cover" />
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3">
+                          <p className="text-white text-xs font-semibold truncate">{tourA?.name}</p>
+                        </div>
+                      </div>
+                      <div className="w-1/2 relative overflow-hidden border-l-2 border-white">
+                        <img src={tourB?.image_url || TOUR_IMAGES[tourB?.name] || TOUR_IMAGES["Sea Kayak"]} alt={tourB?.name}
+                          className="w-full h-full object-cover" />
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3">
+                          <p className="text-white text-xs font-semibold truncate">{tourB?.name}</p>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Content */}
+                    <div className="px-5 py-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="text-lg font-bold text-gray-900 leading-tight">{combo.name}</h3>
+                        {savings > 0 && (
+                          <span className="shrink-0 bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full">
+                            Save R{savings}
+                          </span>
+                        )}
+                      </div>
+                      {combo.description && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{combo.description}</p>}
+                      <div className="flex items-baseline gap-2 mt-3">
+                        <span className="text-xl font-bold text-gray-900">R{combo.combo_price}</span>
+                        <span className="text-sm text-gray-400">/pp</span>
+                        {savings > 0 && <span className="text-sm text-gray-400 line-through">R{combo.original_price}</span>}
+                      </div>
+                      <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                        <span>{tourA?.duration_minutes + (tourB?.duration_minutes || 0)} min total</span>
+                        <span>•</span>
+                        <span>2 experiences</span>
+                      </div>
+                      <div className="text-center mt-4">
+                        <span className="inline-block rounded-full text-white text-xs font-semibold uppercase tracking-wide px-6 py-2.5"
+                          style={{ backgroundColor: 'var(--cta)' }}>
+                          Book Combo
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
     </div>
   );

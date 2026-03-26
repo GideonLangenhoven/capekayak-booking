@@ -907,6 +907,46 @@ export default function MyBookings() {
           )}
 
           {/* Status indicators */}
+          {b.refund_status === "CREDIT_PENDING" && Number(b.refund_amount || 0) > 0 && (
+            <div className="pb-3">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-sm font-semibold text-emerald-800 mb-1">You have a credit of R{Number(b.refund_amount).toFixed(2)}</p>
+                <p className="text-xs text-emerald-700 mb-3">Choose how you'd like to receive your credit:</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={async () => {
+                      setActionLoading(b.id);
+                      try {
+                        var res = await callRebook({ booking_id: b.id, action: "CLAIM_CREDIT", credit_action: "VOUCHER" });
+                        showToast("Voucher issued! Code: " + (res.voucher_code || "Check your email") + " for R" + Number(b.refund_amount).toFixed(2));
+                        lookupBookings();
+                      } catch (e: any) { showToast(e.message || "Failed to claim credit", "error"); }
+                      setActionLoading(null);
+                    }}
+                    disabled={actionLoading === b.id}
+                    className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                  >
+                    {actionLoading === b.id ? "..." : `Get Voucher (R${Number(b.refund_amount).toFixed(2)})`}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setActionLoading(b.id);
+                      try {
+                        var res = await callRebook({ booking_id: b.id, action: "CLAIM_CREDIT", credit_action: "REFUND" });
+                        showToast("Refund of R" + (res.refund_amount ? Number(res.refund_amount).toFixed(2) : (Number(b.refund_amount) * 0.95).toFixed(2)) + " requested. Please allow 5-10 business days.");
+                        lookupBookings();
+                      } catch (e: any) { showToast(e.message || "Failed to claim credit", "error"); }
+                      setActionLoading(null);
+                    }}
+                    disabled={actionLoading === b.id}
+                    className="px-3.5 py-1.5 text-xs font-semibold rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 transition-colors"
+                  >
+                    {actionLoading === b.id ? "..." : `Get Refund (R${(Number(b.refund_amount) * 0.95).toFixed(2)})`}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           {b.refund_status === "REQUESTED" && (
             <div className="flex items-center gap-1.5 pb-3 text-xs font-medium text-amber-600">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>

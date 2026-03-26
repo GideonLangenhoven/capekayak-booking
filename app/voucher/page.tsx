@@ -33,6 +33,7 @@ export default function VoucherPage() {
     const { data: voucher, error } = await supabase.from("vouchers").insert({
       business_id: selectedTour.business_id, code: vcode, status: "PENDING", type: "FREE_TRIP",
       value: selectedTour.base_price_per_person, purchase_amount: selectedTour.base_price_per_person,
+      current_balance: selectedTour.base_price_per_person,
       recipient_name: recipientName, gift_message: giftMessage || null,
       buyer_name: buyerName, buyer_email: buyerEmail.toLowerCase(), tour_name: selectedTour.name,
       expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
