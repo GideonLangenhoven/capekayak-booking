@@ -381,10 +381,11 @@ export default function MyBookings() {
     var { data } = await supabase.from("bookings")
       .select("id, business_id, customer_name, email, phone, qty, total_amount, status, refund_status, refund_amount, created_at, unit_price, tour_id, slot_id, custom_fields, converted_to_voucher_id, cancelled_at, cancellation_reason, payment_method, waiver_status, waiver_token, slots(start_time, capacity_total, booked, held), tours(name)")
       .eq("email", email.toLowerCase()).order("created_at", { ascending: false });
-    // Filter by phone: match if last 9 digits are the same
+    // Filter by phone: match if last 9 digits are the same, or include bookings with no phone stored
     var matched = (data || []).filter(function (b: any) {
-      var bTail = (b.phone || "").replace(/\D/g, "").slice(-9);
-      return bTail === phoneTail;
+      var rawPhone = (b.phone || "").replace(/\D/g, "");
+      if (!rawPhone) return true; // Include bookings with no phone (phone was optional at booking time)
+      return rawPhone.slice(-9) === phoneTail;
     });
     if (matched.length === 0) {
       setLoginError("No bookings found for this email and phone combination.");
