@@ -379,7 +379,7 @@ export default function MyBookings() {
     // to handle normalization differences (e.g. 27 vs 027 vs +27 prefix variants)
     var phoneTail = norm.replace(/\D/g, "").slice(-9);
     var { data } = await supabase.from("bookings")
-      .select("id, business_id, customer_name, email, phone, qty, total_amount, status, refund_status, refund_amount, created_at, unit_price, tour_id, slot_id, custom_fields, converted_to_voucher_id, cancelled_at, cancellation_reason, payment_method, waiver_status, waiver_token, slots(start_time, capacity_total, booked, held), tours(name)")
+      .select("id, business_id, customer_name, email, phone, qty, total_amount, status, refund_status, refund_amount, created_at, unit_price, tour_id, slot_id, custom_fields, converted_to_voucher_id, cancelled_at, cancellation_reason, waiver_status, waiver_token, yoco_payment_id, slots(start_time, capacity_total, booked, held), tours(name)")
       .eq("email", email.toLowerCase()).order("created_at", { ascending: false });
     // Filter by phone: match if last 9 digits are the same, or include bookings with no phone stored
     var matched = (data || []).filter(function (b: any) {
@@ -1304,10 +1304,10 @@ export default function MyBookings() {
          ═══════════════════════════════════════════════════════ */}
       <Modal open={!!cancelTarget} onClose={() => setCancelTarget(null)} title="Cancel Booking">
         {cancelTarget && (() => {
-          var pm = (cancelTarget.payment_method || "").toUpperCase();
-          var isVoucherPaid = pm === "VOUCHER" || pm === "GIFT_VOUCHER";
-          var isManualPaid = pm === "MANUAL" || pm === "CASH" || pm === "EFT";
-          var isSplitPaid = pm === "SPLIT" || pm === "SPLIT_TENDER";
+          var ypi = (cancelTarget.yoco_payment_id || "").toUpperCase();
+          var isVoucherPaid = ypi.startsWith("VOUCHER");
+          var isManualPaid = ypi === "MANUAL" || ypi === "CASH" || ypi === "EFT";
+          var isSplitPaid = ypi.startsWith("SPLIT");
 
           return (
           <div>
