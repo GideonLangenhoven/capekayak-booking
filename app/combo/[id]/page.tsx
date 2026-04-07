@@ -3,25 +3,8 @@ import { useEffect, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "../../lib/supabase";
 import { useTheme } from "../../components/ThemeProvider";
-
-function fmtDate(iso: string, tz: string) {
-  return new Date(iso).toLocaleDateString("en-ZA", { weekday: "short", day: "numeric", month: "short", timeZone: tz });
-}
-function fmtTime(iso: string, tz: string) {
-  return new Date(iso).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit", timeZone: tz });
-}
-function fmtMonth(d: Date) { return d.toLocaleDateString("en-ZA", { month: "long", year: "numeric" }); }
-
-function dateKeyInTz(iso: string, tz: string): string {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "numeric", day: "numeric" }).formatToParts(new Date(iso));
-  const y = parts.find(p => p.type === "year")?.value ?? "";
-  const m = parts.find(p => p.type === "month")?.value ?? "1";
-  const d = parts.find(p => p.type === "day")?.value ?? "1";
-  return `${y}-${Number(m) - 1}-${Number(d)}`;
-}
-function isSameDay(a: Date, b: Date) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
-function getDaysInMonth(y: number, m: number) { return new Date(y, m + 1, 0).getDate(); }
-function getFirstDay(y: number, m: number) { return new Date(y, m, 1).getDay(); }
+import { fmtDate, fmtTime, fmtMonth, dateKeyInTz, isSameDay, getDaysInMonth, getFirstDay } from "../../lib/format";
+import type { ComboOffer, Slot } from "../../lib/types";
 
 const BOOKING_CUTOFF_MINUTES = 60;
 const SU = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -32,21 +15,21 @@ export default function ComboBookingPage() {
   const theme = useTheme();
   const tz = theme.timezone || "Africa/Johannesburg";
 
-  const [combo, setCombo] = useState<any>(null);
+  const [combo, setCombo] = useState<ComboOffer | null>(null);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<"slots" | "details" | "payment">("slots");
 
   // Tour A calendar state
-  const [slotsA, setSlotsA] = useState<any[]>([]);
+  const [slotsA, setSlotsA] = useState<Slot[]>([]);
   const [dateA, setDateA] = useState<Date | null>(null);
-  const [slotA, setSlotA] = useState<any>(null);
+  const [slotA, setSlotA] = useState<Slot | null>(null);
   const [calMonthA, setCalMonthA] = useState(new Date().getMonth());
   const [calYearA, setCalYearA] = useState(new Date().getFullYear());
 
   // Tour B calendar state
-  const [slotsB, setSlotsB] = useState<any[]>([]);
+  const [slotsB, setSlotsB] = useState<Slot[]>([]);
   const [dateB, setDateB] = useState<Date | null>(null);
-  const [slotB, setSlotB] = useState<any>(null);
+  const [slotB, setSlotB] = useState<Slot | null>(null);
   const [calMonthB, setCalMonthB] = useState(new Date().getMonth());
   const [calYearB, setCalYearB] = useState(new Date().getFullYear());
 
@@ -77,9 +60,10 @@ export default function ComboBookingPage() {
         .eq("active", true)
         .single();
       if (data) {
-        setCombo(data);
-        loadSlots(data.tour_a.id, setSlotsA);
-        loadSlots(data.tour_b.id, setSlotsB);
+        const offer = data as unknown as ComboOffer;
+        setCombo(offer);
+        loadSlots(offer.tour_a.id, setSlotsA);
+        loadSlots(offer.tour_b.id, setSlotsB);
       }
       setLoading(false);
     })();
@@ -96,13 +80,13 @@ export default function ComboBookingPage() {
     document.head.appendChild(s);
   }, []);
 
-  async function loadSlots(tourId: string, setter: (s: any[]) => void) {
+  async function loadSlots(tourId: string, setter: (s: Slot[]) => void) {
     const now = new Date();
     const cutoff = new Date(now.getTime() + BOOKING_CUTOFF_MINUTES * 60 * 1000);
     const later = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
     const { data } = await supabase.from("slots").select("*").eq("tour_id", tourId).eq("status", "OPEN")
       .gt("start_time", cutoff.toISOString()).lt("start_time", later.toISOString()).order("start_time", { ascending: true });
-    setter((data || []).filter((s: any) => s.capacity_total - s.booked - (s.held || 0) > 0));
+    setter(((data || []) as unknown as Slot[]).filter((s) => s.capacity_total - s.booked - (s.held || 0) > 0));
   }
 
   const availDatesA = useMemo(() => {
@@ -136,7 +120,7 @@ export default function ComboBookingPage() {
     calYear: number, calMonth: number,
     setCalYear: (y: number) => void, setCalMonth: (m: number) => void,
     availDates: Set<string>, selectedDate: Date | null,
-    setSelectedDate: (d: Date) => void, setSelectedSlot: (s: any) => void
+    setSelectedDate: (d: Date) => void, setSelectedSlot: (s: Slot | null) => void
   ) {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const dim = getDaysInMonth(calYear, calMonth);
@@ -184,11 +168,11 @@ export default function ComboBookingPage() {
     );
   }
 
-  function renderSlots(daySlots: any[], selectedSlot: any, setSelectedSlot: (s: any) => void) {
+  function renderSlots(daySlots: Slot[], selectedSlot: Slot | null, setSelectedSlot: (s: Slot) => void) {
     if (daySlots.length === 0) return <div className="text-center py-8 text-gray-400"><p>No available slots.</p></div>;
     return (
       <div className="space-y-2">
-        {daySlots.map((s: any) => {
+        {daySlots.map((s: Slot) => {
           const a = s.capacity_total - s.booked - (s.held || 0);
           const isSel = selectedSlot?.id === s.id;
           return (
@@ -254,21 +238,21 @@ export default function ComboBookingPage() {
       setBookingRefB((data.booking_b_id || "").substring(0, 8).toUpperCase());
 
       // Launch Paysafe checkout overlay
-      if (paysafeReady && (window as any).paysafe?.checkout) {
+      if (paysafeReady && (window as { paysafe?: { checkout?: { setup: Function } } }).paysafe?.checkout) {
         const totalCents = Math.round(comboTotal * 100);
         const nameParts = name.trim().split(/\s+/);
         const firstName = nameParts[0] || name;
         const lastName = nameParts.slice(1).join(" ") || name;
 
-        (window as any).paysafe.checkout.setup(data.paysafe_api_key, {
+        ((window as { paysafe?: { checkout?: { setup: Function } } }).paysafe!.checkout!.setup as Function)(data.paysafe_api_key, {
           amount: totalCents,
           currency: combo.currency || "ZAR",
           merchantRefNum: data.combo_booking_id,
           environment: "LIVE",
-          companyName: theme.business_name || theme.name || "Combo Booking",
+          companyName: theme.business_name || "Combo Booking",
           customer: { firstName, lastName, email: email.toLowerCase() },
           displayPaymentMethods: ["card"],
-        }, (instance: any, error: any, result: any) => {
+        }, (instance: { close?: () => void }, error: unknown, result: { paymentHandleToken?: string } | null) => {
           if (error) {
             console.error("PAYSAFE_CHECKOUT_ERROR:", error);
             setPaymentError("Payment was cancelled or failed. Please try again.");
@@ -291,13 +275,13 @@ export default function ComboBookingPage() {
         setPaymentError("Payment system is loading. Please wait and try again.");
         setSubmitting(false);
       }
-    } catch (err: any) {
-      setPaymentError(err?.message || "Something went wrong.");
+    } catch (err: unknown) {
+      setPaymentError((err instanceof Error ? err.message : null) || "Something went wrong.");
       setSubmitting(false);
     }
   }
 
-  async function processPayment(cbId: string, token: string, paysafeInstance: any) {
+  async function processPayment(cbId: string, token: string, paysafeInstance: { close?: () => void }) {
     try {
       const res = await fetch(SU + "/functions/v1/create-paysafe-checkout", {
         method: "POST",
@@ -313,10 +297,10 @@ export default function ComboBookingPage() {
         setPaymentStatus("failed");
         setPaymentError(data.error || "Payment processing failed.");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (paysafeInstance?.close) paysafeInstance.close();
       setPaymentStatus("failed");
-      setPaymentError(err?.message || "Payment processing failed.");
+      setPaymentError((err instanceof Error ? err.message : null) || "Payment processing failed.");
     }
     setSubmitting(false);
   }

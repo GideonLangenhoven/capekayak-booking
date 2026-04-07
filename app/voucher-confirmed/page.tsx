@@ -3,11 +3,16 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../lib/supabase";
+import ConfirmationSkeleton from "../components/skeletons/ConfirmationSkeleton";
 
 function VoucherConfirmedContent() {
   const params = useSearchParams();
   const code = params.get("code");
-  const [voucher, setVoucher] = useState<any>(null);
+  const [voucher, setVoucher] = useState<{
+    code: string; value: number; tour_name: string; recipient_name: string;
+    gift_message?: string | null; buyer_name: string; buyer_email: string;
+    expires_at?: string | null;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -19,7 +24,7 @@ function VoucherConfirmedContent() {
     })();
   }, [code]);
 
-  if (loading) return <div className="app-loader min-h-screen"><div className="spinner" /></div>;
+  if (loading) return <ConfirmationSkeleton />;
 
   return (
     <div className="app-container max-w-md page-wrap">
@@ -77,5 +82,5 @@ function VoucherConfirmedContent() {
 }
 
 export default function VoucherConfirmedPage() {
-  return <Suspense fallback={<div className="app-loader min-h-screen"><div className="spinner" /></div>}><VoucherConfirmedContent /></Suspense>;
+  return <Suspense fallback={<ConfirmationSkeleton />}><VoucherConfirmedContent /></Suspense>;
 }

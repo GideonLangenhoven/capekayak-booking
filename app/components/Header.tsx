@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
 import { useTheme } from "./ThemeProvider";
 
@@ -17,7 +18,7 @@ export default function Header() {
       <div className="app-container flex items-center justify-between py-4">
         <Link href="/" className="flex items-center gap-3 rounded-xl px-2 py-1 hover:bg-[color:var(--surface2)]">
           {logoUrl ? (
-            <img src={logoUrl} alt={name} className="h-9 w-auto object-contain" />
+            <Image src={logoUrl} alt={name} width={120} height={36} className="h-9 w-auto object-contain" />
           ) : (
             <span className="text-2xl" aria-hidden>🛶</span>
           )}

@@ -27,6 +27,7 @@ type ThemeData = {
   chat_widget_label: string | null;
   footer_line_one: string | null;
   footer_line_two: string | null;
+  subscription_status: string | null;
 };
 
 var defaults: ThemeData = {
@@ -38,6 +39,7 @@ var defaults: ThemeData = {
   nav_gift_voucher_label: null, nav_my_bookings_label: null,
   card_cta_label: null, chat_widget_label: null,
   footer_line_one: null, footer_line_two: null,
+  subscription_status: null,
 };
 
 /** Map a raw DB row (which may have extra or missing columns) to ThemeData safely */

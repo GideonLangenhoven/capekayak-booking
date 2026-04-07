@@ -1,10 +1,18 @@
 "use client";
 import { useState } from "react";
+import type { CalendarDate } from "../lib/types";
 
 type CalendarProps = {
-  availableDates: { date: string; label: string; slots: any[] }[];
+  availableDates: CalendarDate[];
   onSelectDate: (date: string) => void;
 };
+
+interface CalendarCell {
+  day: number;
+  date: string;
+  isPast: boolean;
+  hasSlots: boolean;
+}
 
 export default function ChatCalendar({ availableDates, onSelectDate }: CalendarProps) {
   var now = new Date();
@@ -32,7 +40,7 @@ export default function ChatCalendar({ availableDates, onSelectDate }: CalendarP
   var maxDate = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
   var canNext = new Date(viewYear, viewMonth + 1, 1) < maxDate;
 
-  var cells: any[] = [];
+  var cells: (CalendarCell | null)[] = [];
   for (var i = 0; i < firstDay; i++) cells.push(null);
   for (var d = 1; d <= daysInMonth; d++) {
     var dateStr = viewYear + "-" + String(viewMonth + 1).padStart(2, "0") + "-" + String(d).padStart(2, "0");

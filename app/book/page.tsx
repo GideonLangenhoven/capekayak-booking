@@ -3,26 +3,11 @@ import { useEffect, useState, Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { useTheme } from "../components/ThemeProvider";
-
-function fmtDate(iso: string, tz: string) {
-  return new Date(iso).toLocaleDateString("en-ZA", { weekday: "short", day: "numeric", month: "short", timeZone: tz });
-}
-function fmtTime(iso: string, tz: string) {
-  return new Date(iso).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit", timeZone: tz });
-}
-function fmtMonth(d: Date) { return d.toLocaleDateString("en-ZA", { month: "long", year: "numeric" }); }
-
-function dateKeyInTz(iso: string, tz: string): string {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "numeric", day: "numeric" }).formatToParts(new Date(iso));
-  const y = parts.find(p => p.type === "year")?.value ?? "";
-  const m = parts.find(p => p.type === "month")?.value ?? "1";
-  const d = parts.find(p => p.type === "day")?.value ?? "1";
-  // Match the calYear-calMonth(0-indexed)-day key format used by the calendar
-  return `${y}-${Number(m) - 1}-${Number(d)}`;
-}
-function isSameDay(a: Date, b: Date) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
-function getDaysInMonth(y: number, m: number) { return new Date(y, m + 1, 0).getDate(); }
-function getFirstDay(y: number, m: number) { return new Date(y, m, 1).getDay(); }
+import BookingFlowSkeleton from "../components/skeletons/BookingFlowSkeleton";
+import Toast from "../components/ui/Toast";
+import { useToast } from "../hooks/useToast";
+import { fmtDate, fmtTime, fmtMonth, dateKeyInTz, isSameDay, getDaysInMonth, getFirstDay } from "../lib/format";
+import type { Tour, Slot, VoucherCredit, AddOn, AppliedPromo } from "../lib/types";
 
 function BookingFlow() {
   const params = useSearchParams();
@@ -30,11 +15,11 @@ function BookingFlow() {
   const tz = theme.timezone || "Africa/Johannesburg";
   const tourId = params.get("tour");
   const [step, setStep] = useState<"calendar" | "details" | "payment">("calendar");
-  const [tours, setTours] = useState<any[]>([]);
-  const [selectedTour, setSelectedTour] = useState<any>(null);
-  const [allSlots, setAllSlots] = useState<any[]>([]);
+  const [tours, setTours] = useState<Tour[]>([]);
+  const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
+  const [allSlots, setAllSlots] = useState<Slot[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [selectedSlot, setSelectedSlot] = useState<any>(null);
+  const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [calMonth, setCalMonth] = useState(new Date().getMonth());
   const [calYear, setCalYear] = useState(new Date().getFullYear());
   const [qty, setQty] = useState(1);
@@ -42,7 +27,7 @@ function BookingFlow() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [voucherCode, setVoucherCode] = useState("");
-  const [vouchers, setVouchers] = useState<any[]>([]);
+  const [vouchers, setVouchers] = useState<VoucherCredit[]>([]);
   const [voucherTotal, setVoucherTotal] = useState(0);
   const [voucherError, setVoucherError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -53,6 +38,14 @@ function BookingFlow() {
   const [soldOutMsg, setSoldOutMsg] = useState("");
   const [tourNotFound, setTourNotFound] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
+  const [availableAddOns, setAvailableAddOns] = useState<AddOn[]>([]);
+  const [selectedAddOns, setSelectedAddOns] = useState<Record<string, number>>({});
+  const [promoCode, setPromoCode] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState<AppliedPromo | null>(null);
+  const [promoError, setPromoError] = useState("");
+  const [waiverUrl, setWaiverUrl] = useState("");
+  const [draftBookingId, setDraftBookingId] = useState<string | null>(null);
+  const { toast, showToast, dismissToast } = useToast();
 
   const IMG: Record<string, string> = {
     "Sea Kayak": "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800&h=500&fit=crop",
@@ -65,17 +58,19 @@ function BookingFlow() {
     (async () => {
       const q = supabase.from("tours").select("*").eq("business_id", theme.id).order("base_price_per_person");
       const { data } = await q;
-      setTours(data || []);
+      setTours((data || []) as unknown as Tour[]);
       if (tourId) {
-        const t = (data || []).find((x: any) => x.id === tourId);
+        const t = ((data || []) as unknown as Tour[]).find((x) => x.id === tourId);
         if (t && !t.hidden && t.active !== false) {
           setSelectedTour(t);
           loadSlots(t.id);
         } else {
-          // Tour is hidden, inactive, or doesn't exist
           setTourNotFound(true);
         }
       }
+      // Fetch active add-ons for this business
+      const { data: addOnsData } = await supabase.from("add_ons").select("id, name, description, price, image_url").eq("business_id", theme.id).eq("active", true).order("sort_order");
+      setAvailableAddOns((addOnsData || []) as AddOn[]);
       setLoading(false);
     })();
   }, [tourId, theme.id]);
@@ -88,7 +83,7 @@ function BookingFlow() {
     const later = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
     const { data } = await supabase.from("slots").select("*").eq("tour_id", tid).eq("status", "OPEN")
       .gt("start_time", cutoff.toISOString()).lt("start_time", later.toISOString()).order("start_time", { ascending: true });
-    setAllSlots((data || []).filter((s: any) => s.capacity_total - s.booked - (s.held || 0) > 0));
+    setAllSlots(((data || []) as unknown as Slot[]).filter((s) => s.capacity_total - s.booked - (s.held || 0) > 0));
   }
 
   const availDates = useMemo(() => {
@@ -103,37 +98,48 @@ function BookingFlow() {
   }, [allSlots, selectedDate]);
 
   const baseTotal = selectedTour ? selectedTour.base_price_per_person * qty : 0;
-  // Compute effective voucher credit: sequential deduction with FREE_TRIP pax limit + peak arbitrage
+  const addOnsTotal = useMemo(() => {
+    return availableAddOns.reduce((sum, ao) => {
+      const q = selectedAddOns[ao.id] || 0;
+      return sum + ao.price * q;
+    }, 0);
+  }, [availableAddOns, selectedAddOns]);
+  const grandTotal = baseTotal + addOnsTotal;
+  // Promo discount applied before voucher credit
+  const computedPromoDiscount = useMemo(() => {
+    if (!appliedPromo) return 0;
+    if (appliedPromo.discount_type === "PERCENT") {
+      return Math.round(grandTotal * appliedPromo.discount_value / 100 * 100) / 100;
+    }
+    return Math.min(appliedPromo.discount_value, grandTotal);
+  }, [appliedPromo, grandTotal]);
+  const afterPromoTotal = Math.max(0, grandTotal - computedPromoDiscount);
+  // Compute effective voucher credit: sequential drain against post-promo total
   const effectiveVoucherCredit = useMemo(() => {
     if (!selectedTour || vouchers.length === 0) return 0;
-    const pricePerPerson = selectedTour.base_price_per_person;
-    let remaining = baseTotal;
+    let remaining = afterPromoTotal;
     for (const v of vouchers) {
       if (remaining <= 0) break;
-      if (v.type === "FREE_TRIP") {
-        // FREE_TRIP: only covers pax_limit guests
-        const coveredPax = Math.min(v.pax_limit || 1, qty);
-        const slotCost = pricePerPerson * coveredPax;
-        // Peak arbitrage: if slot price > purchase_value, treat as credit for purchase_value
-        if (slotCost > v.purchase_value) {
-          // Downgrade to credit voucher behavior — only covers the purchase_value amount
-          const credit = Math.min(v.purchase_value, remaining);
-          remaining -= credit;
-        } else {
-          // Normal FREE_TRIP — covers the full slot cost for pax_limit guests
-          const credit = Math.min(v.value, slotCost, remaining);
-          remaining -= credit;
-        }
-      } else {
-        // CREDIT voucher: sequential drain
-        const credit = Math.min(v.value, remaining);
-        remaining -= credit;
-      }
+      remaining -= Math.min(v.value, remaining);
     }
-    return baseTotal - remaining;
-  }, [vouchers, baseTotal, qty, selectedTour]);
-  const finalTotal = Math.max(0, baseTotal - effectiveVoucherCredit);
+    return afterPromoTotal - remaining;
+  }, [vouchers, afterPromoTotal, selectedTour]);
+  const finalTotal = Math.max(0, afterPromoTotal - effectiveVoucherCredit);
   const avail = selectedSlot ? selectedSlot.capacity_total - selectedSlot.booked - (selectedSlot.held || 0) : 10;
+
+  function toggleAddOn(id: string) {
+    setSelectedAddOns(prev => {
+      const copy = { ...prev };
+      if (copy[id]) { delete copy[id]; } else { copy[id] = 1; }
+      return copy;
+    });
+  }
+  function setAddOnQty(id: string, q: number) {
+    setSelectedAddOns(prev => {
+      if (q <= 0) { const copy = { ...prev }; delete copy[id]; return copy; }
+      return { ...prev, [id]: q };
+    });
+  }
 
   async function applyVoucher() {
     if (!voucherCode.trim()) return;
@@ -149,54 +155,132 @@ function BookingFlow() {
     const bal = Number(data.current_balance ?? data.value ?? data.purchase_amount ?? 0);
     if (bal <= 0) { setVoucherError("No balance remaining"); return; }
 
-    // If voucher is tour-specific but that tour is hidden/inactive, treat as generic CREDIT
-    let effectiveType = data.type;
-    if (data.tour_name && data.type === "FREE_TRIP") {
-      const linkedTour = tours.find((t: any) => t.name === data.tour_name);
-      if (!linkedTour || linkedTour.hidden || !linkedTour.active) {
-        effectiveType = "CREDIT";
-      }
-    }
-
-    setVouchers([...vouchers, { id: data.id, code, value: bal, type: effectiveType, pax_limit: data.pax_limit ?? 1, purchase_value: Number(data.purchase_value ?? data.purchase_amount ?? data.value ?? 0) }]);
+    setVouchers([...vouchers, { id: data.id, code, value: bal }]);
     setVoucherTotal(voucherTotal + bal);
     setVoucherCode("");
   }
 
   function removeVoucher(i: number) { const v = vouchers[i]; setVouchers(vouchers.filter((_, j) => j !== i)); setVoucherTotal(voucherTotal - v.value); }
 
+  async function saveDraft() {
+    if (!name.trim() || !email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+    if (!selectedTour || !selectedSlot) return;
+    const draftData = {
+      business_id: selectedTour.business_id, tour_id: selectedTour.id, slot_id: selectedSlot.id,
+      customer_name: name.trim(), email: email.toLowerCase().trim(),
+      qty, unit_price: selectedTour.base_price_per_person,
+      total_amount: grandTotal, original_total: grandTotal,
+      status: "DRAFT" as const, source: "WEB" as const,
+    };
+    try {
+      if (draftBookingId) {
+        await supabase.from("bookings").update(draftData).eq("id", draftBookingId).eq("status", "DRAFT");
+      } else {
+        const { data } = await supabase.from("bookings").insert(draftData).select("id").single();
+        if (data) setDraftBookingId(data.id);
+      }
+    } catch (e) { /* draft save is best-effort */ }
+  }
+
+  async function applyPromo() {
+    if (!promoCode.trim()) return;
+    setPromoError("");
+    // Read DOM value as fallback for browser autofill (autofill may not trigger onChange)
+    const emailEl = document.getElementById("book-email") as HTMLInputElement;
+    const emailVal = (emailEl?.value || email).trim();
+    if (emailVal && emailVal !== email) setEmail(emailVal);
+    if (!emailVal || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) {
+      setPromoError("Please enter your email address first");
+      return;
+    }
+    const code = promoCode.toUpperCase().trim();
+    const { data: promo } = await supabase
+      .from("promotions")
+      .select("*")
+      .eq("code", code)
+      .eq("business_id", theme.id)
+      .maybeSingle();
+    if (!promo) { setPromoError("Code not found"); return; }
+    if (!promo.active) { setPromoError("This code is no longer active"); return; }
+    if (promo.valid_from && new Date(promo.valid_from) > new Date()) { setPromoError("This code is not yet valid"); return; }
+    if (promo.valid_until && new Date(promo.valid_until) < new Date()) { setPromoError("This code has expired"); return; }
+    if (promo.max_uses != null && promo.used_count >= promo.max_uses) { setPromoError("This code has reached its usage limit"); return; }
+    if (promo.min_order_amount && grandTotal < promo.min_order_amount) { setPromoError("Minimum order of R" + promo.min_order_amount + " required"); return; }
+    // Per-email check
+    const { data: existingUse } = await supabase
+      .from("promotion_uses")
+      .select("id")
+      .eq("promotion_id", promo.id)
+      .eq("email", emailVal.toLowerCase())
+      .maybeSingle();
+    if (existingUse) { setPromoError("You have already used this promo code"); return; }
+    setAppliedPromo({ id: promo.id, code: promo.code, discount_type: promo.discount_type, discount_value: Number(promo.discount_value) });
+    setPromoCode("");
+  }
+
+  function removePromo() {
+    setAppliedPromo(null);
+    setPromoError("");
+  }
+
   async function submitBooking() {
     if (!name.trim() || !email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
     setSubmitting(true);
-    const { data: booking, error } = await supabase.from("bookings").insert({
-      business_id: selectedTour.business_id, tour_id: selectedTour.id, slot_id: selectedSlot.id,
+    const promoInsertFields: Record<string, unknown> = {};
+    if (appliedPromo) {
+      promoInsertFields.discount_type = appliedPromo.discount_type === "PERCENT" ? "PERCENT" : "FLAT";
+      promoInsertFields.discount_percent = appliedPromo.discount_type === "PERCENT" ? appliedPromo.discount_value : null;
+      promoInsertFields.discount_amount = computedPromoDiscount;
+      promoInsertFields.discount_notes = "Promo: " + appliedPromo.code;
+      promoInsertFields.promo_code = appliedPromo.code;
+    }
+    const bookingPayload = {
+      business_id: selectedTour!.business_id, tour_id: selectedTour!.id, slot_id: selectedSlot!.id,
       customer_name: name, phone: phone ? phone.replace(/[^\d]/g, "").replace(/^0/, "27") : "", email: email.toLowerCase(),
-      qty, unit_price: selectedTour.base_price_per_person, total_amount: finalTotal, original_total: baseTotal,
+      qty, unit_price: selectedTour!.base_price_per_person, total_amount: finalTotal, original_total: grandTotal,
       status: "PENDING", source: "WEB",
       marketing_opt_in: marketingOptIn || null,
-    }).select().single();
-    if (error || !booking) { alert("Something went wrong."); setSubmitting(false); return; }
+      ...promoInsertFields,
+    };
+    let booking: any; let error: any;
+    if (draftBookingId) {
+      const res = await supabase.from("bookings").update(bookingPayload).eq("id", draftBookingId).select().single();
+      booking = res.data; error = res.error;
+    } else {
+      const res = await supabase.from("bookings").insert(bookingPayload).select().single();
+      booking = res.data; error = res.error;
+    }
+    if (error || !booking) { showToast("Something went wrong.", "error"); setSubmitting(false); return; }
     setBookingRef(booking.id.substring(0, 8).toUpperCase());
+
+    // Save add-on line items (snapshot unit_price at booking time)
+    const addOnRows = availableAddOns
+      .filter(ao => selectedAddOns[ao.id] && selectedAddOns[ao.id] > 0)
+      .map(ao => ({ booking_id: booking.id, add_on_id: ao.id, qty: selectedAddOns[ao.id], unit_price: ao.price }));
+    if (addOnRows.length > 0) {
+      await supabase.from("booking_add_ons").insert(addOnRows);
+    }
+
+    // Record promo usage and increment counter
+    if (appliedPromo) {
+      await supabase.from("promotion_uses").insert({
+        promotion_id: appliedPromo.id,
+        email: email.toLowerCase(),
+        booking_id: booking.id,
+      });
+      await supabase.from("promotions").update({
+        used_count: (await supabase.from("promotions").select("used_count").eq("id", appliedPromo.id).single()).data?.used_count + 1,
+      }).eq("id", appliedPromo.id);
+    }
 
     if (finalTotal <= 0) {
       await supabase.from("bookings").update({ status: "PAID", yoco_payment_id: "VOUCHER_WEB" }).eq("id", booking.id);
       // Sequential voucher deduction using atomic RPC (prevents double-spend race conditions)
-      const pricePerPerson = selectedTour.base_price_per_person;
-      let remainingCost = baseTotal;
+      let remainingCost = grandTotal;
       const remainders: { code: string; remaining: number }[] = [];
       for (const v of vouchers) {
         if (remainingCost <= 0) break;
-        // Compute how much this voucher should cover (FREE_TRIP pax limit + peak arbitrage)
-        let deductionAmount = remainingCost;
-        if (v.type === "FREE_TRIP") {
-          const coveredPax = Math.min(v.pax_limit || 1, qty);
-          const slotCost = pricePerPerson * coveredPax;
-          if (slotCost > v.purchase_value) {
-            deductionAmount = Math.min(v.purchase_value, remainingCost);
-          } else {
-            deductionAmount = Math.min(slotCost, remainingCost);
-          }
-        }
+        const deductionAmount = Math.min(v.value, remainingCost);
         // Atomic deduction via RPC — drains this voucher fully before moving to next
         const { data: rpcResult } = await supabase.rpc("deduct_voucher_balance", { p_voucher_id: v.id, p_amount: deductionAmount });
         if (rpcResult?.success) {
@@ -218,8 +302,8 @@ function BookingFlow() {
                     amount_used: deducted,
                     remaining_balance: remaining,
                     booking_ref: booking.id.substring(0, 8).toUpperCase(),
-                    tour_name: selectedTour.name,
-                    business_id: selectedTour.business_id,
+                    tour_name: selectedTour!.name,
+                    business_id: selectedTour!.business_id,
                   },
                 },
               });
@@ -227,30 +311,25 @@ function BookingFlow() {
           }
         }
       }
-      const { data: sl } = await supabase.from("slots").select("booked").eq("id", selectedSlot.id).single();
-      if (sl) await supabase.from("slots").update({ booked: sl.booked + qty }).eq("id", selectedSlot.id);
-      // Send confirmation email for voucher-fully-paid bookings (no Yoco webhook fires)
+      await supabase.rpc("create_hold_with_capacity_check", {
+        p_booking_id: booking.id,
+        p_slot_id: selectedSlot!.id,
+        p_qty: qty,
+        p_expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      });
+      // Confirm booking (handles email + WhatsApp + invoice + marketing sync)
       try {
-        await supabase.functions.invoke("send-email", {
-          body: {
-            type: "BOOKING_CONFIRM",
-            data: {
-              email: email.toLowerCase(),
-              booking_id: booking.id,
-              business_id: selectedTour.business_id,
-              customer_name: name,
-              ref: booking.id.substring(0, 8).toUpperCase(),
-              payment_reference: "VOUCHER_WEB",
-              tour_name: selectedTour.name,
-              tour_date: selectedSlot.start_time,
-              start_time: selectedSlot.start_time,
-              qty,
-              total_amount: baseTotal,
-              invoice_number: "",
-            },
-          },
+        await supabase.functions.invoke("confirm-booking", {
+          body: { booking_id: booking.id },
         });
-      } catch (e) { console.error("VOUCHER_CONFIRM_EMAIL_ERR:", e); }
+      } catch (e) { console.error("VOUCHER_CONFIRM_ERR:", e); }
+      // Fetch waiver token to show CTA on confirmation screen
+      try {
+        const { data: waiverData } = await supabase.from("bookings").select("waiver_token, waiver_status").eq("id", booking.id).single();
+        if (waiverData?.waiver_token && waiverData.waiver_status !== "SIGNED") {
+          setWaiverUrl("/waiver?booking=" + booking.id + "&token=" + waiverData.waiver_token);
+        }
+      } catch (e) { console.error("WAIVER_FETCH_ERR:", e); }
       setVoucherRemainders(remainders);
       setPaymentUrl("FREE"); setStep("payment"); setSubmitting(false); return;
     }
@@ -258,7 +337,7 @@ function BookingFlow() {
     // Atomic capacity check + hold creation to prevent overbooking
     const { data: holdResult, error: holdError } = await supabase.rpc("create_hold_with_capacity_check", {
       p_booking_id: booking.id,
-      p_slot_id: selectedSlot.id,
+      p_slot_id: selectedSlot!.id,
       p_qty: qty,
       p_expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
     });
@@ -277,9 +356,8 @@ function BookingFlow() {
     const yocoRes = await supabase.functions.invoke("create-checkout", {
       body: { booking_id: booking.id, amount: finalTotal, customer_name: name, qty, voucher_codes: vouchers.map(v => v.code), voucher_ids: vouchers.map(v => v.id) },
     });
-    console.log("YOCO_RES:", JSON.stringify(yocoRes)); console.log("YOCO_RES:", JSON.stringify(yocoRes.data), JSON.stringify(yocoRes.error));
     if (yocoRes.data?.redirectUrl) { setPaymentUrl(yocoRes.data.redirectUrl); setStep("payment"); }
-    else alert("Payment link unavailable. Please try again.");
+    else showToast("Payment link unavailable. Please try again.", "error");
     setSubmitting(false);
   }
 
@@ -330,7 +408,7 @@ function BookingFlow() {
     );
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" /></div>;
+  if (loading) return <BookingFlowSkeleton />;
 
   if (tourNotFound) return (
     <div className="max-w-lg mx-auto px-4 py-16 text-center">
@@ -395,7 +473,7 @@ function BookingFlow() {
                 <div className="text-center py-12 text-gray-400"><p>No available slots on this date.</p></div>
               ) : (
                 <div className="space-y-2">
-                  {daySlots.map((s: any) => {
+                  {daySlots.map((s: Slot) => {
                     const a = s.capacity_total - s.booked - (s.held || 0);
                     const isSel = selectedSlot?.id === s.id;
                     return (
@@ -439,19 +517,75 @@ function BookingFlow() {
                   <span className="text-sm text-gray-400">max {avail}</span>
                 </div>
               </div>
-              <div><label className="block text-sm font-semibold text-gray-700 mb-2">Full Name *</label>
-                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="John Smith"
+              <div><label htmlFor="book-name" className="block text-sm font-semibold text-gray-700 mb-2">Full Name *</label>
+                <input id="book-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="John Smith"
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gray-900" /></div>
-              <div><label className="block text-sm font-semibold text-gray-700 mb-2">Email Address *</label>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="john@example.com"
+              <div><label htmlFor="book-email" className="block text-sm font-semibold text-gray-700 mb-2">Email Address *</label>
+                <input id="book-email" type="email" value={email} onChange={e => setEmail(e.target.value)} onBlur={saveDraft} placeholder="john@example.com"
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gray-900" /></div>
-              <div><label className="block text-sm font-semibold text-gray-700 mb-2">Phone (optional)</label>
-                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+27 71 234 5678"
+              <div><label htmlFor="book-phone" className="block text-sm font-semibold text-gray-700 mb-2">Phone (optional)</label>
+                <input id="book-phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+27 71 234 5678"
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gray-900" /></div>
+              {availableAddOns.length > 0 && (
+                <div className="pt-4 border-t border-gray-100">
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">Extras & Add-Ons</label>
+                  <div className="space-y-2">
+                    {availableAddOns.map(ao => {
+                      const isSelected = !!selectedAddOns[ao.id];
+                      return (
+                        <div key={ao.id} className={"rounded-xl border p-3 transition-all " + (isSelected ? "border-gray-900 bg-gray-50" : "border-gray-200 bg-white")}>
+                          <div className="flex items-start gap-3">
+                            <input type="checkbox" checked={isSelected} onChange={() => toggleAddOn(ao.id)}
+                              className="mt-1 w-4 h-4 shrink-0 rounded border-gray-300" />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium text-gray-900">{ao.name}</span>
+                                <span className="text-sm font-semibold text-gray-700">R{ao.price}</span>
+                              </div>
+                              {ao.description && <p className="text-xs text-gray-500 mt-0.5">{ao.description}</p>}
+                            </div>
+                          </div>
+                          {isSelected && (
+                            <div className="flex items-center gap-3 mt-2 ml-7">
+                              <span className="text-xs text-gray-500">Qty:</span>
+                              <button onClick={() => setAddOnQty(ao.id, (selectedAddOns[ao.id] || 1) - 1)}
+                                className="w-7 h-7 border border-gray-200 rounded-lg flex items-center justify-center text-sm hover:bg-gray-50">−</button>
+                              <span className="text-sm font-semibold w-5 text-center">{selectedAddOns[ao.id]}</span>
+                              <button onClick={() => setAddOnQty(ao.id, (selectedAddOns[ao.id] || 1) + 1)}
+                                className="w-7 h-7 border border-gray-200 rounded-lg flex items-center justify-center text-sm hover:bg-gray-50">+</button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <div className="pt-4 border-t border-gray-100">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Got a voucher code?</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Have a promo code?</label>
+                {!appliedPromo ? (
+                  <>
+                    <div className="flex gap-2">
+                      <input type="text" value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder="e.g. SUMMER20"
+                        className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl text-sm font-mono uppercase tracking-wider focus:outline-none focus:border-gray-900"
+                        onKeyDown={e => e.key === "Enter" && applyPromo()} />
+                      <button onClick={applyPromo} className="bg-gray-100 text-gray-700 px-5 py-3 rounded-xl text-sm font-semibold hover:bg-gray-200">Apply</button>
+                    </div>
+                    {promoError && <p className="text-red-500 text-xs mt-2">{promoError}</p>}
+                  </>
+                ) : (
+                  <div className="flex items-center justify-between bg-blue-50 border border-blue-200 px-4 py-2.5 rounded-xl">
+                    <span className="text-sm text-blue-700 font-semibold">
+                      {appliedPromo.code} — {appliedPromo.discount_type === "PERCENT" ? appliedPromo.discount_value + "% off" : "R" + appliedPromo.discount_value + " off"}
+                    </span>
+                    <button onClick={removePromo} className="text-red-400 text-xs hover:text-red-600 font-medium">Remove</button>
+                  </div>
+                )}
+              </div>
+              <div className="pt-4 border-t border-gray-100">
+                <label htmlFor="book-voucher" className="block text-sm font-semibold text-gray-700 mb-2">Got a voucher code?</label>
                 <div className="flex gap-2">
-                  <input type="text" value={voucherCode} onChange={e => setVoucherCode(e.target.value.toUpperCase())} placeholder="XXXXXXXX" maxLength={8}
+                  <input id="book-voucher" type="text" value={voucherCode} onChange={e => setVoucherCode(e.target.value.toUpperCase())} placeholder="XXXXXXXX" maxLength={8}
                     className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl text-sm font-mono uppercase tracking-wider focus:outline-none focus:border-gray-900" />
                   <button onClick={applyVoucher} className="bg-gray-100 text-gray-700 px-5 py-3 rounded-xl text-sm font-semibold hover:bg-gray-200">Apply</button>
                 </div>
@@ -462,6 +596,13 @@ function BookingFlow() {
                     <button onClick={() => removeVoucher(i)} className="text-red-400 text-xs hover:text-red-600 font-medium">Remove</button>
                   </div>
                 ))}
+              </div>
+              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+                <span className="text-amber-500 text-lg leading-none mt-0.5">&#9998;</span>
+                <div>
+                  <p className="text-sm font-semibold text-amber-800">Waiver Required</p>
+                  <p className="text-xs text-amber-700 mt-0.5">All participants must complete a digital waiver before the trip. A link will be sent to your email after booking.</p>
+                </div>
               </div>
               <label className="flex items-start gap-3 mt-4 cursor-pointer">
                 <input type="checkbox" checked={marketingOptIn} onChange={e => setMarketingOptIn(e.target.checked)}
@@ -479,6 +620,18 @@ function BookingFlow() {
                   <div className="flex justify-between"><span className="text-gray-500">Guests</span><span className="font-medium">{qty}</span></div>
                   <div className="border-t border-gray-200 pt-3 mt-3">
                     <div className="flex justify-between"><span className="text-gray-500">R{selectedTour?.base_price_per_person} × {qty}</span><span>R{baseTotal}</span></div>
+                    {availableAddOns.filter(ao => selectedAddOns[ao.id]).map(ao => (
+                      <div key={ao.id} className="flex justify-between mt-1 text-gray-600">
+                        <span>{ao.name}{selectedAddOns[ao.id] > 1 ? ` × ${selectedAddOns[ao.id]}` : ""}</span>
+                        <span>R{ao.price * selectedAddOns[ao.id]}</span>
+                      </div>
+                    ))}
+                    {computedPromoDiscount > 0 && appliedPromo && (
+                      <div className="flex justify-between text-blue-600 mt-1">
+                        <span>Promo ({appliedPromo.code}) {appliedPromo.discount_type === "PERCENT" ? appliedPromo.discount_value + "%" : ""}</span>
+                        <span>−R{computedPromoDiscount}</span>
+                      </div>
+                    )}
                     {effectiveVoucherCredit > 0 && <div className="flex justify-between text-emerald-600 mt-1"><span>Voucher credit</span><span>−R{effectiveVoucherCredit}</span></div>}
                   </div>
                   <div className="border-t border-gray-200 pt-3"><div className="flex justify-between text-lg font-bold"><span>Total</span><span>{finalTotal <= 0 ? "FREE" : "R" + finalTotal}</span></div></div>
@@ -520,6 +673,13 @@ function BookingFlow() {
                   <p className="text-xs text-emerald-600 mt-2">Use your remaining credit on your next booking. Details sent to your email.</p>
                 </div>
               )}
+              {waiverUrl && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-left mb-8">
+                  <p className="text-sm font-semibold text-amber-800 mb-1">Complete Your Waiver</p>
+                  <p className="text-xs text-amber-700 mb-3">All participants must sign a waiver before the trip. Complete it now to save time on the day.</p>
+                  <a href={waiverUrl} className="inline-block bg-amber-600 text-white px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-amber-700 shadow-sm">Sign Waiver Now →</a>
+                </div>
+              )}
               <a href="/" className="block bg-gray-900 text-white py-3 rounded-xl text-sm font-semibold hover:bg-gray-800">Browse More Tours</a>
               <a href="/my-bookings" className="block text-gray-500 text-sm mt-3 hover:text-gray-900">View My Bookings</a>
             </>
@@ -535,10 +695,11 @@ function BookingFlow() {
           )}
         </div>
       )}
+      {toast && <Toast message={toast.message} type={toast.type} onDismiss={dismissToast} />}
     </div>
   );
 }
 
 export default function BookPage() {
-  return (<Suspense fallback={<div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" /></div>}><BookingFlow /></Suspense>);
+  return (<Suspense fallback={<BookingFlowSkeleton />}><BookingFlow /></Suspense>);
 }

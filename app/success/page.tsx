@@ -22,15 +22,18 @@ function SuccessContent() {
       const { data } = await supabase.from("bookings")
         .select("id, customer_name, email, phone, qty, total_amount, unit_price, status, created_at, waiver_status, waiver_token, tours(id, name, duration_minutes), slots(start_time)")
         .eq("id", ref).single();
-      setBooking(data as unknown as Booking);
+      var tourObj = Array.isArray(data?.tours) ? data.tours[0] : data?.tours;
+      var slotObj = Array.isArray(data?.slots) ? data.slots[0] : data?.slots;
+      var normalizedData = data ? { ...data, tours: tourObj, slots: slotObj } : null;
+      setBooking(normalizedData as unknown as Booking);
 
       // Load other tours for upsell
-      if (data?.tours?.id && theme.id) {
+      if (tourObj?.id && theme.id) {
         const { data: tours } = await supabase.from("tours")
           .select("id, name, base_price_per_person, duration_minutes, image_url")
           .eq("business_id", theme.id)
           .eq("active", true)
-          .neq("id", data.tours.id)
+          .neq("id", tourObj.id)
           .limit(3);
         setOtherTours((tours || []).filter((t: any) => !t.hidden));
       }

@@ -2,21 +2,21 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
-
-function fmtDateTime(iso: string) {
-  return new Date(iso).toLocaleString("en-ZA", {
-    weekday: "short", day: "numeric", month: "long",
-    hour: "2-digit", minute: "2-digit", timeZone: "Africa/Johannesburg",
-  });
-}
+import { fmtDateTime } from "../lib/format";
 
 function WaiverContent() {
   const params = useSearchParams();
   const bookingId = params.get("booking") || "";
   const token = params.get("token") || "";
 
-  const [booking, setBooking] = useState<any>(null);
-  const [business, setBusiness] = useState<any>(null);
+  const [booking, setBooking] = useState<{
+    id: string; business_id: string; customer_name: string; qty: number;
+    waiver_status: string | null; waiver_token: string | null; waiver_token_expires_at: string | null;
+    waiver_signed_at: string | null; waiver_signed_name: string | null;
+    waiver_payload: Record<string, string> | null;
+    slots?: { start_time: string };
+  } | null>(null);
+  const [business, setBusiness] = useState<{ id: string; name: string; business_name?: string; timezone?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -72,7 +72,7 @@ function WaiverContent() {
         b.waiver_payload = null;
       }
 
-      setBooking(b);
+      setBooking(b as unknown as NonNullable<typeof booking>);
       setSignerName(b.customer_name || "");
       setParticipantDobs(Array(b.qty || 1).fill(""));
 
@@ -127,7 +127,22 @@ function WaiverContent() {
   }
 
   if (loading) {
-    return <div className="min-h-[60vh] flex items-center justify-center text-[color:var(--textMuted)]">Loading waiver...</div>;
+    return (
+      <div className="app-container py-12">
+        <div className="max-w-2xl mx-auto">
+          <div className="rounded-3xl overflow-hidden">
+            <div className="h-32 skeleton" />
+            <div className="p-8 space-y-4">
+              <div className="h-6 w-48 skeleton" />
+              <div className="h-40 skeleton rounded-2xl" />
+              <div className="h-12 w-full skeleton rounded-2xl" />
+              <div className="h-12 w-full skeleton rounded-2xl" />
+              <div className="h-12 w-full skeleton rounded-2xl" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (!bookingId || !token) {
@@ -158,8 +173,8 @@ function WaiverContent() {
         <div className="max-w-2xl mx-auto">
           <div className="rounded-3xl border border-[color:var(--border)] bg-[color:var(--card)] overflow-hidden shadow-lg">
             <div className="bg-gradient-to-br from-[#0f172a] to-[#134e4a] text-white p-8">
-              <h1 className="text-3xl font-bold mb-2">Waiver signed</h1>
-              <p className="opacity-80">Thank you — your waiver has been recorded and attached to your booking.</p>
+              <h1 className="text-3xl font-bold mb-2 !text-white">Waiver signed</h1>
+              <p className="!text-white/80">Thank you — your waiver has been recorded and attached to your booking.</p>
             </div>
             <div className="p-8">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
@@ -196,9 +211,9 @@ function WaiverContent() {
     <div className="app-container py-12">
       <div className="max-w-2xl mx-auto">
         <div className="rounded-3xl border border-[color:var(--border)] bg-[color:var(--card)] overflow-hidden shadow-lg">
-          <div className="bg-gradient-to-br from-[#0f172a] to-[#134e4a] text-white p-8">
-            <h1 className="text-3xl font-bold mb-2">Complete your waiver</h1>
-            <p className="opacity-80">{brandName} needs a signed waiver before the trip starts. This form covers the booking contact and the guests attached to this reservation.</p>
+          <div className="bg-[color:var(--bg)] border-b border-[color:var(--border)] p-8">
+            <h1 className="text-3xl font-bold mb-2 text-[color:var(--text)]">Complete your waiver</h1>
+            <p className="text-[color:var(--textMuted)]">{brandName} needs a signed waiver before the trip starts. This form covers the booking contact and the guests attached to this reservation.</p>
           </div>
           <div className="p-8">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
@@ -252,22 +267,22 @@ function WaiverContent() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold mb-2">Full name of person signing</label>
-                <input type="text" required value={signerName} onChange={e => setSignerName(e.target.value)}
+                <label htmlFor="waiver-name" className="block text-sm font-semibold mb-2">Full name of person signing</label>
+                <input id="waiver-name" type="text" required value={signerName} onChange={e => setSignerName(e.target.value)}
                   placeholder="First and last name"
                   className="w-full rounded-2xl border border-[color:var(--border)] px-4 py-3 text-base bg-[color:var(--card)] outline-none focus:ring-2 focus:ring-[color:var(--accent)]" />
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-1">
+                <label htmlFor="waiver-id" className="block text-sm font-semibold mb-1">
                   SA ID number or passport number <span className="font-normal text-[color:var(--textMuted)]">(optional — strengthens identity verification)</span>
                 </label>
-                <input type="text" value={idNumber} onChange={e => setIdNumber(e.target.value)}
+                <input id="waiver-id" type="text" value={idNumber} onChange={e => setIdNumber(e.target.value)}
                   placeholder="e.g. 8001015009087 or A12345678" autoComplete="off"
                   className="w-full rounded-2xl border border-[color:var(--border)] px-4 py-3 text-base bg-[color:var(--card)] outline-none focus:ring-2 focus:ring-[color:var(--accent)]" />
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-2">Medical or mobility notes for the team (optional)</label>
-                <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={4}
+                <label htmlFor="waiver-notes" className="block text-sm font-semibold mb-2">Medical or mobility notes for the team (optional)</label>
+                <textarea id="waiver-notes" value={notes} onChange={e => setNotes(e.target.value)} rows={4}
                   placeholder="Any medical conditions, injuries, mobility limitations, dietary requirements, or notes about any guest in this booking."
                   className="w-full rounded-2xl border border-[color:var(--border)] px-4 py-3 text-base bg-[color:var(--card)] outline-none resize-y focus:ring-2 focus:ring-[color:var(--accent)]" />
               </div>
@@ -276,23 +291,42 @@ function WaiverContent() {
               <div>
                 <label className="block text-sm font-semibold mb-2">Date of Birth for each participant</label>
                 <p className="text-xs text-[color:var(--textMuted)] mb-3">Required to verify if any participant is a minor. If under 18, a parent/guardian countersignature is required below.</p>
-                <div className="space-y-2">
-                  {participantDobs.map((dob, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <span className="text-sm text-[color:var(--textMuted)] w-24 shrink-0">Guest {i + 1}</span>
-                      <input type="date" value={dob}
-                        onChange={e => {
-                          const updated = [...participantDobs];
-                          updated[i] = e.target.value;
-                          setParticipantDobs(updated);
-                        }}
-                        max={new Date().toISOString().split("T")[0]}
-                        className="flex-1 rounded-2xl border border-[color:var(--border)] px-4 py-2.5 text-sm bg-[color:var(--card)] outline-none focus:ring-2 focus:ring-[color:var(--accent)]" />
-                      {dob && calcAge(dob) < 18 && (
-                        <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-lg">Minor ({calcAge(dob)}y)</span>
-                      )}
-                    </div>
-                  ))}
+                <div className="space-y-3">
+                  {participantDobs.map((dob, i) => {
+                    const parts = dob ? dob.split("-") : ["", "", ""];
+                    const y = parts[0] || "";
+                    const m = parts[1] || "";
+                    const d = parts[2] || "";
+                    const updateDob = (day: string, month: string, year: string) => {
+                      const updated = [...participantDobs];
+                      updated[i] = year && month && day ? year + "-" + month.padStart(2, "0") + "-" + day.padStart(2, "0") : "";
+                      setParticipantDobs(updated);
+                    };
+                    const curYear = new Date().getFullYear();
+                    const selectCls = "rounded-xl border border-[color:var(--border)] px-2 py-2.5 text-sm bg-[color:var(--card)] outline-none focus:ring-2 focus:ring-[color:var(--accent)] appearance-none";
+                    return (
+                      <div key={i}>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm text-[color:var(--textMuted)] w-16 shrink-0">Guest {i + 1}</span>
+                          <select aria-label={"Day for guest " + (i + 1)} value={d} onChange={e => updateDob(e.target.value, m, y)} className={selectCls + " w-[72px]"}>
+                            <option value="">Day</option>
+                            {Array.from({ length: 31 }, (_, j) => j + 1).map(v => <option key={v} value={String(v)}>{v}</option>)}
+                          </select>
+                          <select aria-label={"Month for guest " + (i + 1)} value={m} onChange={e => updateDob(d, e.target.value, y)} className={selectCls + " w-[100px]"}>
+                            <option value="">Month</option>
+                            {["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map((label, j) => <option key={j} value={String(j + 1)}>{label}</option>)}
+                          </select>
+                          <select aria-label={"Year for guest " + (i + 1)} value={y} onChange={e => updateDob(d, m, e.target.value)} className={selectCls + " w-[84px]"}>
+                            <option value="">Year</option>
+                            {Array.from({ length: 100 }, (_, j) => curYear - j).map(v => <option key={v} value={String(v)}>{v}</option>)}
+                          </select>
+                          {dob && calcAge(dob) < 18 && (
+                            <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-lg">Minor ({calcAge(dob)}y)</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -304,20 +338,20 @@ function WaiverContent() {
                     <p className="text-xs text-amber-700">One or more participants is under 18. A parent or legal guardian must provide their details and sign below.</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold mb-2">Guardian full name *</label>
-                    <input type="text" value={guardianName} onChange={e => setGuardianName(e.target.value)}
+                    <label htmlFor="guardian-name" className="block text-sm font-semibold mb-2">Guardian full name *</label>
+                    <input id="guardian-name" type="text" value={guardianName} onChange={e => setGuardianName(e.target.value)}
                       placeholder="Parent or legal guardian full name" required
                       className="w-full rounded-2xl border border-[color:var(--border)] px-4 py-3 text-base bg-white outline-none focus:ring-2 focus:ring-amber-400" />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold mb-2">Guardian SA ID or passport number *</label>
-                    <input type="text" value={guardianIdNumber} onChange={e => setGuardianIdNumber(e.target.value)}
+                    <label htmlFor="guardian-id" className="block text-sm font-semibold mb-2">Guardian SA ID or passport number *</label>
+                    <input id="guardian-id" type="text" value={guardianIdNumber} onChange={e => setGuardianIdNumber(e.target.value)}
                       placeholder="e.g. 8001015009087 or A12345678" autoComplete="off" required
                       className="w-full rounded-2xl border border-[color:var(--border)] px-4 py-3 text-base bg-white outline-none focus:ring-2 focus:ring-amber-400" />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold mb-2">Guardian signature (type your full name to sign) *</label>
-                    <input type="text" value={guardianSignature} onChange={e => setGuardianSignature(e.target.value)}
+                    <label htmlFor="guardian-sig" className="block text-sm font-semibold mb-2">Guardian signature (type your full name to sign) *</label>
+                    <input id="guardian-sig" type="text" value={guardianSignature} onChange={e => setGuardianSignature(e.target.value)}
                       placeholder="Type your full name as signature" required
                       className="w-full rounded-2xl border border-[color:var(--border)] px-4 py-3 text-base bg-white outline-none focus:ring-2 focus:ring-amber-400 italic" />
                   </div>
