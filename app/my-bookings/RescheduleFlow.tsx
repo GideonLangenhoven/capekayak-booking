@@ -13,6 +13,8 @@ interface RescheduleFlowProps {
   excessAction: string;
   setExcessAction: (v: string) => void;
   actionLoading: string | null;
+  reschedulePaymentUrl: string;
+  reschedulePaymentDiff: number;
   onCancel: () => void;
   onSubmit: () => void;
 }
@@ -20,8 +22,25 @@ interface RescheduleFlowProps {
 export default function RescheduleFlow({
   rescheduling, rebookConfirmSlot, setRebookConfirmSlot,
   rescheduleSlots, loadingSlots, excessAction, setExcessAction,
-  actionLoading, onCancel, onSubmit,
+  actionLoading, reschedulePaymentUrl, reschedulePaymentDiff, onCancel, onSubmit,
 }: RescheduleFlowProps) {
+  // Payment screen
+  if (reschedulePaymentUrl) {
+    return (
+      <div className="app-container max-w-lg page-wrap py-8">
+        <div className="text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[color:var(--accentSoft)]"><span className="text-3xl">💳</span></div>
+          <h2 className="text-xl font-bold text-[color:var(--text)] mb-2">Complete Payment</h2>
+          <p className="text-sm text-[color:var(--textMuted)] mb-6">Your reschedule is confirmed. Pay the R{reschedulePaymentDiff} difference to secure your new slot.</p>
+          <a href={reschedulePaymentUrl} className="inline-block w-full rounded-full py-4 text-base font-bold text-white bg-[color:var(--cta,#0f766e)] hover:opacity-90 transition-opacity text-center">
+            Pay Now — R{reschedulePaymentDiff}
+          </a>
+          <p className="text-xs text-[color:var(--textMuted)] mt-4">You will be redirected to a secure payment page.</p>
+        </div>
+      </div>
+    );
+  }
+
   // Confirm screen
   if (rebookConfirmSlot) {
     var unitPrice = rebookConfirmSlot.price_per_person_override ?? rebookConfirmSlot.tours!.base_price_per_person;
@@ -54,7 +73,7 @@ export default function RescheduleFlow({
         {diff > 0 && (
           <div className="mb-5 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm">
             <p className="font-semibold mb-1">Additional payment of R{diff} required</p>
-            <p className="text-xs">A secure payment link will be sent to your email and WhatsApp.</p>
+            <p className="text-xs">You&apos;ll be taken to a secure payment page after confirming.</p>
           </div>
         )}
 

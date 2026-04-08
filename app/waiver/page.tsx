@@ -34,8 +34,14 @@ function WaiverContent() {
   const [guardianIdNumber, setGuardianIdNumber] = useState("");
   const [guardianSignature, setGuardianSignature] = useState("");
 
+  function isCompleteDob(dob: string): boolean {
+    if (!dob) return false;
+    const p = dob.split("-");
+    return p.length === 3 && p[0] !== "" && p[1] !== "" && p[2] !== "";
+  }
+
   function calcAge(dob: string): number {
-    if (!dob) return 99;
+    if (!isCompleteDob(dob)) return 99;
     const birth = new Date(dob);
     const today = new Date();
     let age = today.getFullYear() - birth.getFullYear();
@@ -44,7 +50,7 @@ function WaiverContent() {
     return age;
   }
 
-  const hasMinor = participantDobs.some(d => d && calcAge(d) < 18);
+  const hasMinor = participantDobs.some(d => isCompleteDob(d) && calcAge(d) < 18);
 
   useEffect(() => {
     if (!bookingId || !token) { setLoading(false); return; }
@@ -299,7 +305,7 @@ function WaiverContent() {
                     const d = parts[2] || "";
                     const updateDob = (day: string, month: string, year: string) => {
                       const updated = [...participantDobs];
-                      updated[i] = year && month && day ? year + "-" + month.padStart(2, "0") + "-" + day.padStart(2, "0") : "";
+                      updated[i] = (year || "") + "-" + (month ? month.padStart(2, "0") : "") + "-" + (day ? day.padStart(2, "0") : "");
                       setParticipantDobs(updated);
                     };
                     const curYear = new Date().getFullYear();
@@ -320,7 +326,7 @@ function WaiverContent() {
                             <option value="">Year</option>
                             {Array.from({ length: 100 }, (_, j) => curYear - j).map(v => <option key={v} value={String(v)}>{v}</option>)}
                           </select>
-                          {dob && calcAge(dob) < 18 && (
+                          {isCompleteDob(dob) && calcAge(dob) < 18 && (
                             <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-lg">Minor ({calcAge(dob)}y)</span>
                           )}
                         </div>

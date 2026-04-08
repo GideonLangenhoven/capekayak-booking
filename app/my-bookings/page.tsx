@@ -36,13 +36,23 @@ function Toast({ message, type, onDismiss }: { message: string; type: "success" 
    MAIN COMPONENT
    ═══════════════════════════════════════════════════════ */
 export default function MyBookings() {
-  // Login
-  var [email, setEmail] = useState("");
-  var [dialCode, setDialCode] = useState("+27");
-  var [phoneDigits, setPhoneDigits] = useState("");
+  // Login — restore from sessionStorage if available
+  var [email, setEmail] = useState(() => {
+    if (typeof window !== "undefined") return sessionStorage.getItem("mb_email") || "";
+    return "";
+  });
+  var [dialCode, setDialCode] = useState(() => {
+    if (typeof window !== "undefined") return sessionStorage.getItem("mb_dialCode") || "+27";
+    return "+27";
+  });
+  var [phoneDigits, setPhoneDigits] = useState(() => {
+    if (typeof window !== "undefined") return sessionStorage.getItem("mb_phone") || "";
+    return "";
+  });
   var [loggedIn, setLoggedIn] = useState(false);
   var [bookings, setBookings] = useState<Booking[]>([]);
   var [loading, setLoading] = useState(false);
+  var [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
   var [emailError, setEmailError] = useState("");
   var [phoneError, setPhoneError] = useState("");
   var [loginError, setLoginError] = useState("");
@@ -67,11 +77,19 @@ export default function MyBookings() {
   var [loadingSlots, setLoadingSlots] = useState(false);
   var [rebookConfirmSlot, setRebookConfirmSlot] = useState<Slot | null>(null);
   var [excessAction, setExcessAction] = useState("VOUCHER");
+  var [reschedulePaymentUrl, setReschedulePaymentUrl] = useState("");
+  var [reschedulePaymentDiff, setReschedulePaymentDiff] = useState(0);
 
   // Edit guests modal
   var [editGuestsBooking, setEditGuestsBooking] = useState<Booking | null>(null);
   var [guestQty, setGuestQty] = useState(1);
   var [guestExcessAction, setGuestExcessAction] = useState("VOUCHER");
+  var [guestVoucherCode, setGuestVoucherCode] = useState("");
+  var [guestVoucherApplied, setGuestVoucherApplied] = useState<{ code: string; balance: number } | null>(null);
+  var [guestVoucherError, setGuestVoucherError] = useState("");
+  var [guestPromoCode, setGuestPromoCode] = useState("");
+  var [guestPromoApplied, setGuestPromoApplied] = useState<{ id: string; code: string; discount_type: string; discount_value: number } | null>(null);
+  var [guestPromoError, setGuestPromoError] = useState("");
 
   // Contact details modal
   var [contactBooking, setContactBooking] = useState<Booking | null>(null);
@@ -111,6 +129,15 @@ export default function MyBookings() {
   // C14: Payment polling
   var [paymentPending, setPaymentPending] = useState<string | null>(null);
   var paymentPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  /* ───── Auto-login from session ───── */
+  useEffect(() => {
+    if (autoLoginAttempted || loggedIn) return;
+    setAutoLoginAttempted(true);
+    if (typeof window !== "undefined" && sessionStorage.getItem("mb_loggedIn") === "1" && email && phoneDigits) {
+      lookupBookings();
+    }
+  }, [autoLoginAttempted, loggedIn, email, phoneDigits]);
 
   /* ───── C9: Countdown interval ───── */
   useEffect(() => {
@@ -243,6 +270,11 @@ export default function MyBookings() {
     setBookings(data as unknown as Booking[]);
     setLoggedIn(true);
     setLoading(false);
+    // Persist session so navigating away and back stays logged in
+    sessionStorage.setItem("mb_email", email.toLowerCase());
+    sessionStorage.setItem("mb_dialCode", dialCode);
+    sessionStorage.setItem("mb_phone", phoneDigits);
+    sessionStorage.setItem("mb_loggedIn", "1");
 
     // C4: Fetch trip photos for completed bookings
     var completedSlotIds = (data as unknown as Booking[])
@@ -350,7 +382,7 @@ export default function MyBookings() {
     var cutoff = new Date(Date.now() + 60 * 60 * 1000);
     var later = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
     var { data } = await supabase.from("slots").select("*, tours(name, base_price_per_person)")
-      .eq("status", "OPEN").eq("business_id", b.business_id)
+      .eq("status", "OPEN").eq("tour_id", b.tour_id)
       .gt("start_time", cutoff.toISOString()).lt("start_time", later.toISOString())
       .order("start_time", { ascending: true });
     setRescheduleSlots(((data || []) as unknown as Slot[]).filter((s) => s.capacity_total - s.booked - (s.held || 0) >= b.qty && s.id !== b.slot_id));
@@ -368,9 +400,11 @@ export default function MyBookings() {
         excess_action: excessAction,
       });
       if ((result.diff as number) > 0 && result.payment_url) {
-        showToast("Rescheduled! Pay the R" + result.diff + " difference to confirm.");
-        window.open(result.payment_url as string, "_blank");
+        setReschedulePaymentUrl(result.payment_url as string);
+        setReschedulePaymentDiff(result.diff as number);
         startPaymentPolling(rescheduling.id);
+        setActionLoading(null);
+        return;
       } else if (result.voucher_code) {
         showToast("Rescheduled! Voucher " + result.voucher_code + " for R" + result.voucher_amount + " sent to you.");
       } else {
@@ -389,6 +423,37 @@ export default function MyBookings() {
     setEditGuestsBooking(b);
     setGuestQty(b.qty);
     setGuestExcessAction("VOUCHER");
+    setGuestVoucherCode(""); setGuestVoucherApplied(null); setGuestVoucherError("");
+    setGuestPromoCode(""); setGuestPromoApplied(null); setGuestPromoError("");
+  }
+
+  async function applyGuestVoucher() {
+    if (!guestVoucherCode.trim()) return;
+    setGuestVoucherError("");
+    var code = guestVoucherCode.toUpperCase().replace(/\s/g, "");
+    if (code.length !== 8) { setGuestVoucherError("Codes are 8 characters"); return; }
+    var { data } = await supabase.from("vouchers").select("*").eq("code", code).single();
+    if (!data) { setGuestVoucherError("Code not found"); return; }
+    if (data.status === "REDEEMED") { setGuestVoucherError("Already redeemed"); return; }
+    if (data.status !== "ACTIVE") { setGuestVoucherError("Not valid"); return; }
+    if (data.expires_at && new Date(data.expires_at) < new Date()) { setGuestVoucherError("Expired"); return; }
+    var bal = Number(data.current_balance ?? data.value ?? data.purchase_amount ?? 0);
+    if (bal <= 0) { setGuestVoucherError("No balance remaining"); return; }
+    setGuestVoucherApplied({ code, balance: bal });
+    setGuestVoucherCode("");
+  }
+
+  async function applyGuestPromo() {
+    if (!guestPromoCode.trim() || !editGuestsBooking) return;
+    setGuestPromoError("");
+    var code = guestPromoCode.toUpperCase().trim();
+    var { data: promo } = await supabase.from("promotions").select("*").eq("code", code).eq("business_id", editGuestsBooking.business_id).maybeSingle();
+    if (!promo) { setGuestPromoError("Code not found"); return; }
+    if (!promo.active) { setGuestPromoError("No longer active"); return; }
+    if (promo.valid_until && new Date(promo.valid_until) < new Date()) { setGuestPromoError("Expired"); return; }
+    if (promo.max_uses != null && promo.used_count >= promo.max_uses) { setGuestPromoError("Usage limit reached"); return; }
+    setGuestPromoApplied({ id: promo.id, code: promo.code, discount_type: promo.discount_type, discount_value: Number(promo.discount_value) });
+    setGuestPromoCode("");
   }
 
   async function submitEditGuests() {
@@ -516,7 +581,9 @@ export default function MyBookings() {
         excessAction={excessAction}
         setExcessAction={setExcessAction}
         actionLoading={actionLoading}
-        onCancel={() => { setRescheduling(null); setRescheduleSlots([]); }}
+        reschedulePaymentUrl={reschedulePaymentUrl}
+        reschedulePaymentDiff={reschedulePaymentDiff}
+        onCancel={() => { setRescheduling(null); setRescheduleSlots([]); setReschedulePaymentUrl(""); setReschedulePaymentDiff(0); }}
         onSubmit={submitReschedule}
       />
     );
@@ -573,7 +640,7 @@ export default function MyBookings() {
           <h2 className="text-xl font-bold text-[color:var(--text)]">{activeTab === "bookings" ? "My Bookings" : "My Vouchers"}</h2>
           <p className="text-xs text-[color:var(--textMuted)] mt-0.5">{email}</p>
         </div>
-        <button onClick={() => { setLoggedIn(false); setBookings([]); setEmail(""); setDialCode("+27"); setPhoneDigits(""); setLoginError(""); setToast(null); }}
+        <button onClick={() => { setLoggedIn(false); setBookings([]); setEmail(""); setDialCode("+27"); setPhoneDigits(""); setLoginError(""); setToast(null); sessionStorage.removeItem("mb_loggedIn"); sessionStorage.removeItem("mb_email"); sessionStorage.removeItem("mb_dialCode"); sessionStorage.removeItem("mb_phone"); }}
           className="text-xs text-[color:var(--textMuted)] hover:text-[color:var(--text)] transition-colors px-3 py-1.5 rounded-lg hover:bg-[color:var(--surface2)]">
           Log out
         </button>
@@ -642,6 +709,12 @@ export default function MyBookings() {
         booking={editGuestsBooking} guestQty={guestQty} setGuestQty={setGuestQty}
         guestExcessAction={guestExcessAction} setGuestExcessAction={setGuestExcessAction}
         actionLoading={actionLoading} onClose={() => setEditGuestsBooking(null)} onSubmit={submitEditGuests}
+        voucherCode={guestVoucherCode} setVoucherCode={setGuestVoucherCode}
+        voucherApplied={guestVoucherApplied} voucherError={guestVoucherError}
+        onApplyVoucher={applyGuestVoucher} onRemoveVoucher={() => setGuestVoucherApplied(null)}
+        promoCode={guestPromoCode} setPromoCode={setGuestPromoCode}
+        promoApplied={guestPromoApplied} promoError={guestPromoError}
+        onApplyPromo={applyGuestPromo} onRemovePromo={() => setGuestPromoApplied(null)}
       />
       <ContactModal
         open={!!contactBooking} contactName={contactName} setContactName={setContactName}
