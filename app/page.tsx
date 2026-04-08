@@ -26,7 +26,7 @@ export default function Home() {
   useEffect(() => {
     if (!theme.id) return;
     (async () => {
-      const { data } = await supabase.from("tours").select("*").eq("business_id", theme.id).eq("active", true).order("base_price_per_person");
+      const { data } = await supabase.from("tours").select("*").eq("business_id", theme.id).eq("active", true).order("sort_order", { ascending: true });
       const activeTours = (data || []).filter((t: any) => !t.hidden);
       setTours(activeTours);
 
@@ -83,20 +83,7 @@ export default function Home() {
         className="max-w-3xl"
       />
 
-      {/* Trust signals bar */}
-      {totalBookings > 10 && (
-        <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 mb-8 text-sm text-[color:var(--textMuted)]">
-          <span className="flex items-center gap-1.5">
-            <span className="text-base">🛡</span> Expert-led guided tours
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="text-base">⭐</span> {totalBookings.toLocaleString()}+ guests hosted
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="text-base">🔒</span> Secure online booking
-          </span>
-        </div>
-      )}
+
 
       {tours.length === 0 && !loading && (
         <div className="col-span-1 md:col-span-3 py-12 text-center text-[color:var(--textMuted)]">

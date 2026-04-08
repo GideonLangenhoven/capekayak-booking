@@ -67,12 +67,12 @@ export default function ChatWidget() {
             style={{ animation: "blurFadeInOut 3s ease-in-out infinite" }}
           >Book here</span>
           {chatbot_avatar ? (
-            <button aria-label="Open chat" onClick={() => setOpen(true)} className="w-20 h-20 rounded-full shadow-lg hover:scale-105 transition-all overflow-hidden bg-white border-2 border-gray-200">
+            <button aria-label="Open chat" onClick={() => setOpen(true)} className="w-[52px] h-[52px] md:w-20 md:h-20 rounded-full shadow-lg hover:scale-105 transition-all overflow-hidden bg-white border-2 border-gray-200">
               {/* @ts-expect-error dotlottie-wc is a web component */}
               <dotlottie-wc src={chatbot_avatar} style={{ width: "100%", height: "100%" }} autoplay loop></dotlottie-wc>
             </button>
           ) : (
-            <button aria-label="Open chat" onClick={() => setOpen(true)} className="w-20 h-20 bg-gray-900 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-800 hover:scale-105 transition-all"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg></button>
+            <button aria-label="Open chat" onClick={() => setOpen(true)} className="w-[52px] h-[52px] md:w-20 md:h-20 bg-gray-900 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-800 hover:scale-105 transition-all"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 md:w-6 md:h-6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg></button>
           )}
         </div>
       )}

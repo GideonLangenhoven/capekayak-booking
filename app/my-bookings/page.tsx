@@ -633,76 +633,123 @@ export default function MyBookings() {
   };
 
   return (
-    <div className="app-container max-w-xl page-wrap py-8 px-4">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-xl font-bold text-[color:var(--text)]">{activeTab === "bookings" ? "My Bookings" : "My Vouchers"}</h2>
-          <p className="text-xs text-[color:var(--textMuted)] mt-0.5">{email}</p>
+    <div className="min-h-screen bg-slate-50 pb-12">
+      <div className="app-container max-w-5xl px-4 pt-6 lg:pt-10">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8 lg:mb-10">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center font-bold text-xl shrink-0">
+              {email.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-slate-500 font-semibold">CapeKayak Family</p>
+              <h1 className="text-2xl font-extrabold text-slate-900 leading-tight truncate tracking-tight">
+                Hi, {email.split('@')[0]}!
+              </h1>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={() => { setLoggedIn(false); setBookings([]); setEmail(""); setDialCode("+27"); setPhoneDigits(""); setLoginError(""); setToast(null); sessionStorage.removeItem("mb_loggedIn"); sessionStorage.removeItem("mb_email"); sessionStorage.removeItem("mb_dialCode"); sessionStorage.removeItem("mb_phone"); }}
+              className="w-10 h-10 shrink-0 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors border border-slate-100">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            </button>
+          </div>
         </div>
-        <button onClick={() => { setLoggedIn(false); setBookings([]); setEmail(""); setDialCode("+27"); setPhoneDigits(""); setLoginError(""); setToast(null); sessionStorage.removeItem("mb_loggedIn"); sessionStorage.removeItem("mb_email"); sessionStorage.removeItem("mb_dialCode"); sessionStorage.removeItem("mb_phone"); }}
-          className="text-xs text-[color:var(--textMuted)] hover:text-[color:var(--text)] transition-colors px-3 py-1.5 rounded-lg hover:bg-[color:var(--surface2)]">
-          Log out
-        </button>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-x-8 gap-y-6 items-start">
+           {/* Left Column */}
+           <div className="lg:col-span-5 space-y-6">
+              {/* Quick Actions / Steps */}
+              <div>
+                <h2 className="text-sm font-bold text-slate-800 mb-3 ml-1">Get started with these simple steps</h2>
+                <div className="flex gap-3 overflow-x-auto pb-2 px-1 snap-x hide-scrollbar">
+                   <Link href="/" className="snap-start shrink-0 w-[110px] bg-white rounded-3xl p-4 shadow-sm border border-slate-100 flex flex-col items-center text-center gap-3 hover:shadow-md transition-shadow">
+                      <div className="w-12 h-12 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      </div>
+                      <span className="text-[13px] font-bold text-slate-700 leading-tight">Book Trips</span>
+                   </Link>
+                   <Link href="/contact" className="snap-start shrink-0 w-[110px] bg-white rounded-3xl p-4 shadow-sm border border-slate-100 flex flex-col items-center text-center gap-3 hover:shadow-md transition-shadow">
+                      <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center shrink-0">
+                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      </div>
+                      <span className="text-[13px] font-bold text-slate-700 leading-tight">Contact Team</span>
+                   </Link>
+                </div>
+              </div>
+
+              {/* Toast */}
+              {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
+
+              {/* Wallet / Vouchers styled */}
+              <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100">
+                <p className="text-[13px] font-bold text-slate-500 mb-1">Your Wallet</p>
+                <div className="flex items-end justify-between mb-4">
+                   <h3 className="text-3xl font-extrabold text-slate-900 leading-none">
+                       {voucherResult ? `R${voucherResult.current_balance}` : 'R0.00'}
+                   </h3>
+                   <div className="flex items-center gap-2">
+                      {voucherResult ? (
+                         <button onClick={() => { setVoucherResult(null); setVoucherCode(""); }} className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-sm hover:bg-slate-200 transition-colors">
+                           Clear
+                         </button>
+                      ) : (
+                         <button onClick={checkVoucherBalance} disabled={voucherLoading || !voucherCode.trim()} className="px-4 py-2 bg-teal-800 text-white font-bold rounded-xl text-sm shadow-sm hover:bg-teal-900 transition-colors disabled:opacity-50">
+                           Check
+                         </button>
+                      )}
+                   </div>
+                </div>
+                
+                {!voucherResult ? (
+                   <div className="flex items-center gap-3">
+                       <input 
+                         type="text" 
+                         value={voucherCode} 
+                         onChange={e => { setVoucherCode(e.target.value.toUpperCase()); setVoucherError(""); }} 
+                         onKeyDown={e => e.key === "Enter" && checkVoucherBalance()}
+                         placeholder="Enter voucher code" 
+                         className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium tracking-wider outline-none focus:border-teal-500 transition-colors uppercase"
+                       />
+                   </div>
+                ) : (
+                   <div className="flex items-center justify-between text-sm py-2 px-3 bg-teal-50 text-teal-800 rounded-lg">
+                      <span className="font-medium">Active Voucher Code:</span>
+                      <span className="font-mono font-bold">{voucherResult.code}</span>
+                   </div>
+                )}
+                {voucherError && <p className="text-xs text-red-500 mt-2 ml-1 font-medium">{voucherError}</p>}
+              </div>
+           </div>
+
+           {/* Right Column */}
+           <div className="lg:col-span-7">
+              {/* Notifications / Bookings list */}
+              <div>
+                 <div className="flex justify-between items-center mb-4 px-1">
+                    <h2 className="text-sm font-bold text-slate-800">Notifications</h2>
+                    <Link href="/" className="text-[13px] text-teal-700 font-bold hover:text-teal-800">View all</Link>
+                 </div>
+                 
+                 <div className="space-y-4">
+                    {bookings.length === 0 ? (
+                       <div className="bg-orange-50 rounded-[1.5rem] p-6 shadow-sm border border-orange-100/50 flex flex-col items-center">
+                          <p className="text-[14px] text-orange-800 font-semibold mb-1">No upcoming trips yet.</p>
+                          <p className="text-[13px] text-orange-700/80 mb-4">Time to plan your next adventure!</p>
+                          <Link href="/" className="inline-block px-5 py-2.5 bg-orange-100 text-orange-800 font-bold rounded-xl text-[13px] hover:bg-orange-200 transition-colors shadow-sm">Explore Tours</Link>
+                       </div>
+                    ) : (
+                       <>
+                         {upcoming.length > 0 && upcoming.map(b => <BookingCard key={b.id} b={b} {...cardProps} />)}
+                         {past.length > 0 && past.map(b => <BookingCard key={b.id} b={b} {...cardProps} />)}
+                         {cancelled.length > 0 && cancelled.map(b => <BookingCard key={b.id} b={b} {...cardProps} />)}
+                       </>
+                    )}
+                 </div>
+              </div>
+           </div>
+        </div>
       </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 mb-5 bg-[color:var(--surface2)] rounded-xl p-1">
-        <button onClick={() => setActiveTab("bookings")}
-          className={"flex-1 py-2 text-sm font-medium rounded-lg transition-all " + (activeTab === "bookings" ? "bg-[color:var(--surface)] text-[color:var(--text)] shadow-sm" : "text-[color:var(--textMuted)] hover:text-[color:var(--text)]")}>
-          Bookings
-        </button>
-        <button onClick={() => { setActiveTab("vouchers"); setVoucherResult(null); setVoucherError(""); }}
-          className={"flex-1 py-2 text-sm font-medium rounded-lg transition-all " + (activeTab === "vouchers" ? "bg-[color:var(--surface)] text-[color:var(--text)] shadow-sm" : "text-[color:var(--textMuted)] hover:text-[color:var(--text)]")}>
-          Vouchers
-        </button>
-      </div>
-
-      {/* Toast */}
-      {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
-
-      {/* VOUCHERS TAB */}
-      {activeTab === "vouchers" && (
-        <VoucherCheckerModal
-          voucherCode={voucherCode} setVoucherCode={setVoucherCode}
-          voucherResult={voucherResult} voucherLoading={voucherLoading}
-          voucherError={voucherError} setVoucherError={setVoucherError}
-          checkVoucherBalance={checkVoucherBalance}
-        />
-      )}
-
-      {/* BOOKINGS TAB */}
-      {activeTab === "bookings" && (
-        <>
-          {bookings.length === 0 ? (
-            <div className="text-center py-20">
-              <p className="text-[color:var(--textMuted)] mb-4">No bookings found.</p>
-              <Link href="/" className="btn btn-primary">Browse Tours</Link>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {upcoming.length > 0 && (
-                <section>
-                  <h3 className="text-xs font-semibold text-[color:var(--textMuted)] uppercase tracking-wider mb-3">Upcoming</h3>
-                  <div className="space-y-3">{upcoming.map(b => <BookingCard key={b.id} b={b} {...cardProps} />)}</div>
-                </section>
-              )}
-              {past.length > 0 && (
-                <section>
-                  <h3 className="text-xs font-semibold text-[color:var(--textMuted)] uppercase tracking-wider mb-3">Past Trips</h3>
-                  <div className="space-y-3">{past.map(b => <BookingCard key={b.id} b={b} {...cardProps} />)}</div>
-                </section>
-              )}
-              {cancelled.length > 0 && (
-                <section>
-                  <h3 className="text-xs font-semibold text-[color:var(--textMuted)] uppercase tracking-wider mb-3">Cancelled</h3>
-                  <div className="space-y-3">{cancelled.map(b => <BookingCard key={b.id} b={b} {...cardProps} />)}</div>
-                </section>
-              )}
-            </div>
-          )}
-        </>
-      )}
 
       {/* MODALS */}
       <EditGuestsModal

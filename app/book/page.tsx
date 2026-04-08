@@ -56,7 +56,7 @@ function BookingFlow() {
   useEffect(() => {
     if (!theme.id) return; // wait for ThemeProvider to resolve business id
     (async () => {
-      const q = supabase.from("tours").select("*").eq("business_id", theme.id).order("base_price_per_person");
+      const q = supabase.from("tours").select("*").eq("business_id", theme.id).order("sort_order", { ascending: true });
       const { data } = await q;
       setTours((data || []) as unknown as Tour[]);
       if (tourId) {
@@ -163,7 +163,7 @@ function BookingFlow() {
   function removeVoucher(i: number) { const v = vouchers[i]; setVouchers(vouchers.filter((_, j) => j !== i)); setVoucherTotal(voucherTotal - v.value); }
 
   async function saveDraft() {
-    if (!name.trim() || !email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+    if (!name.trim() || !email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !phone.trim()) return;
     if (!selectedTour || !selectedSlot) return;
     const draftData = {
       business_id: selectedTour.business_id, tour_id: selectedTour.id, slot_id: selectedSlot.id,
@@ -194,27 +194,20 @@ function BookingFlow() {
       return;
     }
     const code = promoCode.toUpperCase().trim();
-    const { data: promo } = await supabase
-      .from("promotions")
-      .select("*")
-      .eq("code", code)
-      .eq("business_id", theme.id)
-      .maybeSingle();
-    if (!promo) { setPromoError("Code not found"); return; }
-    if (!promo.active) { setPromoError("This code is no longer active"); return; }
-    if (promo.valid_from && new Date(promo.valid_from) > new Date()) { setPromoError("This code is not yet valid"); return; }
-    if (promo.valid_until && new Date(promo.valid_until) < new Date()) { setPromoError("This code has expired"); return; }
-    if (promo.max_uses != null && promo.used_count >= promo.max_uses) { setPromoError("This code has reached its usage limit"); return; }
-    if (promo.min_order_amount && grandTotal < promo.min_order_amount) { setPromoError("Minimum order of R" + promo.min_order_amount + " required"); return; }
-    // Per-email check
-    const { data: existingUse } = await supabase
-      .from("promotion_uses")
-      .select("id")
-      .eq("promotion_id", promo.id)
-      .eq("email", emailVal.toLowerCase())
-      .maybeSingle();
-    if (existingUse) { setPromoError("You have already used this promo code"); return; }
-    setAppliedPromo({ id: promo.id, code: promo.code, discount_type: promo.discount_type, discount_value: Number(promo.discount_value) });
+    const phoneVal = phone ? phone.replace(/[^\d]/g, "").replace(/^0/, "27") : "";
+    // Server-side validation (checks expiry, usage limits, per-email, per-phone)
+    const { data: result } = await supabase.rpc("validate_promo_code", {
+      p_business_id: theme.id,
+      p_code: code,
+      p_order_amount: grandTotal,
+      p_customer_email: emailVal.toLowerCase(),
+      p_customer_phone: phoneVal || null,
+    });
+    if (!result || !result.valid) {
+      setPromoError(result?.error || "Invalid promo code");
+      return;
+    }
+    setAppliedPromo({ id: result.promo_id, code: result.code, discount_type: result.discount_type, discount_value: Number(result.discount_value) });
     setPromoCode("");
   }
 
@@ -224,7 +217,7 @@ function BookingFlow() {
   }
 
   async function submitBooking() {
-    if (!name.trim() || !email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+    if (!name.trim() || !email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !phone.trim()) return;
     setSubmitting(true);
     const promoInsertFields: Record<string, unknown> = {};
     if (appliedPromo) {
@@ -261,16 +254,14 @@ function BookingFlow() {
       await supabase.from("booking_add_ons").insert(addOnRows);
     }
 
-    // Record promo usage and increment counter
+    // Record promo usage atomically (prevents race conditions and duplicate uses)
     if (appliedPromo) {
-      await supabase.from("promotion_uses").insert({
-        promotion_id: appliedPromo.id,
-        email: email.toLowerCase(),
-        booking_id: booking.id,
+      await supabase.rpc("apply_promo_code", {
+        p_promo_id: appliedPromo.id,
+        p_customer_email: email.toLowerCase(),
+        p_booking_id: booking.id,
+        p_customer_phone: phone ? phone.replace(/[^\d]/g, "").replace(/^0/, "27") : null,
       });
-      await supabase.from("promotions").update({
-        used_count: (await supabase.from("promotions").select("used_count").eq("id", appliedPromo.id).single()).data?.used_count + 1,
-      }).eq("id", appliedPromo.id);
     }
 
     if (finalTotal <= 0) {
@@ -376,33 +367,37 @@ function BookingFlow() {
       const isToday = isSameDay(date, today);
       cells.push(
         <button key={day} disabled={past || !has} onClick={() => { setSelectedDate(date); setSelectedSlot(null); }}
-          className={"relative aspect-square rounded-xl flex items-center justify-center text-sm font-medium transition-all " +
-            (sel ? "bg-gray-900 text-white shadow-lg scale-105 " : "") +
-            (!sel && has && !past ? "bg-white text-gray-900 hover:bg-gray-100 border border-gray-200 cursor-pointer " : "") +
-            (past || !has ? "text-gray-300 cursor-not-allowed " : "") +
-            (isToday && !sel ? "ring-2 ring-gray-900 ring-offset-2 " : "")}>
+          className={"relative aspect-square rounded-full flex items-center justify-center text-[15px] font-extrabold transition-all outline-none " +
+            (sel ? "bg-teal-700 text-white shadow-md scale-105 " : "") +
+            (!sel && has && !past ? "bg-[#FDFDFB] text-slate-800 hover:bg-white border border-slate-100 hover:border-teal-200 hover:shadow-sm hover:text-teal-700 cursor-pointer " : "") +
+            (past || !has ? "text-slate-300 cursor-not-allowed bg-transparent " : "") +
+            (isToday && !sel ? "ring-2 ring-teal-500/20 ring-offset-2 " : "")}>
           {day}
-          {has && !past && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-emerald-500" />}
+          {has && !past && !sel && <span className={"absolute bottom-[4px] left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full " + (sel ? "bg-white" : "bg-teal-500")} />}
         </button>
       );
     }
     const canPrev = calYear > today.getFullYear() || calMonth > today.getMonth();
     return (
-      <div>
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100">
+        <div className="flex items-center justify-between mb-6">
           <button onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); } else setCalMonth(calMonth - 1); }}
-            disabled={!canPrev} className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 disabled:opacity-30">←</button>
-          <h3 className="text-lg font-semibold">{fmtMonth(new Date(calYear, calMonth))}</h3>
+            disabled={!canPrev} className="w-10 h-10 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-100 disabled:opacity-30 transition-colors">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
+          </button>
+          <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">{fmtMonth(new Date(calYear, calMonth))}</h3>
           <button onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1); } else setCalMonth(calMonth + 1); }}
-            className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50">→</button>
+            className="w-10 h-10 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
+          </button>
         </div>
-        <div className="grid grid-cols-7 gap-1 mb-2">
-          {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(d => <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>)}
+        <div className="grid grid-cols-7 gap-1 mb-3">
+          {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(d => <div key={d} className="text-center text-[11px] font-bold text-slate-400 py-1 uppercase tracking-wider">{d}</div>)}
         </div>
-        <div className="grid grid-cols-7 gap-1">{cells}</div>
-        <div className="flex items-center gap-4 mt-4 text-xs text-gray-500">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> Available</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-300 inline-block" /> Unavailable</span>
+        <div className="grid grid-cols-7 gap-1.5">{cells}</div>
+        <div className="flex items-center gap-5 mt-6 pt-5 border-t border-slate-100 text-[12px] font-bold text-slate-500 justify-center">
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-teal-500 inline-block shadow-sm" /> Available</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-slate-200 inline-block" /> Unavailable</span>
         </div>
       </div>
     );
@@ -424,22 +419,23 @@ function BookingFlow() {
   );
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
+    <div className="max-w-4xl mx-auto px-4 py-8 md:py-12">
       {/* Progress */}
-      <div className="flex items-center gap-1 mb-10">
-        {[{ l: "Date & Time", s: "calendar" }, { l: "Details", s: "details" }, { l: "Payment", s: "payment" }].map((x, i) => {
+      <div className="flex items-center justify-between mb-10 bg-white rounded-full p-2.5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-slate-100 max-w-lg mx-auto">
+        {[{ l: "Date", s: "calendar" }, { l: "Details", s: "details" }, { l: "Pay", s: "payment" }].map((x, i) => {
           const steps = ["calendar", "details", "payment"];
           const ci = steps.indexOf(step);
           const active = i <= ci;
+          const isDone = i < ci;
           return (
-            <div key={x.l} className="flex items-center flex-1">
-              <div className="flex items-center gap-2 flex-1">
-                <div className={"w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all " + (active ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-400")}>
-                  {active && i < ci ? "✓" : i + 1}
+            <div key={x.l} className="flex items-center flex-1 last:flex-none">
+              <div className={"flex items-center gap-2 " + (active ? "bg-teal-50 pl-2 pr-4 py-2 rounded-full" : "px-3")}>
+                <div className={"w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-extrabold shrink-0 transition-all " + (active ? "bg-teal-700 text-white shadow-sm" : "bg-slate-100 text-slate-400")}>
+                  {isDone ? <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg> : i + 1}
                 </div>
-                <span className={"text-sm hidden sm:block " + (active ? "text-gray-900 font-medium" : "text-gray-400")}>{x.l}</span>
+                <span className={"text-[13px] tracking-wide " + (active ? "text-teal-900 font-extrabold" : "text-slate-400 font-bold")}>{x.l}</span>
               </div>
-              {i < 2 && <div className={"h-0.5 flex-1 mx-2 rounded " + (active && i < ci ? "bg-gray-900" : "bg-gray-200")} />}
+              {i < 2 && <div className="flex-1 px-2"><div className={"h-0.5 w-full rounded-full " + (isDone ? "bg-teal-500" : "bg-slate-100")} /></div>}
             </div>
           );
         })}
@@ -447,112 +443,196 @@ function BookingFlow() {
 
       {/* STEP 1: Calendar */}
       {step === "calendar" && (
-        <div>
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           {soldOutMsg && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3">
-              <span className="text-red-500 text-xl">⚠</span>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-red-800">{soldOutMsg}</p>
-                <p className="text-xs text-red-600 mt-0.5">Available slots have been refreshed below.</p>
+            <div className="mb-6 p-5 bg-orange-50 border border-orange-200/60 rounded-[1.5rem] flex items-start gap-4">
+              <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center shrink-0 mt-0.5">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
               </div>
-              <button onClick={() => setSoldOutMsg("")} className="text-red-400 hover:text-red-600 text-lg">&times;</button>
+              <div className="flex-1 pt-0.5">
+                <p className="text-[14px] font-bold text-orange-900">{soldOutMsg}</p>
+                <p className="text-[13px] font-medium text-orange-700/80 mt-1">Available slots have been refreshed below so you can try again.</p>
+              </div>
+              <button onClick={() => setSoldOutMsg("")} className="w-8 h-8 rounded-full flex items-center justify-center bg-orange-100/50 text-orange-500 hover:bg-orange-200 transition-colors">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
             </div>
           )}
-          <a href="/" className="text-sm text-gray-500 mb-6 hover:text-gray-900 inline-block">← Back to tours</a>
-          <div className="flex items-center gap-4 mb-8 p-4 bg-gray-50 rounded-xl">
-            <div className="w-12 h-12 bg-gray-900 text-white rounded-xl flex items-center justify-center text-xl">🛶</div>
-            <div><h3 className="font-semibold text-lg">{selectedTour?.name}</h3><p className="text-gray-500 text-sm">{selectedTour?.duration_minutes} min · R{selectedTour?.base_price_per_person}/pp</p></div>
+          
+          <div className="text-center mb-10 w-full flex flex-col items-center justify-center">
+             <a href="/" className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-full text-[13px] font-bold text-slate-600 transition-colors mb-6 shadow-sm hover:shadow-md">
+               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
+               Back to tours
+             </a>
+             <div className="inline-flex items-center gap-4 p-2 pr-6 bg-white rounded-full border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.04)] mb-2">
+               <div className="w-12 h-12 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center shrink-0">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+               </div>
+               <div className="text-left">
+                 <h3 className="font-extrabold text-[16px] text-slate-800 leading-tight">{selectedTour?.name}</h3>
+                 <p className="text-slate-500 text-[12px] font-bold mt-0.5">{selectedTour?.duration_minutes} min &middot; R{selectedTour?.base_price_per_person} per person</p>
+               </div>
+             </div>
           </div>
-          <div className="grid md:grid-cols-2 gap-8">
-            <div><h2 className="text-xl font-bold mb-4">Pick a Date</h2>{renderCalendar()}</div>
+          
+          <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
             <div>
-              <h2 className="text-xl font-bold mb-4">{selectedDate ? "Times for " + fmtDate(selectedDate.toISOString(), tz) : "Select a date"}</h2>
+              <h2 className="text-2xl font-extrabold text-slate-800 mb-6 pl-2 tracking-tight">Pick a Date</h2>
+              {renderCalendar()}
+            </div>
+            
+            <div>
+              <h2 className="text-2xl font-extrabold text-slate-800 mb-6 pl-2 tracking-tight">{selectedDate ? "Times for " + fmtDate(selectedDate.toISOString(), tz) : "Select timeslot"}</h2>
+              
               {!selectedDate ? (
-                <div className="text-center py-12 text-gray-400"><p className="text-4xl mb-3">📅</p><p>Tap a highlighted date to see available times.</p></div>
+                <div className="bg-slate-50/50 rounded-[2rem] border border-dashed border-slate-200 text-center py-16 px-6 flex flex-col items-center justify-center">
+                  <div className="w-16 h-16 bg-white shadow-sm rounded-full flex items-center justify-center text-teal-500 mb-4">
+                     <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                  </div>
+                  <p className="text-[14px] font-bold text-slate-600">No date selected</p>
+                   <p className="text-[13px] font-medium text-slate-400 mt-1">Tap a highlighted date to see available times.</p>
+                </div>
               ) : daySlots.length === 0 ? (
-                <div className="text-center py-12 text-gray-400"><p>No available slots on this date.</p></div>
+                <div className="bg-slate-50/50 rounded-[2rem] border border-dashed border-slate-200 text-center py-16 px-6 flex flex-col items-center justify-center">
+                   <div className="w-16 h-16 bg-white shadow-sm rounded-full flex items-center justify-center text-slate-400 mb-4">
+                     <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </div>
+                  <p className="text-[14px] font-bold text-slate-600">No times available</p>
+                  <p className="text-[13px] font-medium text-slate-400 mt-1">Try selecting another date to proceed.</p>
+                </div>
               ) : (
-                <div className="space-y-2">
+                <div className="flex flex-col gap-3">
                   {daySlots.map((s: Slot) => {
                     const a = s.capacity_total - s.booked - (s.held || 0);
                     const isSel = selectedSlot?.id === s.id;
                     return (
                       <button key={s.id} onClick={() => setSelectedSlot(s)}
-                        className={"w-full text-left rounded-xl p-4 transition-all border " + (isSel ? "border-gray-900 bg-gray-900 text-white shadow-lg" : "border-gray-200 bg-white hover:border-gray-400")}>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className={"text-lg font-semibold " + (isSel ? "text-white" : "")}>{fmtTime(s.start_time, tz)}</p>
-                            <p className={"text-sm " + (isSel ? "text-gray-300" : "text-gray-500")}>{a} {a === 1 ? "spot" : "spots"} left</p>
-                          </div>
-                          {isSel ? <span className="bg-white text-gray-900 px-4 py-1.5 rounded-lg text-sm font-medium">Selected ✓</span>
-                            : <span className={"text-sm " + (a <= 3 ? "text-orange-500 font-medium" : "text-gray-400")}>{a <= 3 ? "Almost full" : "Available"}</span>}
+                        className={"w-full text-left rounded-[1.5rem] p-5 transition-all outline-none border flex items-center gap-4 group " + (isSel ? "border-teal-600 bg-teal-800 text-white shadow-lg overflow-hidden relative" : "border-slate-100 bg-[#FDFDFB] hover:shadow-md hover:border-slate-200")}>
+                        {isSel && <div className="absolute inset-0 bg-teal-700/50 mix-blend-overlay"></div>}
+                        <div className={"w-12 h-12 rounded-full flex items-center justify-center shrink-0 relative z-10 " + (isSel ? "bg-white text-teal-800" : "bg-teal-50 text-teal-600 group-hover:bg-teal-100")}>
+                           <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </div>
+                        <div className="flex-1 min-w-0 relative z-10">
+                           <p className={"text-[18px] font-extrabold leading-tight " + (isSel ? "text-white" : "text-slate-800")}>{fmtTime(s.start_time, tz)}</p>
+                           <p className={"text-[12px] font-bold mt-0.5 " + (isSel ? "text-teal-100" : "text-slate-500")}>{a} {a === 1 ? "spot" : "spots"} remaining</p>
+                        </div>
+                        <div className="shrink-0 relative z-10">
+                          {isSel ? (
+                            <span className="bg-white/20 text-white pl-2 pr-3 py-1.5 rounded-full text-[12px] font-bold flex items-center gap-1.5 border border-white/20">
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                              Selected
+                            </span>
+                          ) : (
+                            <span className={"text-[11px] font-extrabold uppercase tracking-wide px-3 py-1.5 rounded-full " + (a <= 3 ? "bg-orange-50 text-orange-600" : "bg-slate-50 text-slate-500")}>
+                              {a <= 3 ? "Selling Fast" : "Available"}
+                            </span>
+                          )}
                         </div>
                       </button>
                     );
                   })}
+                  
+                  {selectedSlot && (
+                    <div className="mt-4 animate-in fade-in slide-in-from-top-2">
+                       <button onClick={() => setStep("details")} className="w-full bg-teal-800 text-white pt-4 pb-[1.125rem] rounded-[1.5rem] text-[15px] font-bold hover:bg-teal-900 shadow-lg shadow-teal-900/20 transition-all flex items-center justify-center gap-2 group">
+                         Continue to Details
+                         <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                       </button>
+                    </div>
+                  )}
+                  
+                  <p className="text-[12px] font-bold text-slate-400 mt-2 flex items-center justify-center gap-1.5 text-center">
+                    <svg className="w-4 h-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    Bookings automatically close 1 hour prior to departure
+                  </p>
                 </div>
               )}
-              {selectedDate && daySlots.length > 0 && (
-                <p className="text-xs text-gray-400 mt-3 flex items-center gap-1"><span>&#9432;</span> Bookings close 1 hour before departure</p>
-              )}
-              {selectedSlot && <button onClick={() => setStep("details")} className="w-full mt-4 bg-gray-900 text-white py-3 rounded-xl text-sm font-semibold hover:bg-gray-800 shadow-md">Continue →</button>}
             </div>
           </div>
         </div>
       )}
 
+
       {/* STEP 2: Details */}
       {step === "details" && (
         <div>
-          <button onClick={() => setStep("calendar")} className="text-sm text-gray-500 mb-6 hover:text-gray-900">← Back to calendar</button>
-          <h2 className="text-3xl font-bold mb-8">Complete Your Booking</h2>
-          <div className="grid md:grid-cols-5 gap-8">
-            <div className="md:col-span-3 space-y-5">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Number of People</label>
-                <div className="flex items-center gap-4">
-                  <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-11 h-11 border-2 border-gray-200 rounded-xl flex items-center justify-center text-xl hover:bg-gray-50">−</button>
-                  <span className="text-2xl font-bold w-8 text-center">{qty}</span>
-                  <button onClick={() => setQty(Math.min(avail, qty + 1))} className="w-11 h-11 border-2 border-gray-200 rounded-xl flex items-center justify-center text-xl hover:bg-gray-50">+</button>
-                  <span className="text-sm text-gray-400">max {avail}</span>
+          <button onClick={() => setStep("calendar")} className="flex items-center gap-1.5 text-[13px] font-bold text-slate-400 mb-6 hover:text-slate-700 transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
+            Back to calendar
+          </button>
+          <h2 className="text-3xl font-extrabold text-slate-800 mb-8 tracking-tight pl-2">Complete Booking</h2>
+          <div className="grid md:grid-cols-5 gap-8 lg:gap-12">
+            <div className="md:col-span-3 space-y-6">
+              
+              {/* Qty Selector */}
+              <div className="bg-[#FDFDFB] rounded-[1.5rem] p-6 border border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.02)]">
+                <label className="block text-[14px] font-extrabold text-slate-800 mb-4">Number of People</label>
+                <div className="flex items-center gap-5">
+                  <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-[1.125rem] flex items-center justify-center text-slate-600 hover:bg-slate-100 hover:text-slate-800 transition-colors">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" /></svg>
+                  </button>
+                  <span className="text-3xl font-extrabold w-10 text-center text-slate-800">{qty}</span>
+                  <button onClick={() => setQty(Math.min(avail, qty + 1))} className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-[1.125rem] flex items-center justify-center text-slate-600 hover:bg-slate-100 hover:text-slate-800 transition-colors">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                  </button>
+                  <span className="text-[13px] font-bold text-slate-400 ml-2">max {avail} limit</span>
                 </div>
               </div>
-              <div><label htmlFor="book-name" className="block text-sm font-semibold text-gray-700 mb-2">Full Name *</label>
-                <input id="book-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="John Smith"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gray-900" /></div>
-              <div><label htmlFor="book-email" className="block text-sm font-semibold text-gray-700 mb-2">Email Address *</label>
-                <input id="book-email" type="email" value={email} onChange={e => setEmail(e.target.value)} onBlur={saveDraft} placeholder="john@example.com"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gray-900" /></div>
-              <div><label htmlFor="book-phone" className="block text-sm font-semibold text-gray-700 mb-2">Phone (optional)</label>
-                <input id="book-phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+27 71 234 5678"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gray-900" /></div>
+
+              {/* Personal Details */}
+              <div className="bg-[#FDFDFB] rounded-[1.5rem] p-6 border border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-5">
+                 <h3 className="text-[14px] font-extrabold text-slate-800 tracking-wide mb-2 uppercase">Your Details</h3>
+                 <div>
+                   <label htmlFor="book-name" className="block text-[13px] font-bold text-slate-600 mb-2 ml-1">Full Name *</label>
+                   <input id="book-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="John Smith"
+                     className="w-full px-5 py-3.5 bg-slate-50 border-transparent rounded-2xl text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:bg-white transition-all placeholder:text-slate-400" />
+                 </div>
+                 <div>
+                   <label htmlFor="book-email" className="block text-[13px] font-bold text-slate-600 mb-2 ml-1">Email Address *</label>
+                   <input id="book-email" type="email" value={email} onChange={e => setEmail(e.target.value)} onBlur={saveDraft} placeholder="john@example.com"
+                     className="w-full px-5 py-3.5 bg-slate-50 border-transparent rounded-2xl text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:bg-white transition-all placeholder:text-slate-400" />
+                 </div>
+                 <div>
+                   <label htmlFor="book-phone" className="block text-[13px] font-bold text-slate-600 mb-2 ml-1">Phone *</label>
+                   <div className="relative">
+                     <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 font-bold">+27</span>
+                     <input id="book-phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="71 234 5678"
+                       className="w-full pl-14 pr-5 py-3.5 bg-slate-50 border-transparent rounded-2xl text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:bg-white transition-all placeholder:text-slate-400" />
+                   </div>
+                 </div>
+              </div>
+
               {availableAddOns.length > 0 && (
-                <div className="pt-4 border-t border-gray-100">
-                  <label className="block text-sm font-semibold text-gray-700 mb-3">Extras & Add-Ons</label>
-                  <div className="space-y-2">
+                <div className="bg-[#FDFDFB] rounded-[1.5rem] p-6 border border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.02)]">
+                  <label className="block text-[14px] font-extrabold text-slate-800 tracking-wide mb-4 uppercase">Extras & Add-Ons</label>
+                  <div className="space-y-3">
                     {availableAddOns.map(ao => {
                       const isSelected = !!selectedAddOns[ao.id];
                       return (
-                        <div key={ao.id} className={"rounded-xl border p-3 transition-all " + (isSelected ? "border-gray-900 bg-gray-50" : "border-gray-200 bg-white")}>
-                          <div className="flex items-start gap-3">
+                        <div key={ao.id} className={"rounded-[1.25rem] border p-4 transition-all " + (isSelected ? "border-teal-500 bg-teal-50/30" : "border-slate-100 bg-slate-50/50 hover:bg-slate-50")}>
+                          <div className="flex items-start gap-4">
                             <input type="checkbox" checked={isSelected} onChange={() => toggleAddOn(ao.id)}
-                              className="mt-1 w-4 h-4 shrink-0 rounded border-gray-300" />
+                              className="mt-1 w-5 h-5 shrink-0 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer" />
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm font-medium text-gray-900">{ao.name}</span>
-                                <span className="text-sm font-semibold text-gray-700">R{ao.price}</span>
+                              <div className="flex items-start justify-between">
+                                <span className="text-[15px] font-bold text-slate-800">{ao.name}</span>
+                                <span className="text-[14px] font-extrabold text-teal-700 bg-teal-100 px-2.5 py-0.5 rounded-lg shrink-0 ml-2">+R{ao.price}</span>
                               </div>
-                              {ao.description && <p className="text-xs text-gray-500 mt-0.5">{ao.description}</p>}
+                              {ao.description && <p className="text-[13px] text-slate-500 mt-1 font-medium leading-relaxed">{ao.description}</p>}
                             </div>
                           </div>
                           {isSelected && (
-                            <div className="flex items-center gap-3 mt-2 ml-7">
-                              <span className="text-xs text-gray-500">Qty:</span>
+                            <div className="flex items-center gap-3 mt-4 ml-9 bg-white p-2 w-max rounded-xl border border-slate-100">
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 ml-2">Qty</span>
                               <button onClick={() => setAddOnQty(ao.id, (selectedAddOns[ao.id] || 1) - 1)}
-                                className="w-7 h-7 border border-gray-200 rounded-lg flex items-center justify-center text-sm hover:bg-gray-50">−</button>
-                              <span className="text-sm font-semibold w-5 text-center">{selectedAddOns[ao.id]}</span>
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 bg-slate-50 hover:bg-slate-100 transition-colors">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" /></svg>
+                              </button>
+                              <span className="text-[14px] font-extrabold w-6 text-center text-slate-800">{selectedAddOns[ao.id]}</span>
                               <button onClick={() => setAddOnQty(ao.id, (selectedAddOns[ao.id] || 1) + 1)}
-                                className="w-7 h-7 border border-gray-200 rounded-lg flex items-center justify-center text-sm hover:bg-gray-50">+</button>
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 bg-slate-50 hover:bg-slate-100 transition-colors">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                              </button>
                             </div>
                           )}
                         </div>
@@ -561,86 +641,131 @@ function BookingFlow() {
                   </div>
                 </div>
               )}
-              <div className="pt-4 border-t border-gray-100">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Have a promo code?</label>
-                {!appliedPromo ? (
-                  <>
-                    <div className="flex gap-2">
-                      <input type="text" value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder="e.g. SUMMER20"
-                        className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl text-sm font-mono uppercase tracking-wider focus:outline-none focus:border-gray-900"
-                        onKeyDown={e => e.key === "Enter" && applyPromo()} />
-                      <button onClick={applyPromo} className="bg-gray-100 text-gray-700 px-5 py-3 rounded-xl text-sm font-semibold hover:bg-gray-200">Apply</button>
-                    </div>
-                    {promoError && <p className="text-red-500 text-xs mt-2">{promoError}</p>}
-                  </>
-                ) : (
-                  <div className="flex items-center justify-between bg-blue-50 border border-blue-200 px-4 py-2.5 rounded-xl">
-                    <span className="text-sm text-blue-700 font-semibold">
-                      {appliedPromo.code} — {appliedPromo.discount_type === "PERCENT" ? appliedPromo.discount_value + "% off" : "R" + appliedPromo.discount_value + " off"}
-                    </span>
-                    <button onClick={removePromo} className="text-red-400 text-xs hover:text-red-600 font-medium">Remove</button>
-                  </div>
-                )}
+
+              {/* Discounts Block */}
+              <div className="bg-[#FDFDFB] rounded-[1.5rem] p-6 border border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-6">
+                 <div>
+                   <label className="block text-[14px] font-extrabold text-slate-800 tracking-wide mb-3 uppercase">Promo Code</label>
+                   {!appliedPromo ? (
+                     <>
+                       <div className="flex gap-2 relative">
+                         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                         </div>
+                         <input type="text" value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder="e.g. SUMMER20"
+                           className="flex-1 pl-10 pr-4 py-3.5 bg-slate-50 border-transparent rounded-2xl text-[14px] font-bold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white placeholder:normal-case placeholder:font-medium placeholder:text-slate-400"
+                           onKeyDown={e => e.key === "Enter" && applyPromo()} />
+                         <button onClick={applyPromo} className="bg-slate-800 text-white px-6 py-3.5 rounded-2xl text-[14px] font-extrabold hover:bg-slate-900 transition-colors">Apply</button>
+                       </div>
+                       {promoError && <p className="text-red-500 text-[12px] font-bold mt-2 ml-1">{promoError}</p>}
+                     </>
+                   ) : (
+                     <div className="flex items-center justify-between bg-blue-50 border border-blue-200/60 px-5 py-4 rounded-[1.25rem]">
+                       <div className="flex items-center gap-3">
+                         <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                         </div>
+                         <span className="text-[14px] text-blue-900 font-extrabold">
+                           {appliedPromo.code} <span className="text-blue-600/70 ml-1 font-bold">({appliedPromo.discount_type === "PERCENT" ? appliedPromo.discount_value + "% off" : "R" + appliedPromo.discount_value + " off"})</span>
+                         </span>
+                       </div>
+                       <button onClick={removePromo} className="text-slate-400 bg-white hover:bg-slate-100 hover:text-red-500 w-8 h-8 rounded-full flex items-center justify-center transition-colors">
+                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                       </button>
+                     </div>
+                   )}
+                 </div>
+                 
+                 <div className="pt-6 border-t border-slate-100">
+                   <label htmlFor="book-voucher" className="block text-[14px] font-extrabold text-slate-800 tracking-wide mb-3 uppercase">Gift Voucher</label>
+                   <div className="flex gap-2">
+                     <input id="book-voucher" type="text" value={voucherCode} onChange={e => setVoucherCode(e.target.value.toUpperCase())} placeholder="XXXXXXXX" maxLength={8}
+                       className="flex-1 px-5 py-3.5 bg-slate-50 border-transparent rounded-2xl text-[15px] font-bold font-mono tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:bg-white placeholder:normal-case placeholder:font-medium placeholder:tracking-normal placeholder:text-slate-400" />
+                     <button onClick={applyVoucher} className="bg-slate-800 text-white px-6 py-3.5 rounded-2xl text-[14px] font-extrabold hover:bg-slate-900 transition-colors">Apply</button>
+                   </div>
+                   {voucherError && <p className="text-red-500 text-[12px] font-bold mt-2 ml-1">{voucherError}</p>}
+                   {vouchers.map((v, i) => (
+                     <div key={v.code} className="flex items-center justify-between mt-3 bg-emerald-50 border border-emerald-200/60 px-5 py-4 rounded-[1.25rem]">
+                       <div className="flex items-center gap-3">
+                         <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                         </div>
+                         <span className="text-[14px] text-emerald-900 font-extrabold font-mono tracking-widest">{v.code} <span className="font-sans text-emerald-700/80 tracking-normal ml-2">— R{v.value} applied</span></span>
+                       </div>
+                       <button onClick={() => removeVoucher(i)} className="text-slate-400 bg-white hover:bg-slate-100 hover:text-red-500 w-8 h-8 rounded-full flex items-center justify-center transition-colors">
+                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                       </button>
+                     </div>
+                   ))}
+                 </div>
               </div>
-              <div className="pt-4 border-t border-gray-100">
-                <label htmlFor="book-voucher" className="block text-sm font-semibold text-gray-700 mb-2">Got a voucher code?</label>
-                <div className="flex gap-2">
-                  <input id="book-voucher" type="text" value={voucherCode} onChange={e => setVoucherCode(e.target.value.toUpperCase())} placeholder="XXXXXXXX" maxLength={8}
-                    className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl text-sm font-mono uppercase tracking-wider focus:outline-none focus:border-gray-900" />
-                  <button onClick={applyVoucher} className="bg-gray-100 text-gray-700 px-5 py-3 rounded-xl text-sm font-semibold hover:bg-gray-200">Apply</button>
+
+              <div className="mt-4 p-5 bg-amber-50 border border-amber-200/50 rounded-[1.5rem] flex items-start gap-4">
+                <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                 </div>
-                {voucherError && <p className="text-red-500 text-xs mt-2">{voucherError}</p>}
-                {vouchers.map((v, i) => (
-                  <div key={v.code} className="flex items-center justify-between mt-2 bg-emerald-50 border border-emerald-200 px-4 py-2.5 rounded-xl">
-                    <span className="text-sm text-emerald-700 font-semibold">{v.code} — R{v.value} credit</span>
-                    <button onClick={() => removeVoucher(i)} className="text-red-400 text-xs hover:text-red-600 font-medium">Remove</button>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
-                <span className="text-amber-500 text-lg leading-none mt-0.5">&#9998;</span>
-                <div>
-                  <p className="text-sm font-semibold text-amber-800">Waiver Required</p>
-                  <p className="text-xs text-amber-700 mt-0.5">All participants must complete a digital waiver before the trip. A link will be sent to your email after booking.</p>
+                <div className="flex-1 pt-0.5">
+                  <p className="text-[14px] font-extrabold text-amber-900">Waiver Required</p>
+                  <p className="text-[13px] font-medium text-amber-800/80 mt-1">All participants must complete a digital waiver before arriving. A secure link will be included in your confirmation email.</p>
                 </div>
               </div>
-              <label className="flex items-start gap-3 mt-4 cursor-pointer">
+              
+              <label className="flex items-start gap-4 mt-6 cursor-pointer group bg-[#FDFDFB] rounded-[1.5rem] p-5 border border-slate-100 hover:border-slate-200 transition-colors">
                 <input type="checkbox" checked={marketingOptIn} onChange={e => setMarketingOptIn(e.target.checked)}
-                  className="mt-1 w-4 h-4 shrink-0 rounded border-gray-300" />
-                <span className="text-xs text-gray-500 leading-relaxed">I agree to receive marketing messages and promotions. You can opt out at any time by replying STOP.</span>
+                  className="mt-0.5 w-5 h-5 shrink-0 rounded text-teal-600 focus:ring-teal-500 cursor-pointer" />
+                <span className="text-[13px] font-bold text-slate-500 leading-relaxed group-hover:text-slate-700 transition-colors">I agree to receive booking updates and upcoming promotions via SMS. You can opt out at any time by replying STOP.</span>
               </label>
             </div>
+            
+            {/* Sticky Order Summary */}
             <div className="md:col-span-2">
-              <div className="bg-gray-50 rounded-2xl p-5 sticky top-6">
-                <h3 className="font-bold mb-4">Booking Summary</h3>
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between"><span className="text-gray-500">Tour</span><span className="font-medium">{selectedTour?.name}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Date</span><span className="font-medium">{selectedSlot && fmtDate(selectedSlot.start_time, tz)}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Time</span><span className="font-medium">{selectedSlot && fmtTime(selectedSlot.start_time, tz)}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Guests</span><span className="font-medium">{qty}</span></div>
-                  <div className="border-t border-gray-200 pt-3 mt-3">
-                    <div className="flex justify-between"><span className="text-gray-500">R{selectedTour?.base_price_per_person} × {qty}</span><span>R{baseTotal}</span></div>
+              <div className="bg-slate-900 text-white rounded-[2rem] p-7 sticky top-6 shadow-2xl shadow-slate-900/10">
+                <h3 className="text-[18px] font-extrabold mb-6 tracking-tight">Booking Summary</h3>
+                <div className="space-y-4 text-[14px]">
+                  <div className="flex justify-between items-center"><span className="text-slate-400 font-bold">Tour</span><span className="font-extrabold text-right">{selectedTour?.name}</span></div>
+                  <div className="flex justify-between items-center"><span className="text-slate-400 font-bold">Date</span><span className="font-extrabold text-right">{selectedSlot && fmtDate(selectedSlot.start_time, tz)}</span></div>
+                  <div className="flex justify-between items-center"><span className="text-slate-400 font-bold">Time</span><span className="font-extrabold text-right">{selectedSlot && fmtTime(selectedSlot.start_time, tz)}</span></div>
+                  <div className="flex justify-between items-center"><span className="text-slate-400 font-bold">Guests</span><span className="font-extrabold text-right">{qty}</span></div>
+                  
+                  <div className="border-t border-slate-700/50 pt-4 mt-4 space-y-3">
+                    <div className="flex justify-between items-center"><span className="text-slate-300 font-medium tracking-wide">R{selectedTour?.base_price_per_person} × {qty}</span><span className="font-extrabold text-[15px]">R{baseTotal}</span></div>
                     {availableAddOns.filter(ao => selectedAddOns[ao.id]).map(ao => (
-                      <div key={ao.id} className="flex justify-between mt-1 text-gray-600">
-                        <span>{ao.name}{selectedAddOns[ao.id] > 1 ? ` × ${selectedAddOns[ao.id]}` : ""}</span>
-                        <span>R{ao.price * selectedAddOns[ao.id]}</span>
+                      <div key={ao.id} className="flex justify-between items-center text-teal-300">
+                        <span className="font-medium tracking-wide">{ao.name}{selectedAddOns[ao.id] > 1 ? ` × ${selectedAddOns[ao.id]}` : ""}</span>
+                        <span className="font-extrabold text-[15px]">R{ao.price * selectedAddOns[ao.id]}</span>
                       </div>
                     ))}
                     {computedPromoDiscount > 0 && appliedPromo && (
-                      <div className="flex justify-between text-blue-600 mt-1">
-                        <span>Promo ({appliedPromo.code}) {appliedPromo.discount_type === "PERCENT" ? appliedPromo.discount_value + "%" : ""}</span>
-                        <span>−R{computedPromoDiscount}</span>
+                      <div className="flex justify-between items-center text-blue-300">
+                        <span className="font-medium tracking-wide">Discount ({appliedPromo.code}) {appliedPromo.discount_type === "PERCENT" ? appliedPromo.discount_value + "%" : ""}</span>
+                        <span className="font-extrabold text-[15px]">−R{computedPromoDiscount}</span>
                       </div>
                     )}
-                    {effectiveVoucherCredit > 0 && <div className="flex justify-between text-emerald-600 mt-1"><span>Voucher credit</span><span>−R{effectiveVoucherCredit}</span></div>}
+                    {effectiveVoucherCredit > 0 && (
+                      <div className="flex justify-between items-center text-emerald-300">
+                        <span className="font-medium tracking-wide">Voucher Credit</span>
+                        <span className="font-extrabold text-[15px]">−R{effectiveVoucherCredit}</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="border-t border-gray-200 pt-3"><div className="flex justify-between text-lg font-bold"><span>Total</span><span>{finalTotal <= 0 ? "FREE" : "R" + finalTotal}</span></div></div>
+                  
+                  <div className="border-t border-slate-700/50 pt-5 mt-5">
+                    <div className="flex justify-between items-end">
+                       <span className="text-[14px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">Total Limit</span>
+                       <span className="text-3xl font-extrabold tracking-tight">{finalTotal <= 0 ? "FREE" : "R" + finalTotal}</span>
+                    </div>
+                  </div>
                 </div>
-                <button onClick={submitBooking} disabled={submitting || !name.trim() || !email.trim()}
-                  className="w-full mt-5 bg-gray-900 text-white py-3.5 rounded-xl text-sm font-semibold hover:bg-gray-800 disabled:opacity-40 shadow-md">
-                  {submitting ? "Processing..." : finalTotal <= 0 ? "Confirm Booking" : "Pay R" + finalTotal}
+                
+                <button onClick={submitBooking} disabled={submitting || !name.trim() || !email.trim() || !phone.trim()}
+                  className={"w-full mt-8 py-4 rounded-[1.5rem] text-[15px] font-extrabold transition-all shadow-lg flex items-center justify-center gap-2 " + 
+                   (submitting || !name.trim() || !email.trim() || !phone.trim() ? "bg-slate-800 text-slate-500 shadow-none" : "bg-teal-500 text-slate-900 hover:bg-teal-400 shadow-teal-500/20")}>
+                  {submitting ? "Processing..." : finalTotal <= 0 ? "Confirm Booking ✓" : "Pay R" + finalTotal + " Securely"}
                 </button>
-                <p className="text-xs text-gray-400 text-center mt-3">Secure payment via Yoco</p>
+                <div className="flex items-center justify-center gap-2 mt-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                  Yoco Secure Payment
+                </div>
               </div>
             </div>
           </div>
@@ -649,49 +774,75 @@ function BookingFlow() {
 
       {/* STEP 3: Payment */}
       {step === "payment" && (
-        <div className="text-center py-16 max-w-md mx-auto">
+        <div className="text-center py-16 max-w-lg mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
           {paymentUrl === "FREE" ? (
-            <>
-              <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6"><span className="text-4xl">✅</span></div>
-              <h2 className="text-3xl font-bold mb-3">You&apos;re All Set!</h2>
-              <p className="text-gray-500 mb-8">Booking confirmed. Confirmation email on its way.</p>
-              <div className="bg-gray-50 rounded-2xl p-6 text-left mb-8 space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-gray-500">Reference</span><span className="font-mono font-bold">{bookingRef}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Tour</span><span className="font-medium">{selectedTour?.name}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Date</span><span className="font-medium">{selectedSlot && fmtDate(selectedSlot.start_time, tz)}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Time</span><span className="font-medium">{selectedSlot && fmtTime(selectedSlot.start_time, tz)}</span></div>
+            <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-emerald-900/5 border border-slate-100 flex flex-col items-center">
+              <div className="w-24 h-24 bg-emerald-50 rounded-full flex items-center justify-center mb-6 shadow-inner">
+                <div className="w-16 h-16 bg-emerald-400 rounded-full flex items-center justify-center text-white shadow-md">
+                  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                </div>
               </div>
+              <h2 className="text-3xl font-extrabold text-slate-800 mb-2 tracking-tight">You&apos;re All Set!</h2>
+              <p className="text-[15px] font-bold text-slate-500 mb-8">Booking confirmed. Your itinerary is on its way.</p>
+              
+              <div className="w-full bg-slate-50/50 rounded-[1.5rem] p-6 text-left mb-8 space-y-3 text-[14px] border border-slate-100">
+                <div className="flex justify-between items-center"><span className="text-slate-400 font-extrabold uppercase tracking-wider text-[11px]">Reference Tag</span><span className="font-mono font-bold text-slate-700 bg-white px-2 py-0.5 rounded shadow-sm border border-slate-100">{bookingRef}</span></div>
+                <div className="flex justify-between items-center"><span className="text-slate-400 font-extrabold uppercase tracking-wider text-[11px]">Tour</span><span className="font-extrabold text-slate-800">{selectedTour?.name}</span></div>
+                <div className="flex justify-between items-center"><span className="text-slate-400 font-extrabold uppercase tracking-wider text-[11px]">Date</span><span className="font-extrabold text-slate-800">{selectedSlot && fmtDate(selectedSlot.start_time, tz)}</span></div>
+                <div className="flex justify-between items-center"><span className="text-slate-400 font-extrabold uppercase tracking-wider text-[11px]">Time / Guests</span><span className="font-extrabold text-slate-800">{selectedSlot && fmtTime(selectedSlot.start_time, tz)} &middot; {qty} Guests</span></div>
+              </div>
+
               {voucherRemainders.length > 0 && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 text-left mb-8">
-                  <p className="text-sm font-semibold text-emerald-800 mb-2">Voucher Balance Remaining</p>
+                <div className="w-full bg-emerald-50 border border-emerald-200/50 rounded-[1.5rem] p-6 text-left mb-8 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                     <svg className="w-16 h-16 text-emerald-900" fill="currentColor" viewBox="0 0 24 24"><path d="M21.582 5.764a.75.75 0 00-1.164-.264L12 12.181l-8.418-6.68a.75.75 0 00-1.164.264v12.47a.75.75 0 00.75.75h17.664a.75.75 0 00.75-.75V5.764z"/></svg>
+                  </div>
+                  <p className="text-[14px] font-extrabold text-emerald-900 tracking-wide uppercase mb-3 relative z-10">Voucher Credit Return</p>
                   {voucherRemainders.map((vr) => (
-                    <div key={vr.code} className="flex justify-between text-sm py-1">
-                      <span className="font-mono text-emerald-700">{vr.code}</span>
-                      <span className="font-bold text-emerald-700">R{vr.remaining} credit</span>
+                    <div key={vr.code} className="flex flex-col mb-2 last:mb-0 relative z-10">
+                      <span className="font-mono font-bold text-emerald-800/60 mb-0.5">Code: {vr.code}</span>
+                      <span className="text-2xl font-extrabold tracking-tight text-emerald-700">R{vr.remaining} remaining</span>
                     </div>
                   ))}
-                  <p className="text-xs text-emerald-600 mt-2">Use your remaining credit on your next booking. Details sent to your email.</p>
+                  <p className="text-[12px] font-bold text-emerald-700/80 mt-4 leading-snug relative z-10">Use your remaining balance on your next adventure. Details sent to your email.</p>
                 </div>
               )}
+
               {waiverUrl && (
-                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-left mb-8">
-                  <p className="text-sm font-semibold text-amber-800 mb-1">Complete Your Waiver</p>
-                  <p className="text-xs text-amber-700 mb-3">All participants must sign a waiver before the trip. Complete it now to save time on the day.</p>
-                  <a href={waiverUrl} className="inline-block bg-amber-600 text-white px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-amber-700 shadow-sm">Sign Waiver Now →</a>
+                <div className="w-full bg-amber-50 border border-amber-200/50 rounded-[1.5rem] p-6 text-left mb-8 flex flex-col items-start">
+                  <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 mb-3 shadow-sm border border-amber-200">
+                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                  </div>
+                  <p className="text-[15px] font-extrabold text-amber-900 mb-1">Sign Waiver Document</p>
+                  <p className="text-[13px] font-bold text-amber-800/70 mb-5 leading-relaxed">It is mandatory for all group members to sign the safety waiver. Complete it now to save time.</p>
+                  <a href={waiverUrl} className="w-full text-center bg-amber-500 text-amber-950 py-3.5 rounded-xl text-[14px] font-extrabold hover:bg-amber-400 transition-colors shadow-sm">Review & Sign Documents</a>
                 </div>
               )}
-              <a href="/" className="block bg-gray-900 text-white py-3 rounded-xl text-sm font-semibold hover:bg-gray-800">Browse More Tours</a>
-              <a href="/my-bookings" className="block text-gray-500 text-sm mt-3 hover:text-gray-900">View My Bookings</a>
-            </>
+
+              <div className="w-full flex flex-col gap-3">
+                <a href="/my-bookings" className="w-full block text-center bg-teal-800 text-white py-4 rounded-[1.25rem] text-[15px] font-extrabold hover:bg-teal-900 shadow-md transition-colors">Manage this booking</a>
+                <a href="/" className="w-full block text-center bg-[#FDFDFB] text-slate-700 border border-slate-200 hover:bg-slate-50 py-4 rounded-[1.25rem] text-[15px] font-extrabold transition-colors">Browse other tours</a>
+              </div>
+            </div>
           ) : (
-            <>
-              <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6"><span className="text-4xl">💳</span></div>
-              <h2 className="text-3xl font-bold mb-3">Complete Payment</h2>
-              <p className="text-gray-500 mb-2">Spots held for 15 minutes.</p>
-              <p className="text-3xl font-bold mb-8">R{finalTotal}</p>
-              <a href={paymentUrl} className="inline-block bg-gray-900 text-white px-10 py-4 rounded-xl text-sm font-semibold hover:bg-gray-800 shadow-md">Pay Now →</a>
-              <p className="text-xs text-gray-400 mt-6">Secure payment by Yoco · Ref: {bookingRef}</p>
-            </>
+            <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-slate-900/5 border border-slate-100 flex flex-col items-center">
+              <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6 shadow-inner border border-slate-100">
+                 <svg className="w-8 h-8 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+              </div>
+              <h2 className="text-3xl font-extrabold text-slate-800 mb-2 tracking-tight">Finalizing Checkout</h2>
+              <p className="text-[14px] font-bold text-slate-500 mb-6">Spots are held exclusively for 15 minutes.</p>
+              
+              <div className="border-t border-b border-slate-100 w-full py-6 mb-8 text-center bg-slate-50/50">
+                 <p className="text-[12px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">Payload Total</p>
+                 <p className="text-5xl font-extrabold tracking-tighter text-slate-800">R{finalTotal}</p>
+              </div>
+              
+              <a href={paymentUrl} className="w-full block text-center bg-teal-500 text-slate-900 hover:bg-teal-400 py-4.5 rounded-[1.5rem] text-[16px] font-extrabold shadow-lg shadow-teal-500/20 transition-all">Proceed to Secure Portal &rarr;</a>
+              <div className="flex items-center justify-center gap-2 mt-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                Regulated via Yoco · Ref: {bookingRef}
+              </div>
+            </div>
           )}
         </div>
       )}
