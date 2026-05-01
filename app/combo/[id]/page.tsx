@@ -5,6 +5,7 @@ import { supabase } from "../../lib/supabase";
 import { useTheme } from "../../components/ThemeProvider";
 import { fmtDate, fmtTime, fmtMonth, dateKeyInTz, isSameDay, getDaysInMonth, getFirstDay } from "../../lib/format";
 import type { ComboOffer, Slot } from "../../lib/types";
+import { normalizePhone } from "../../lib/phone";
 
 const BOOKING_CUTOFF_MINUTES = 60;
 const SU = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -88,6 +89,22 @@ export default function ComboBookingPage() {
       .gt("start_time", cutoff.toISOString()).lt("start_time", later.toISOString()).order("start_time", { ascending: true });
     setter(((data || []) as unknown as Slot[]).filter((s) => s.capacity_total - s.booked - (s.held || 0) > 0));
   }
+
+  useEffect(() => {
+    if (slotsA.length > 0) {
+      const first = new Date(slotsA[0].start_time);
+      setCalMonthA(first.getMonth());
+      setCalYearA(first.getFullYear());
+    }
+  }, [slotsA]);
+
+  useEffect(() => {
+    if (slotsB.length > 0) {
+      const first = new Date(slotsB[0].start_time);
+      setCalMonthB(first.getMonth());
+      setCalYearB(first.getFullYear());
+    }
+  }, [slotsB]);
 
   const availDatesA = useMemo(() => {
     const ds = new Set<string>();
@@ -212,7 +229,7 @@ export default function ComboBookingPage() {
           qty,
           customer_name: name,
           customer_email: email.toLowerCase(),
-          customer_phone: phone ? phone.replace(/[^\d]/g, "").replace(/^0/, "27") : "",
+          customer_phone: phone ? normalizePhone("+27", phone) : "",
         }),
       });
       const data = await res.json();
@@ -454,7 +471,7 @@ export default function ComboBookingPage() {
               <label className="flex items-start gap-3 mt-4 cursor-pointer">
                 <input type="checkbox" checked={marketingOptIn} onChange={e => setMarketingOptIn(e.target.checked)}
                   className="mt-1 w-4 h-4 shrink-0 rounded border-gray-300" />
-                <span className="text-xs text-gray-500 leading-relaxed">I agree to receive marketing messages and promotions. You can opt out at any time by replying STOP.</span>
+                <span className="text-xs text-gray-500 leading-relaxed">I agree to receive booking updates and occasional promotions by email and SMS. You can opt out at any time.</span>
               </label>
 
               {paymentError && (
