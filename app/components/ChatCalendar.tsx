@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { CalendarDate } from "../lib/types";
 
 type CalendarProps = {
@@ -18,6 +18,14 @@ export default function ChatCalendar({ availableDates, onSelectDate }: CalendarP
   var now = new Date();
   var [viewMonth, setViewMonth] = useState(now.getMonth());
   var [viewYear, setViewYear] = useState(now.getFullYear());
+
+  useEffect(() => {
+    if (availableDates.length > 0) {
+      const parts = availableDates[0].date.split("-");
+      setViewYear(parseInt(parts[0], 10));
+      setViewMonth(parseInt(parts[1], 10) - 1);
+    }
+  }, [availableDates]);
 
   var availSet = new Set(availableDates.map(d => d.date));
 

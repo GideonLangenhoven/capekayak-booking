@@ -8,6 +8,7 @@ import Toast from "../components/ui/Toast";
 import { useToast } from "../hooks/useToast";
 import { fmtDate, fmtTime, fmtMonth, dateKeyInTz, isSameDay, getDaysInMonth, getFirstDay } from "../lib/format";
 import type { Tour, Slot, VoucherCredit, AddOn, AppliedPromo } from "../lib/types";
+import { normalizePhone } from "../lib/phone";
 
 function BookingFlow() {
   const params = useSearchParams();
@@ -91,6 +92,14 @@ function BookingFlow() {
     allSlots.forEach(s => { ds.add(dateKeyInTz(s.start_time, tz)); });
     return ds;
   }, [allSlots, tz]);
+
+  useEffect(() => {
+    if (allSlots.length > 0) {
+      const first = new Date(allSlots[0].start_time);
+      setCalMonth(first.getMonth());
+      setCalYear(first.getFullYear());
+    }
+  }, [allSlots]);
 
   const daySlots = useMemo(() => {
     if (!selectedDate) return [];
@@ -194,7 +203,7 @@ function BookingFlow() {
       return;
     }
     const code = promoCode.toUpperCase().trim();
-    const phoneVal = phone ? phone.replace(/[^\d]/g, "").replace(/^0/, "27") : "";
+    const phoneVal = phone ? normalizePhone("+27", phone) : "";
     // Server-side validation (checks expiry, usage limits, per-email, per-phone)
     const { data: result } = await supabase.rpc("validate_promo_code", {
       p_business_id: theme.id,
@@ -229,7 +238,7 @@ function BookingFlow() {
     }
     const bookingPayload = {
       business_id: selectedTour!.business_id, tour_id: selectedTour!.id, slot_id: selectedSlot!.id,
-      customer_name: name, phone: phone ? phone.replace(/[^\d]/g, "").replace(/^0/, "27") : "", email: email.toLowerCase(),
+      customer_name: name, phone: phone ? normalizePhone("+27", phone) : "", email: email.toLowerCase(),
       qty, unit_price: selectedTour!.base_price_per_person, total_amount: finalTotal, original_total: grandTotal,
       status: "PENDING", source: "WEB",
       marketing_opt_in: marketingOptIn || null,
@@ -260,7 +269,7 @@ function BookingFlow() {
         p_promo_id: appliedPromo.id,
         p_customer_email: email.toLowerCase(),
         p_booking_id: booking.id,
-        p_customer_phone: phone ? phone.replace(/[^\d]/g, "").replace(/^0/, "27") : null,
+        p_customer_phone: phone ? normalizePhone("+27", phone) : null,
       });
     }
 
@@ -713,7 +722,7 @@ function BookingFlow() {
               <label className="flex items-start gap-4 mt-6 cursor-pointer group bg-[#FDFDFB] rounded-[1.5rem] p-5 border border-slate-100 hover:border-slate-200 transition-colors">
                 <input type="checkbox" checked={marketingOptIn} onChange={e => setMarketingOptIn(e.target.checked)}
                   className="mt-0.5 w-5 h-5 shrink-0 rounded text-teal-600 focus:ring-teal-500 cursor-pointer" />
-                <span className="text-[13px] font-bold text-slate-500 leading-relaxed group-hover:text-slate-700 transition-colors">I agree to receive booking updates and upcoming promotions via SMS. You can opt out at any time by replying STOP.</span>
+                <span className="text-[13px] font-bold text-slate-500 leading-relaxed group-hover:text-slate-700 transition-colors">I agree to receive booking updates and occasional promotions by email and SMS. You can opt out at any time.</span>
               </label>
             </div>
             
@@ -751,7 +760,7 @@ function BookingFlow() {
                   
                   <div className="border-t border-slate-700/50 pt-5 mt-5">
                     <div className="flex justify-between items-end">
-                       <span className="text-[14px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">Total Limit</span>
+                       <span className="text-[14px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">Total</span>
                        <span className="text-3xl font-extrabold tracking-tight">{finalTotal <= 0 ? "FREE" : "R" + finalTotal}</span>
                     </div>
                   </div>
