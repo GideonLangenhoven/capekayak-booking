@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, Suspense, useMemo } from "react";
+import { useEffect, useState, useRef, Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { useTheme } from "../components/ThemeProvider";
@@ -10,6 +10,7 @@ import { fmtDate, fmtTime, fmtMonth, dateKeyInTz, isSameDay, getDaysInMonth, get
 import type { Tour, Slot, VoucherCredit, AddOn, AppliedPromo } from "../lib/types";
 import { normalizePhone } from "../lib/phone";
 import { HoldCountdown } from "../components/HoldCountdown";
+import { saveDraft as saveLocalDraft, clearDraft as clearLocalDraft, readValidDraft } from "@/app/lib/booking-draft";
 
 function BookingFlow() {
   const params = useSearchParams();
@@ -49,6 +50,66 @@ function BookingFlow() {
   const [draftBookingId, setDraftBookingId] = useState<string | null>(null);
   const [holdExpiresAt, setHoldExpiresAt] = useState<Date | null>(null);
   const { toast, showToast, dismissToast } = useToast();
+  const draftSlotId = params.get("slot");
+  const draftDate = params.get("date");
+  const hydratedRef = useRef(false);
+
+  // Hydrate form fields from localStorage draft on mount (once slots/tour are loaded)
+  useEffect(() => {
+    if (hydratedRef.current || !selectedTour || allSlots.length === 0) return;
+    hydratedRef.current = true;
+    var d = readValidDraft();
+    if (!d || d.tourId !== selectedTour.id) return;
+    if (d.customerName) setName(d.customerName);
+    if (d.customerEmail) setEmail(d.customerEmail);
+    if (d.customerPhone) setPhone(d.customerPhone);
+    if (d.qty > 1) setQty(d.qty);
+    if (d.marketingConsent) setMarketingOptIn(true);
+    if (d.promoCode) setPromoCode(d.promoCode);
+    if (d.addOns?.length) {
+      var ao: Record<string, number> = {};
+      d.addOns.forEach(function (a) { ao[a.id] = a.qty; });
+      setSelectedAddOns(ao);
+    }
+    // If URL has slot + date, auto-select and jump to details
+    if (draftSlotId && draftDate) {
+      var matchSlot = allSlots.find(function (s) { return s.id === draftSlotId; });
+      if (matchSlot) {
+        setSelectedDate(new Date(draftDate));
+        setSelectedSlot(matchSlot);
+        if (d.step >= 2) {
+          setHoldExpiresAt(new Date(Date.now() + 15 * 60 * 1000));
+          setStep("details");
+        }
+      } else if (draftDate) {
+        setSelectedDate(new Date(draftDate));
+      }
+    }
+  }, [selectedTour, allSlots, draftSlotId, draftDate]);
+
+  // Debounced save to localStorage on form field changes
+  useEffect(() => {
+    if (!selectedTour) return;
+    var id = setTimeout(function () {
+      saveLocalDraft({
+        tourId: selectedTour.id,
+        tourName: selectedTour.name,
+        date: selectedDate ? selectedDate.toISOString().slice(0, 10) : null,
+        slotId: selectedSlot?.id || null,
+        slotTime: selectedSlot ? fmtTime(selectedSlot.start_time, tz) : null,
+        qty,
+        customerName: name,
+        customerEmail: email,
+        customerPhone: phone,
+        marketingConsent: marketingOptIn,
+        promoCode,
+        voucherCode,
+        addOns: Object.entries(selectedAddOns).filter(function (e) { return e[1] > 0; }).map(function (e) { return { id: e[0], qty: e[1] }; }),
+        step: step === "payment" ? 3 : step === "details" ? 2 : 1,
+      });
+    }, 500);
+    return function () { clearTimeout(id); };
+  }, [selectedTour, selectedDate, selectedSlot, qty, name, email, phone, marketingOptIn, promoCode, voucherCode, selectedAddOns, step]);
 
   const IMG: Record<string, string> = {
     "Sea Kayak": "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800&h=500&fit=crop",
@@ -333,7 +394,7 @@ function BookingFlow() {
         }
       } catch (e) { console.error("WAIVER_FETCH_ERR:", e); }
       setVoucherRemainders(remainders);
-      setPaymentUrl("FREE"); setStep("payment"); setSubmitting(false); return;
+      clearLocalDraft(); setPaymentUrl("FREE"); setStep("payment"); setSubmitting(false); return;
     }
 
     // Atomic capacity check + hold creation to prevent overbooking
@@ -358,7 +419,7 @@ function BookingFlow() {
     const yocoRes = await supabase.functions.invoke("create-checkout", {
       body: { booking_id: booking.id, amount: finalTotal, customer_name: name, qty, voucher_codes: vouchers.map(v => v.code), voucher_ids: vouchers.map(v => v.id) },
     });
-    if (yocoRes.data?.redirectUrl) { setPaymentUrl(yocoRes.data.redirectUrl); setStep("payment"); }
+    if (yocoRes.data?.redirectUrl) { clearLocalDraft(); setPaymentUrl(yocoRes.data.redirectUrl); setStep("payment"); }
     else showToast("Payment link unavailable. Please try again.", "error");
     setSubmitting(false);
   }

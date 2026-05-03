@@ -7,6 +7,7 @@ import SectionHeader from "./components/ui/SectionHeader";
 import Card from "./components/ui/Card";
 import { useTheme } from "./components/ThemeProvider";
 import TourCardSkeleton from "./components/skeletons/TourCardSkeleton";
+import { readValidDraft, clearDraft, draftResumeUrl, type BookingDraft } from "@/app/lib/booking-draft";
 
 const TOUR_IMAGES: Record<string, string> = {
   "Sea Kayak": "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=600&h=400&fit=crop",
@@ -22,6 +23,9 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [spotsThisWeek, setSpotsThisWeek] = useState<Record<string, number>>({});
   const [totalBookings, setTotalBookings] = useState(0);
+  const [draft, setDraft] = useState<BookingDraft | null>(null);
+
+  useEffect(() => { setDraft(readValidDraft()); }, []);
 
   useEffect(() => {
     if (!theme.id) return;
@@ -75,6 +79,30 @@ export default function Home() {
 
   return (
     <div className="app-container page-wrap">
+      {draft && (
+        <div className="mb-8 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4 animate-in fade-in duration-300">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-amber-900 text-[14px]">Pick up where you left off?</p>
+              <p className="text-[13px] text-amber-800 truncate">
+                {draft.tourName || "Your tour"}
+                {draft.date && draft.slotTime && (
+                  <> &middot; {new Date(draft.date + "T00:00:00").toLocaleDateString("en-ZA", { weekday: "short", day: "numeric", month: "short" })} at {draft.slotTime}</>
+                )}
+              </p>
+            </div>
+            <a href={draftResumeUrl(draft)} className="shrink-0 rounded-xl text-white text-[13px] font-semibold px-4 py-2.5 hover:opacity-90 transition-opacity" style={{ backgroundColor: "var(--cta)" }}>
+              Resume
+            </a>
+            <button onClick={() => { clearDraft(); setDraft(null); }} className="shrink-0 text-[12px] text-amber-700 underline hover:text-amber-900" aria-label="Dismiss resume banner">
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
       <SectionHeader
         centered
         eyebrow={theme.hero_eyebrow || "Premium Kayaking"}
