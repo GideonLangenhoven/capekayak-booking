@@ -9,6 +9,7 @@ import { useToast } from "../hooks/useToast";
 import { fmtDate, fmtTime, fmtMonth, dateKeyInTz, isSameDay, getDaysInMonth, getFirstDay } from "../lib/format";
 import type { Tour, Slot, VoucherCredit, AddOn, AppliedPromo } from "../lib/types";
 import { normalizePhone } from "../lib/phone";
+import { HoldCountdown } from "../components/HoldCountdown";
 
 function BookingFlow() {
   const params = useSearchParams();
@@ -46,6 +47,7 @@ function BookingFlow() {
   const [promoError, setPromoError] = useState("");
   const [waiverUrl, setWaiverUrl] = useState("");
   const [draftBookingId, setDraftBookingId] = useState<string | null>(null);
+  const [holdExpiresAt, setHoldExpiresAt] = useState<Date | null>(null);
   const { toast, showToast, dismissToast } = useToast();
 
   const IMG: Record<string, string> = {
@@ -514,8 +516,23 @@ function BookingFlow() {
                   {daySlots.map((s: Slot) => {
                     const a = s.capacity_total - s.booked - (s.held || 0);
                     const isSel = selectedSlot?.id === s.id;
+                    const lowThreshold = Math.max(3, Math.floor(s.capacity_total * 0.3));
+                    const isVeryLow = a > 0 && a <= 3;
+                    const isLow = a > 0 && a <= lowThreshold;
+                    let badgeClass: string, badgeText: string;
+                    if (isVeryLow) {
+                      badgeClass = "bg-red-50 text-red-600 border border-red-200";
+                      badgeText = a === 1 ? "Last spot!" : "Only " + a + " left!";
+                    } else if (isLow) {
+                      badgeClass = "bg-amber-50 text-amber-600 border border-amber-200";
+                      badgeText = a + " left";
+                    } else {
+                      badgeClass = "bg-emerald-50 text-emerald-600 border border-emerald-200";
+                      badgeText = a + " spots";
+                    }
                     return (
                       <button key={s.id} onClick={() => setSelectedSlot(s)}
+                        aria-label={fmtTime(s.start_time, tz) + " — " + a + " spots " + (isLow ? "remaining, book soon" : "available")}
                         className={"w-full text-left rounded-[1.5rem] p-5 transition-all outline-none border flex items-center gap-4 group " + (isSel ? "border-teal-600 bg-teal-800 text-white shadow-lg overflow-hidden relative" : "border-slate-100 bg-[#FDFDFB] hover:shadow-md hover:border-slate-200")}>
                         {isSel && <div className="absolute inset-0 bg-teal-700/50 mix-blend-overlay"></div>}
                         <div className={"w-12 h-12 rounded-full flex items-center justify-center shrink-0 relative z-10 " + (isSel ? "bg-white text-teal-800" : "bg-teal-50 text-teal-600 group-hover:bg-teal-100")}>
@@ -523,7 +540,7 @@ function BookingFlow() {
                         </div>
                         <div className="flex-1 min-w-0 relative z-10">
                            <p className={"text-[18px] font-extrabold leading-tight " + (isSel ? "text-white" : "text-slate-800")}>{fmtTime(s.start_time, tz)}</p>
-                           <p className={"text-[12px] font-bold mt-0.5 " + (isSel ? "text-teal-100" : "text-slate-500")}>{a} {a === 1 ? "spot" : "spots"} remaining</p>
+                           <p className={"text-[12px] font-bold mt-0.5 " + (isSel ? "text-teal-100" : isVeryLow ? "text-red-500" : isLow ? "text-amber-600" : "text-slate-500")}>{a} {a === 1 ? "spot" : "spots"} remaining</p>
                         </div>
                         <div className="shrink-0 relative z-10">
                           {isSel ? (
@@ -532,8 +549,8 @@ function BookingFlow() {
                               Selected
                             </span>
                           ) : (
-                            <span className={"text-[11px] font-extrabold uppercase tracking-wide px-3 py-1.5 rounded-full " + (a <= 3 ? "bg-orange-50 text-orange-600" : "bg-slate-50 text-slate-500")}>
-                              {a <= 3 ? "Selling Fast" : "Available"}
+                            <span className={"text-[11px] font-extrabold uppercase tracking-wide px-3 py-1.5 rounded-full " + badgeClass}>
+                              {badgeText}
                             </span>
                           )}
                         </div>
@@ -543,7 +560,7 @@ function BookingFlow() {
                   
                   {selectedSlot && (
                     <div className="mt-4 animate-in fade-in slide-in-from-top-2">
-                       <button onClick={() => setStep("details")} className="w-full bg-teal-800 text-white pt-4 pb-[1.125rem] rounded-[1.5rem] text-[15px] font-bold hover:bg-teal-900 shadow-lg shadow-teal-900/20 transition-all flex items-center justify-center gap-2 group">
+                       <button onClick={() => { setHoldExpiresAt(new Date(Date.now() + 15 * 60 * 1000)); setStep("details"); }} className="w-full bg-teal-800 text-white pt-4 pb-[1.125rem] rounded-[1.5rem] text-[15px] font-bold hover:bg-teal-900 shadow-lg shadow-teal-900/20 transition-all flex items-center justify-center gap-2 group">
                          Continue to Details
                          <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
                        </button>
@@ -565,10 +582,19 @@ function BookingFlow() {
       {/* STEP 2: Details */}
       {step === "details" && (
         <div>
-          <button onClick={() => setStep("calendar")} className="flex items-center gap-1.5 text-[13px] font-bold text-slate-400 mb-6 hover:text-slate-700 transition-colors">
+          <button onClick={() => { setHoldExpiresAt(null); setStep("calendar"); }} className="flex items-center gap-1.5 text-[13px] font-bold text-slate-400 mb-6 hover:text-slate-700 transition-colors">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
             Back to calendar
           </button>
+          {holdExpiresAt && (
+            <HoldCountdown expiresAt={holdExpiresAt} onExpire={() => {
+              setHoldExpiresAt(null);
+              setSelectedSlot(null);
+              setStep("calendar");
+              setSoldOutMsg("Your seat hold expired. Please pick another time.");
+              if (selectedTour) loadSlots(selectedTour.id);
+            }} />
+          )}
           <h2 className="text-3xl font-extrabold text-slate-800 mb-8 tracking-tight pl-2">Complete Booking</h2>
           <div className="grid md:grid-cols-5 gap-8 lg:gap-12">
             <div className="md:col-span-3 space-y-6">
@@ -839,7 +865,20 @@ function BookingFlow() {
                  <svg className="w-8 h-8 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
               </div>
               <h2 className="text-3xl font-extrabold text-slate-800 mb-2 tracking-tight">Finalizing Checkout</h2>
-              <p className="text-[14px] font-bold text-slate-500 mb-6">Spots are held exclusively for 15 minutes.</p>
+              {holdExpiresAt ? (
+                <div className="mb-4 mt-2">
+                  <HoldCountdown expiresAt={holdExpiresAt} onExpire={() => {
+                    setHoldExpiresAt(null);
+                    setSelectedSlot(null);
+                    setPaymentUrl("");
+                    setStep("calendar");
+                    setSoldOutMsg("Your seat hold expired. Please pick another time.");
+                    if (selectedTour) loadSlots(selectedTour.id);
+                  }} />
+                </div>
+              ) : (
+                <p className="text-[14px] font-bold text-slate-500 mb-6">Spots are held exclusively for 15 minutes.</p>
+              )}
               
               <div className="border-t border-b border-slate-100 w-full py-6 mb-8 text-center bg-slate-50/50">
                  <p className="text-[12px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">Payload Total</p>
