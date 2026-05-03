@@ -53,6 +53,8 @@ export default function MyBookings() {
   var [bookings, setBookings] = useState<Booking[]>([]);
   var [loading, setLoading] = useState(false);
   var [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
+  var [authSession, setAuthSession] = useState(false);
+  var [sessionChecked, setSessionChecked] = useState(false);
   var [emailError, setEmailError] = useState("");
   var [phoneError, setPhoneError] = useState("");
   var [loginError, setLoginError] = useState("");
@@ -130,14 +132,29 @@ export default function MyBookings() {
   var [paymentPending, setPaymentPending] = useState<string | null>(null);
   var paymentPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  /* ───── Check for active Supabase auth session ───── */
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.email) {
+        setEmail(session.user.email);
+        setAuthSession(true);
+      }
+      setSessionChecked(true);
+    });
+  }, []);
+
   /* ───── Auto-login from session ───── */
   useEffect(() => {
-    if (autoLoginAttempted || loggedIn) return;
+    if (!sessionChecked || autoLoginAttempted || loggedIn) return;
     setAutoLoginAttempted(true);
+    if (authSession && email) {
+      lookupBookings(true);
+      return;
+    }
     if (typeof window !== "undefined" && sessionStorage.getItem("mb_loggedIn") === "1" && email && phoneDigits) {
       lookupBookings();
     }
-  }, [autoLoginAttempted, loggedIn, email, phoneDigits]);
+  }, [sessionChecked, autoLoginAttempted, loggedIn, email, phoneDigits, authSession]);
 
   /* ───── C9: Countdown interval ───── */
   useEffect(() => {
@@ -248,21 +265,26 @@ export default function MyBookings() {
     setOtpVerifying(false);
   }, [otpToken, otpCode]);
 
-  /* ───── Lookup bookings (called after OTP verified) ───── */
-  var lookupBookings = useCallback(async function () {
+  /* ───── Lookup bookings (called after OTP verified or auth session) ───── */
+  var lookupBookings = useCallback(async function (emailOnly?: boolean) {
     setLoading(true);
-    var norm = normalizePhone(dialCode, phoneDigits);
-    var phoneTail = norm.replace(/\D/g, "").slice(-9);
     var { data } = await supabase.from("bookings")
       .select("id, business_id, customer_name, email, phone, qty, total_amount, status, refund_status, refund_amount, created_at, unit_price, tour_id, slot_id, custom_fields, converted_to_voucher_id, cancelled_at, cancellation_reason, waiver_status, waiver_token, yoco_payment_id, slots(start_time, capacity_total, booked, held), tours(name, description, duration_minutes)")
       .eq("email", email.toLowerCase()).order("created_at", { ascending: false });
-    var matched = (data || []).filter(function (b) {
-      var rawPhone = (b.phone || "").replace(/\D/g, "");
-      if (!rawPhone) return true;
-      return rawPhone.slice(-9) === phoneTail;
-    });
-    if (matched.length === 0) {
-      setLoginError("No bookings found for this email and phone combination.");
+    var matched: typeof data;
+    if (emailOnly) {
+      matched = data || [];
+    } else {
+      var norm = normalizePhone(dialCode, phoneDigits);
+      var phoneTail = norm.replace(/\D/g, "").slice(-9);
+      matched = (data || []).filter(function (b) {
+        var rawPhone = (b.phone || "").replace(/\D/g, "");
+        if (!rawPhone) return true;
+        return rawPhone.slice(-9) === phoneTail;
+      });
+    }
+    if (!matched || matched.length === 0) {
+      setLoginError(emailOnly ? "No bookings found for this email." : "No bookings found for this email and phone combination.");
       setLoading(false);
       return;
     }
@@ -649,7 +671,7 @@ export default function MyBookings() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => { setLoggedIn(false); setBookings([]); setEmail(""); setDialCode("+27"); setPhoneDigits(""); setLoginError(""); setToast(null); sessionStorage.removeItem("mb_loggedIn"); sessionStorage.removeItem("mb_email"); sessionStorage.removeItem("mb_dialCode"); sessionStorage.removeItem("mb_phone"); }}
+            <button onClick={async () => { if (authSession) { await supabase.auth.signOut(); setAuthSession(false); } setLoggedIn(false); setBookings([]); setEmail(""); setDialCode("+27"); setPhoneDigits(""); setLoginError(""); setToast(null); setAutoLoginAttempted(false); setSessionChecked(true); sessionStorage.removeItem("mb_loggedIn"); sessionStorage.removeItem("mb_email"); sessionStorage.removeItem("mb_dialCode"); sessionStorage.removeItem("mb_phone"); }}
               className="w-10 h-10 shrink-0 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors border border-slate-100">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
             </button>
