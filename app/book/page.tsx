@@ -49,6 +49,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   const [waiverUrl, setWaiverUrl] = useState("");
   const [draftBookingId, setDraftBookingId] = useState<string | null>(null);
   const [holdExpiresAt, setHoldExpiresAt] = useState<Date | null>(null);
+  const [reviews, setReviews] = useState<any[]>([]);
   const { toast, showToast, dismissToast } = useToast();
   const draftSlotId = params.get("slot");
   const draftDate = params.get("date");
@@ -159,6 +160,25 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
       setLoading(false);
     })();
   }, [tourId, theme.id]);
+
+  useEffect(() => {
+    if (!selectedTour || !theme.id) return;
+    (async () => {
+      var { data: nativeRevs } = await supabase.from("reviews")
+        .select("id, rating, comment, reviewer_name, reviewer_avatar_url, source, submitted_at")
+        .eq("tour_id", selectedTour.id).eq("status", "APPROVED").not("rating", "is", null)
+        .order("submitted_at", { ascending: false }).limit(10);
+      var { data: googleRevs } = await supabase.from("reviews")
+        .select("id, rating, comment, reviewer_name, reviewer_avatar_url, source, submitted_at")
+        .eq("business_id", theme.id).eq("source", "GOOGLE").eq("status", "APPROVED").not("rating", "is", null)
+        .order("submitted_at", { ascending: false }).limit(10);
+      var combined = [...(nativeRevs || []), ...(googleRevs || [])];
+      var seen = new Set<string>();
+      var deduped = combined.filter(r => { if (seen.has(r.id)) return false; seen.add(r.id); return true; });
+      deduped.sort((a, b) => new Date(b.submitted_at || 0).getTime() - new Date(a.submitted_at || 0).getTime());
+      setReviews(deduped.slice(0, 20));
+    })();
+  }, [selectedTour, theme.id]);
 
   const BOOKING_CUTOFF_MINUTES = 60;
 
@@ -988,6 +1008,35 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
               </div>
             </div>
           )}
+        </div>
+      )}
+      {/* Reviews Feed */}
+      {reviews.length > 0 && step === "calendar" && (
+        <div className="mt-12 animate-in fade-in duration-500">
+          <h2 className="text-xl font-extrabold text-slate-800 mb-6 text-center tracking-tight">What Others Say</h2>
+          <div className="grid gap-4 md:grid-cols-2 max-w-3xl mx-auto">
+            {reviews.map(r => (
+              <div key={r.id} className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+                <div className="flex items-center gap-3 mb-2">
+                  {r.reviewer_avatar_url ? (
+                    <img src={r.reviewer_avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-xs font-bold">
+                      {(r.reviewer_name || "?")[0].toUpperCase()}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <span className="font-semibold text-slate-700 text-sm truncate block">{r.reviewer_name || "Guest"}</span>
+                    <span className="text-amber-400 text-xs">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span>
+                  </div>
+                  {r.source === "GOOGLE" && (
+                    <span className="text-[10px] font-semibold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full">Google</span>
+                  )}
+                </div>
+                {r.comment && <p className="text-[13px] text-slate-600 leading-relaxed line-clamp-3">{r.comment}</p>}
+              </div>
+            ))}
+          </div>
         </div>
       )}
       {toast && <Toast message={toast.message} type={toast.type} onDismiss={dismissToast} />}

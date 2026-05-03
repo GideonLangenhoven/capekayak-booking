@@ -23,6 +23,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [spotsThisWeek, setSpotsThisWeek] = useState<Record<string, number>>({});
   const [totalBookings, setTotalBookings] = useState(0);
+  const [reviewStats, setReviewStats] = useState<Record<string, { avg: number; count: number }>>({});
   const [draft, setDraft] = useState<BookingDraft | null>(null);
 
   useEffect(() => { setDraft(readValidDraft()); }, []);
@@ -64,6 +65,16 @@ export default function Home() {
         .eq("business_id", theme.id)
         .in("status", ["PAID", "CONFIRMED", "COMPLETED"]);
       setTotalBookings(count || 0);
+
+      // Review stats per tour
+      const { data: rvStats } = await supabase.from("tour_review_stats")
+        .select("tour_id, avg_rating, review_count")
+        .eq("business_id", theme.id);
+      const rvMap: Record<string, { avg: number; count: number }> = {};
+      for (const rs of (rvStats || [])) {
+        if (rs.review_count > 0) rvMap[rs.tour_id] = { avg: Number(rs.avg_rating), count: rs.review_count };
+      }
+      setReviewStats(rvMap);
 
       setLoading(false);
     })();
@@ -122,6 +133,7 @@ export default function Home() {
 
       <div className="grid gap-8 justify-items-center" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(275px, 1fr))" }}>
         {tours.map((tour) => {
+          const rv = reviewStats[tour.id];
           const spots = spotsThisWeek[tour.id];
           const urgencyLabel = spots !== undefined && spots <= 6 && spots > 0
             ? `Only ${spots} spot${spots === 1 ? "" : "s"} left this week`
@@ -158,6 +170,11 @@ export default function Home() {
                     <div className="text-xs text-[#b1b1b3]">
                       • {tour.duration_minutes} min
                     </div>
+                    {rv && (
+                      <div className="text-xs text-amber-500 font-semibold">
+                        ★ {rv.avg.toFixed(1)} · {rv.count} review{rv.count !== 1 ? "s" : ""}
+                      </div>
+                    )}
                   </div>
 
                   {/* Book Now — default state (visible, hidden on hover for desktop) */}
