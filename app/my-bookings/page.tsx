@@ -656,6 +656,29 @@ export default function MyBookings() {
           </div>
         </div>
 
+        {(() => {
+          var paidTrips = bookings.filter(function (b) { return ["PAID", "CONFIRMED", "COMPLETED"].includes(b.status); });
+          var tripCount = paidTrips.length;
+          var firstName = (paidTrips[0]?.customer_name || email.split("@")[0] || "").split(" ")[0];
+          if (tripCount >= 2) return (
+            <div className="mb-6 p-4 rounded-2xl border flex items-center gap-4" style={{ background: "color-mix(in srgb, var(--cta, #14b8a6) 8%, white)", borderColor: "color-mix(in srgb, var(--cta, #14b8a6) 25%, white)" }}>
+              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-lg" style={{ background: "color-mix(in srgb, var(--cta, #14b8a6) 15%, white)" }}>
+                {tripCount >= 5 ? "\u2B50" : "\uD83D\uDC4B"}
+              </div>
+              <div>
+                <p className="font-semibold text-sm" style={{ color: "var(--textPrimary, #0f172a)" }}>
+                  Welcome back{firstName ? ", " + firstName : ""}!
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--textSecondary, #64748b)" }}>
+                  {tripCount === 2 ? "Your second trip with us \u2014 welcome back."
+                    : "You\u2019ve booked " + tripCount + " trips with us. Thanks for sticking with us!"}
+                </p>
+              </div>
+            </div>
+          );
+          return null;
+        })()}
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-x-8 gap-y-6 items-start">
            {/* Left Column */}
            <div className="lg:col-span-5 space-y-6">
