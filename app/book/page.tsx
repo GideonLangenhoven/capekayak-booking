@@ -12,7 +12,7 @@ import { normalizePhone } from "../lib/phone";
 import { HoldCountdown } from "../components/HoldCountdown";
 import { saveDraft as saveLocalDraft, clearDraft as clearLocalDraft, readValidDraft } from "@/app/lib/booking-draft";
 
-function BookingFlow() {
+export function BookingFlow({ embed = false }: { embed?: boolean }) {
   const params = useSearchParams();
   const theme = useTheme();
   const tz = theme.timezone || "Africa/Johannesburg";
@@ -263,7 +263,7 @@ function BookingFlow() {
       customer_name: name.trim(), email: email.toLowerCase().trim(),
       qty, unit_price: selectedTour.base_price_per_person,
       total_amount: grandTotal, original_total: grandTotal,
-      status: "DRAFT" as const, source: "WEB" as const,
+      status: "DRAFT" as const, source: embed ? "WIDGET" : "WEB",
     };
     try {
       if (draftBookingId) {
@@ -324,7 +324,7 @@ function BookingFlow() {
       business_id: selectedTour!.business_id, tour_id: selectedTour!.id, slot_id: selectedSlot!.id,
       customer_name: name, phone: phone ? normalizePhone("+27", phone) : "", email: email.toLowerCase(),
       qty, unit_price: selectedTour!.base_price_per_person, total_amount: finalTotal, original_total: grandTotal,
-      status: "PENDING", source: "WEB",
+      status: "PENDING", source: embed ? "WIDGET" : "WEB",
       marketing_opt_in: marketingOptIn || null,
       ...promoInsertFields,
     };
@@ -553,10 +553,10 @@ function BookingFlow() {
           )}
           
           <div className="text-center mb-10 w-full flex flex-col items-center justify-center">
-             <a href="/" className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-full text-[13px] font-bold text-slate-600 transition-colors mb-6 shadow-sm hover:shadow-md">
+             {!embed && <a href="/" className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-full text-[13px] font-bold text-slate-600 transition-colors mb-6 shadow-sm hover:shadow-md">
                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
                Back to tours
-             </a>
+             </a>}
              <div className="inline-flex items-center gap-4 p-2 pr-6 bg-white rounded-full border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.04)] mb-2">
                <div className="w-12 h-12 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center shrink-0">
                   <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -951,8 +951,8 @@ function BookingFlow() {
               )}
 
               <div className="w-full flex flex-col gap-3">
-                <a href="/my-bookings" className="w-full block text-center bg-teal-800 text-white py-4 rounded-[1.25rem] text-[15px] font-extrabold hover:bg-teal-900 shadow-md transition-colors">Manage this booking</a>
-                <a href="/" className="w-full block text-center bg-[#FDFDFB] text-slate-700 border border-slate-200 hover:bg-slate-50 py-4 rounded-[1.25rem] text-[15px] font-extrabold transition-colors">Browse other tours</a>
+                <a href="/my-bookings" target={embed ? "_blank" : undefined} className="w-full block text-center bg-teal-800 text-white py-4 rounded-[1.25rem] text-[15px] font-extrabold hover:bg-teal-900 shadow-md transition-colors">Manage this booking</a>
+                {!embed && <a href="/" className="w-full block text-center bg-[#FDFDFB] text-slate-700 border border-slate-200 hover:bg-slate-50 py-4 rounded-[1.25rem] text-[15px] font-extrabold transition-colors">Browse other tours</a>}
               </div>
             </div>
           ) : (
@@ -981,7 +981,7 @@ function BookingFlow() {
                  <p className="text-5xl font-extrabold tracking-tighter text-slate-800">R{finalTotal}</p>
               </div>
               
-              <a href={paymentUrl} className="w-full block text-center bg-teal-500 text-slate-900 hover:bg-teal-400 py-4.5 rounded-[1.5rem] text-[16px] font-extrabold shadow-lg shadow-teal-500/20 transition-all">Proceed to Secure Portal &rarr;</a>
+              <a href={paymentUrl} onClick={embed ? (e) => { e.preventDefault(); if (window.top) window.top.location.href = paymentUrl; else window.location.href = paymentUrl; } : undefined} className="w-full block text-center bg-teal-500 text-slate-900 hover:bg-teal-400 py-4.5 rounded-[1.5rem] text-[16px] font-extrabold shadow-lg shadow-teal-500/20 transition-all">Proceed to Secure Portal &rarr;</a>
               <div className="flex items-center justify-center gap-2 mt-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                 Regulated via Yoco · Ref: {bookingRef}
