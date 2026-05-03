@@ -82,7 +82,19 @@ export default function Home() {
 
   if (loading) return (
     <div className="app-container page-wrap">
-      <div className="grid gap-8 justify-items-center" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(275px, 1fr))" }}>
+      <div className="grid grid-cols-2 gap-3 md:hidden">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="bg-white rounded-[22px] overflow-hidden animate-pulse">
+            <div className="aspect-square bg-gray-200" />
+            <div className="px-3 pt-2.5 pb-4 space-y-2">
+              <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto" />
+              <div className="h-5 bg-gray-200 rounded w-1/2 mx-auto" />
+              <div className="h-3 bg-gray-200 rounded w-1/3 mx-auto" />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="hidden md:grid gap-8 justify-items-center" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(275px, 1fr))" }}>
         <TourCardSkeleton /><TourCardSkeleton /><TourCardSkeleton />
       </div>
     </div>
@@ -131,7 +143,48 @@ export default function Home() {
         </div>
       )}
 
-      <div className="grid gap-8 justify-items-center" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(275px, 1fr))" }}>
+      {/* Mobile tour cards — compact 2-column grid */}
+      <div className="grid grid-cols-2 gap-3 md:hidden">
+        {tours.map((tour) => {
+          const rv = reviewStats[tour.id];
+          const spots = spotsThisWeek[tour.id];
+          const urgencyLabel = spots !== undefined && spots <= 6 && spots > 0
+            ? `${spots} left` : null;
+          return (
+            <button type="button" key={tour.id}
+              className="bg-white rounded-[22px] shadow-[0_2px_12px_rgba(0,0,0,0.06)] overflow-hidden text-center cursor-pointer active:scale-[0.97] transition-transform"
+              aria-label={"Book " + tour.name}
+              onClick={() => router.push("/book?tour=" + tour.id)}>
+              <div className="relative aspect-square">
+                <Image src={tour.image_url || TOUR_IMAGES[tour.name] || TOUR_IMAGES["Sea Kayak"]} alt={tour.name}
+                  fill sizes="(max-width: 768px) 45vw, 285px" className="object-cover" />
+                {urgencyLabel && (
+                  <div className="absolute top-2.5 right-2.5 bg-gray-900/85 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                    {urgencyLabel}
+                  </div>
+                )}
+              </div>
+              <div className="px-3 pt-2.5 pb-4">
+                <div className="font-semibold text-[15px] text-[#393c45] leading-tight line-clamp-1">
+                  {tour.name}
+                </div>
+                <div className="font-bold text-[19px] text-[#393c45] mt-1">
+                  R{tour.base_price_per_person}
+                </div>
+                <div className="text-[10px] text-[#b1b1b3] -mt-0.5">per person</div>
+                {rv && (
+                  <div className="text-[10px] text-amber-500 font-semibold mt-1">
+                    ★ {rv.avg.toFixed(1)} · {rv.count} review{rv.count !== 1 ? "s" : ""}
+                  </div>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Desktop tour cards — original hover layout */}
+      <div className="hidden md:grid gap-8 justify-items-center" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(275px, 1fr))" }}>
         {tours.map((tour) => {
           const rv = reviewStats[tour.id];
           const spots = spotsThisWeek[tour.id];
