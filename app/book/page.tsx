@@ -87,6 +87,27 @@ function BookingFlow() {
     }
   }, [selectedTour, allSlots, draftSlotId, draftDate]);
 
+  // Auto-fill from authenticated customer session
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user) return;
+      supabase.from("customers")
+        .select("name, email, phone")
+        .eq("user_id", session.user.id)
+        .limit(1)
+        .maybeSingle()
+        .then(({ data: customer }) => {
+          if (customer) {
+            if (customer.name && !name) setName(customer.name);
+            if (customer.email && !email) setEmail(customer.email);
+            if (customer.phone && !phone) setPhone(customer.phone);
+          } else if (session.user.email && !email) {
+            setEmail(session.user.email);
+          }
+        });
+    });
+  }, []);
+
   // Debounced save to localStorage on form field changes
   useEffect(() => {
     if (!selectedTour) return;

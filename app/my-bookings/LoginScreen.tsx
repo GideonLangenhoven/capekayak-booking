@@ -1,4 +1,6 @@
-import { useRef, useEffect } from "react";
+"use client";
+import { useState, useRef, useEffect } from "react";
+import { supabase } from "../lib/supabase";
 import Button from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { DIAL_CODES } from "../lib/phone";
@@ -39,18 +41,59 @@ export default function LoginScreen({
   onSendOtp, onVerifyOtp, onResendOtp, onBackToEmail,
 }: LoginScreenProps) {
   var otpInputRef = useRef<HTMLInputElement>(null);
+  var [mode, setMode] = useState<"magic" | "otp">("magic");
+  var [magicSent, setMagicSent] = useState(false);
+  var [magicSending, setMagicSending] = useState(false);
+  var [magicError, setMagicError] = useState("");
 
   useEffect(() => {
     if (otpStep && otpInputRef.current) otpInputRef.current.focus();
   }, [otpStep]);
 
-  /* ── Mask email for display ── */
   function maskEmail(e: string) {
     var [local, domain] = e.split("@");
     if (!domain) return e;
     if (local.length <= 2) return local[0] + "***@" + domain;
     return local[0] + local[1] + "***@" + domain;
   }
+
+  async function sendMagicLink() {
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailError("Please enter a valid email");
+      return;
+    }
+    setMagicSending(true);
+    setMagicError("");
+    setLoginError("");
+    var { error } = await supabase.auth.signInWithOtp({
+      email: email.toLowerCase(),
+      options: { emailRedirectTo: window.location.origin + "/auth/callback" },
+    });
+    if (error) {
+      setMagicError(error.message);
+      setMagicSending(false);
+      return;
+    }
+    setMagicSent(true);
+    setMagicSending(false);
+  }
+
+  function switchToOtp() {
+    setMode("otp");
+    setMagicSent(false);
+    setMagicError("");
+  }
+
+  function switchToMagic() {
+    setMode("magic");
+    setMagicSent(false);
+    setMagicError("");
+    onBackToEmail();
+  }
+
+  var subtitle = mode === "magic"
+    ? (magicSent ? "Check your email for a sign-in link." : "Enter your email to receive a sign-in link.")
+    : (otpStep ? "Enter the verification code we sent to your email." : "Enter the details you used when booking.");
 
   return (
     <div className="app-container max-w-sm py-16 px-4">
@@ -59,13 +102,67 @@ export default function LoginScreen({
           <svg className="w-7 h-7 text-[color:var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
         </div>
         <h2 className="text-xl font-bold text-[color:var(--text)]">My Bookings</h2>
-        <p className="mt-2 text-sm text-[color:var(--textMuted)]">
-          {otpStep ? "Enter the verification code we sent to your email." : "Enter the details you used when booking."}
-        </p>
+        <p className="mt-2 text-sm text-[color:var(--textMuted)]">{subtitle}</p>
       </div>
 
-      {!otpStep ? (
-        /* ── Step 1: Email + Phone ── */
+      {mode === "magic" ? (
+        magicSent ? (
+          /* ── Magic link sent ── */
+          <>
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center gap-2 bg-[color:var(--accentSoft)] text-[color:var(--accent)] text-sm font-medium px-4 py-2 rounded-full mb-4">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                Link sent to {maskEmail(email)}
+              </div>
+              <p className="text-sm text-[color:var(--textMuted)] mt-3">
+                Click the link in your email to sign in.<br />You can close this page after clicking the link.
+              </p>
+            </div>
+            <div className="mt-6 flex flex-col items-center gap-3">
+              <button onClick={() => { setMagicSent(false); }} className="text-sm text-[color:var(--accent)] hover:underline">
+                Resend link
+              </button>
+              <div className="flex items-center gap-3 w-full">
+                <div className="flex-1 border-t border-[color:var(--border)]" />
+                <span className="text-xs text-[color:var(--textMuted)]">or</span>
+                <div className="flex-1 border-t border-[color:var(--border)]" />
+              </div>
+              <button onClick={switchToOtp} className="text-sm text-[color:var(--textMuted)] hover:text-[color:var(--text)] transition-colors">
+                Use phone verification instead
+              </button>
+            </div>
+          </>
+        ) : (
+          /* ── Magic link input ── */
+          <>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-[color:var(--textMuted)] block mb-1.5">Email</label>
+                <Input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setEmailError(""); setMagicError(""); setLoginError(""); }}
+                  onKeyDown={(e) => e.key === "Enter" && sendMagicLink()} placeholder="your@email.com" className="py-3" />
+                {emailError && <p className="mt-1 text-xs text-red-600">{emailError}</p>}
+              </div>
+            </div>
+
+            {(magicError || loginError) && <p className="mt-3 text-sm text-red-600 text-center">{magicError || loginError}</p>}
+
+            <Button onClick={sendMagicLink} disabled={magicSending || loading || !email.trim()} fullWidth className="mt-5 py-3.5">
+              {magicSending ? "Sending link..." : "Send sign-in link"}
+            </Button>
+
+            <div className="mt-5 flex items-center gap-3">
+              <div className="flex-1 border-t border-[color:var(--border)]" />
+              <span className="text-xs text-[color:var(--textMuted)]">or</span>
+              <div className="flex-1 border-t border-[color:var(--border)]" />
+            </div>
+
+            <button onClick={switchToOtp} className="mt-4 w-full text-center text-sm text-[color:var(--textMuted)] hover:text-[color:var(--text)] transition-colors">
+              Use phone verification instead
+            </button>
+          </>
+        )
+      ) : !otpStep ? (
+        /* ── OTP Step 1: Email + Phone ── */
         <>
           <div className="space-y-3">
             <div>
@@ -96,9 +193,19 @@ export default function LoginScreen({
           <Button onClick={onSendOtp} disabled={otpSending || loading || !email.trim() || !phoneDigits.trim()} fullWidth className="mt-5 py-3.5">
             {otpSending ? "Sending code..." : "Find My Bookings"}
           </Button>
+
+          <div className="mt-5 flex items-center gap-3">
+            <div className="flex-1 border-t border-[color:var(--border)]" />
+            <span className="text-xs text-[color:var(--textMuted)]">or</span>
+            <div className="flex-1 border-t border-[color:var(--border)]" />
+          </div>
+
+          <button onClick={switchToMagic} className="mt-4 w-full text-center text-sm text-[color:var(--textMuted)] hover:text-[color:var(--text)] transition-colors">
+            Use magic link instead
+          </button>
         </>
       ) : (
-        /* ── Step 2: OTP Verification ── */
+        /* ── OTP Step 2: Verification ── */
         <>
           <div className="text-center mb-6">
             <div className="inline-flex items-center gap-2 bg-[color:var(--accentSoft)] text-[color:var(--accent)] text-sm font-medium px-4 py-2 rounded-full mb-4">
