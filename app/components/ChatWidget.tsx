@@ -12,10 +12,21 @@ export default function ChatWidget() {
   var [input, setInput] = useState("");
   var [typing, setTyping] = useState(false);
   var [st, setSt] = useState<Record<string, unknown>>({ step: "IDLE" });
+  var isHuman = st.status === "HUMAN";
+  var adminName = String(st.admin_name || "");
+  var [showJoined, setShowJoined] = useState(false);
+  var prevHumanRef = useRef(false);
   var endRef = useRef<HTMLDivElement>(null);
   var inRef = useRef<HTMLInputElement>(null);
   var greeted = useRef(false);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, typing]);
+  useEffect(() => {
+    if (isHuman && !prevHumanRef.current) {
+      setShowJoined(true);
+      setTimeout(() => setShowJoined(false), 6000);
+    }
+    prevHumanRef.current = isHuman;
+  }, [isHuman]);
   useEffect(() => {
     if (open && !greeted.current) {
       greeted.current = true;
@@ -80,7 +91,7 @@ export default function ChatWidget() {
         <div className="fixed bottom-6 right-6 w-[22rem] h-[32rem] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden z-50" style={{ animation: "su .2s ease-out" }}>
           <style>{`@keyframes su{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}@keyframes bl{0%,80%,100%{opacity:0}40%{opacity:1}}`}</style>
           <div className="bg-gray-900 text-white p-4 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-3"><div className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center text-lg">🛶</div><div><p className="text-sm font-semibold">{business_name || "Kayaks"}</p><div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400"></span><p className="text-xs text-gray-400">Online</p></div></div></div>
+            <div className="flex items-center gap-3"><div className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center text-lg">🛶</div><div><p className="text-sm font-semibold">{business_name || "Kayaks"}</p>{isHuman ? (<div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400"></span><p className="text-xs text-gray-400">Live agent{adminName ? " \u00b7 " + adminName : ""}</p></div>) : (<div className="flex items-center gap-1.5"><span className="text-[10px]" aria-hidden>&#x26A1;</span><p className="text-xs text-gray-400">AI assistant</p></div>)}</div></div>
             <div className="flex items-center gap-1">
               <button aria-label="New chat" onClick={() => { setMsgs([]); setSt({ step: "IDLE" }); greeted.current = false; setTimeout(() => { greeted.current = true; setTyping(true); setTimeout(() => { setTyping(false); setMsgs([{ role: "bot", text: "Hi there! 🛶 How can I help?" }]); }, 900 + Math.random() * 500); }, 400); }} className="text-gray-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10" title="New chat"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
               <button aria-label="Close chat" onClick={() => setOpen(false)} className="text-gray-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10" title="Close">✕</button>
@@ -111,6 +122,7 @@ export default function ChatWidget() {
                 )}
               </div>
             ))}
+            {showJoined && (<div className="text-center text-xs text-gray-500 my-2 animate-in fade-in duration-300">A team member just joined this chat.</div>)}
             {typing && <div className="flex justify-start" style={{ animation: "su .15s ease-out" }}><div className="w-7 h-7 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs mr-2 shrink-0">🛶</div><div className="bg-white border border-gray-200 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm"><div className="flex gap-1"><span className="w-2 h-2 rounded-full bg-gray-400" style={{ animation: "bl 1.4s infinite 0s" }} /><span className="w-2 h-2 rounded-full bg-gray-400" style={{ animation: "bl 1.4s infinite .2s" }} /><span className="w-2 h-2 rounded-full bg-gray-400" style={{ animation: "bl 1.4s infinite .4s" }} /></div></div></div>}
             <div ref={endRef} />
           </div>
