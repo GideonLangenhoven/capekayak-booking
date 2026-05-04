@@ -22,13 +22,19 @@ export default function AuthCallback() {
       var { data: { session } } = await supabase.auth.getSession();
       if (session) {
         try { await supabase.rpc("link_customer_user"); } catch (_) { void _; }
+        if (session.user?.email) {
+          try { await supabase.from("customers").update({ email: session.user.email }).eq("user_id", session.user.id); } catch (_) { void _; }
+        }
         router.replace("/my-bookings");
         return;
       }
 
-      var { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-        if (event === "SIGNED_IN" && session) {
+      var { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, sess) => {
+        if (event === "SIGNED_IN" && sess) {
           try { await supabase.rpc("link_customer_user"); } catch (_) { void _; }
+          if (sess.user?.email) {
+            try { await supabase.from("customers").update({ email: sess.user.email }).eq("user_id", sess.user.id); } catch (_) { void _; }
+          }
           subscription.unsubscribe();
           router.replace("/my-bookings");
         }
