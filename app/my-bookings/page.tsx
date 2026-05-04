@@ -9,6 +9,7 @@ import type { Booking, Slot, BookingLog } from "../lib/types";
 import LoginScreen from "./LoginScreen";
 import RescheduleFlow from "./RescheduleFlow";
 import BookingCard from "./BookingCard";
+import ProfileTab from "./ProfileTab";
 import EditGuestsModal from "./modals/EditGuestsModal";
 import ContactModal from "./modals/ContactModal";
 import SpecialRequestModal from "./modals/SpecialRequestModal";
@@ -126,7 +127,11 @@ export default function MyBookings() {
   var [expandedWhatToBring, setExpandedWhatToBring] = useState<Record<string, boolean>>({});
 
   // Tab navigation
-  var [activeTab, setActiveTab] = useState<"bookings" | "vouchers">("bookings");
+  var [activeTab, setActiveTab] = useState<"trips" | "profile">("trips");
+
+  // Profile
+  var [customer, setCustomer] = useState<any>(null);
+  var [authUser, setAuthUser] = useState<any>(null);
 
   // C14: Payment polling
   var [paymentPending, setPaymentPending] = useState<string | null>(null);
@@ -155,6 +160,24 @@ export default function MyBookings() {
       lookupBookings();
     }
   }, [sessionChecked, autoLoginAttempted, loggedIn, email, phoneDigits, authSession]);
+
+  /* ───── Fetch customer profile (auth-session users only) ───── */
+  useEffect(() => {
+    if (!authSession || !loggedIn || bookings.length === 0 || customer) return;
+    (async () => {
+      var { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+      setAuthUser(session.user);
+      var bizId = bookings[0]?.business_id;
+      if (!bizId) return;
+      var { data } = await supabase.from("customers")
+        .select("id, email, name, phone, date_of_birth, marketing_consent, total_bookings, total_spent, first_booking_at, created_at")
+        .eq("business_id", bizId)
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+      if (data) setCustomer(data);
+    })();
+  }, [authSession, loggedIn, bookings, customer]);
 
   /* ───── C9: Countdown interval ───── */
   useEffect(() => {
@@ -678,6 +701,23 @@ export default function MyBookings() {
           </div>
         </div>
 
+        {/* Tab strip (auth-session users only) */}
+        {authSession && (
+          <div className="flex gap-1 mb-6 border-b border-slate-200">
+            {(["trips", "profile"] as const).map(t => (
+              <button key={t} onClick={() => setActiveTab(t)}
+                className={"px-4 py-2.5 text-sm font-bold -mb-px transition-colors " + (activeTab === t ? "border-b-2 text-teal-700" : "border-b-2 border-transparent text-slate-400 hover:text-slate-600")}
+                style={activeTab === t ? { borderColor: "var(--cta, #14b8a6)" } : undefined}>
+                {t === "trips" ? "Your trips" : "Profile"}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {activeTab === "profile" && authSession && customer && authUser ? (
+          <ProfileTab customer={customer} user={authUser} onUpdate={setCustomer} onSignOut={() => { window.location.href = "/"; }} />
+        ) : (<>
+
         {(() => {
           var paidTrips = bookings.filter(function (b) { return ["PAID", "CONFIRMED", "COMPLETED"].includes(b.status); });
           var tripCount = paidTrips.length;
@@ -794,6 +834,8 @@ export default function MyBookings() {
               </div>
            </div>
         </div>
+
+      </>)}
       </div>
 
       {/* MODALS */}
