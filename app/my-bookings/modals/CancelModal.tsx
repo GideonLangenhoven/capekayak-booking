@@ -8,9 +8,10 @@ interface CancelModalProps {
   onClose: () => void;
   onCancelRefund: () => void;
   onCancelVoucher: () => void;
+  refundCalc?: { percent: number; amount: number } | null;
 }
 
-export default function CancelModal({ booking, actionLoading, onClose, onCancelRefund, onCancelVoucher }: CancelModalProps) {
+export default function CancelModal({ booking, actionLoading, onClose, onCancelRefund, onCancelVoucher, refundCalc }: CancelModalProps) {
   if (!booking) return <Modal open={false} onClose={onClose} title="Cancel Booking"><div /></Modal>;
 
   var ypi = (booking.yoco_payment_id || "").toUpperCase();
@@ -79,7 +80,11 @@ export default function CancelModal({ booking, actionLoading, onClose, onCancelR
                   className="w-full text-left p-4 border border-[color:var(--border)] rounded-xl hover:border-[color:var(--accent)] hover:shadow-sm transition-all disabled:opacity-60 group">
                   <div>
                     <p className="text-sm font-semibold text-[color:var(--text)] group-hover:text-[color:var(--accent)]">Refund</p>
-                    <p className="text-xs text-[color:var(--textMuted)] mt-0.5">R{(Number(booking.total_amount) * 0.95).toFixed(2)} (less 5% fee) &middot; 5-7 business days</p>
+                    <p className="text-xs text-[color:var(--textMuted)] mt-0.5">
+                      {refundCalc
+                        ? "R" + refundCalc.amount.toFixed(2) + " (" + refundCalc.percent + "%) \u00b7 5-7 business days"
+                        : "R" + (Number(booking.total_amount) * 0.95).toFixed(2) + " (less 5% fee) \u00b7 5-7 business days"}
+                    </p>
                   </div>
                 </button>
               )}

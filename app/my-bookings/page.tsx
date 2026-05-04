@@ -106,6 +106,7 @@ export default function MyBookings() {
 
   // Cancel modal
   var [cancelTarget, setCancelTarget] = useState<Booking | null>(null);
+  var [refundCalcs, setRefundCalcs] = useState<Record<string, { percent: number; amount: number }>>({});
 
   // C9: Countdown timer tick
   var [countdownTick, setCountdownTick] = useState(0);
@@ -357,6 +358,19 @@ export default function MyBookings() {
         }
         setBookingLogs(logMap);
       }
+    }
+
+    // Fetch refund calculations for upcoming paid bookings
+    var upcoming = (data as unknown as Booking[]).filter(function (b) { return ["PAID", "CONFIRMED"].includes(b.status) && b.slots?.start_time && new Date(b.slots.start_time) > new Date(); });
+    if (upcoming.length > 0) {
+      var calcs: Record<string, { percent: number; amount: number }> = {};
+      for (var ub of upcoming) {
+        try {
+          var { data: rc } = await supabase.rpc("calculate_booking_refund", { p_booking_id: ub.id });
+          if (rc && !rc.error) calcs[ub.id] = { percent: rc.percent, amount: Number(rc.amount) };
+        } catch { /* ignore */ }
+      }
+      setRefundCalcs(calcs);
     }
   }, [email, phoneDigits, dialCode]);
 
@@ -825,7 +839,7 @@ export default function MyBookings() {
                        </div>
                     ) : (
                        <>
-                         {upcoming.length > 0 && upcoming.map(b => <BookingCard key={b.id} b={b} {...cardProps} />)}
+                         {upcoming.length > 0 && upcoming.map(b => <BookingCard key={b.id} b={b} {...cardProps} refundCalc={refundCalcs[b.id] || null} />)}
                          {past.length > 0 && past.map(b => <BookingCard key={b.id} b={b} {...cardProps} />)}
                          {cancelled.length > 0 && cancelled.map(b => <BookingCard key={b.id} b={b} {...cardProps} />)}
                        </>
@@ -863,6 +877,7 @@ export default function MyBookings() {
       <CancelModal
         booking={cancelTarget} actionLoading={actionLoading}
         onClose={() => setCancelTarget(null)} onCancelRefund={submitCancelRefund} onCancelVoucher={submitCancelVoucher}
+        refundCalc={cancelTarget ? refundCalcs[cancelTarget.id] || null : null}
       />
     </div>
   );
