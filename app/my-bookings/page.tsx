@@ -21,7 +21,7 @@ import VoucherCheckerModal from "./modals/VoucherCheckerModal";
    ═══════════════════════════════════════════════════════ */
 function Toast({ message, type, onDismiss }: { message: string; type: "success" | "error"; onDismiss: () => void }) {
   if (!message) return null;
-  var bg = type === "success" ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-red-50 border-red-200 text-red-800";
+  const bg = type === "success" ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-red-50 border-red-200 text-red-800";
   return (
     <div className={"mb-4 p-4 rounded-xl border text-sm " + bg + " flex items-start gap-3"}>
       <span className="shrink-0 mt-0.5">{type === "success" ? "\u2705" : "\u274C"}</span>
@@ -38,105 +38,105 @@ function Toast({ message, type, onDismiss }: { message: string; type: "success" 
    ═══════════════════════════════════════════════════════ */
 export default function MyBookings() {
   // Login — restore from sessionStorage if available
-  var [email, setEmail] = useState(() => {
+  const [email, setEmail] = useState(() => {
     if (typeof window !== "undefined") return sessionStorage.getItem("mb_email") || "";
     return "";
   });
-  var [dialCode, setDialCode] = useState(() => {
+  const [dialCode, setDialCode] = useState(() => {
     if (typeof window !== "undefined") return sessionStorage.getItem("mb_dialCode") || "+27";
     return "+27";
   });
-  var [phoneDigits, setPhoneDigits] = useState(() => {
+  const [phoneDigits, setPhoneDigits] = useState(() => {
     if (typeof window !== "undefined") return sessionStorage.getItem("mb_phone") || "";
     return "";
   });
-  var [loggedIn, setLoggedIn] = useState(false);
-  var [bookings, setBookings] = useState<Booking[]>([]);
-  var [loading, setLoading] = useState(false);
-  var [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
-  var [authSession, setAuthSession] = useState(false);
-  var [sessionChecked, setSessionChecked] = useState(false);
-  var [emailError, setEmailError] = useState("");
-  var [phoneError, setPhoneError] = useState("");
-  var [loginError, setLoginError] = useState("");
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
+  const [authSession, setAuthSession] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+  const [loginError, setLoginError] = useState("");
 
   // OTP verification
-  var [otpStep, setOtpStep] = useState(false);
-  var [otpToken, setOtpToken] = useState("");
-  var [otpCode, setOtpCode] = useState("");
-  var [otpError, setOtpError] = useState("");
-  var [otpSending, setOtpSending] = useState(false);
-  var [otpVerifying, setOtpVerifying] = useState(false);
-  var [otpSentAt, setOtpSentAt] = useState(0);
-  var [resendCountdown, setResendCountdown] = useState(0);
+  const [otpStep, setOtpStep] = useState(false);
+  const [otpToken, setOtpToken] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpError, setOtpError] = useState("");
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [otpSentAt, setOtpSentAt] = useState(0);
+  const [resendCountdown, setResendCountdown] = useState(0);
 
   // Feedback
-  var [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-  var [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Reschedule
-  var [rescheduling, setRescheduling] = useState<Booking | null>(null);
-  var [rescheduleSlots, setRescheduleSlots] = useState<Slot[]>([]);
-  var [loadingSlots, setLoadingSlots] = useState(false);
-  var [rebookConfirmSlot, setRebookConfirmSlot] = useState<Slot | null>(null);
-  var [excessAction, setExcessAction] = useState("VOUCHER");
-  var [reschedulePaymentUrl, setReschedulePaymentUrl] = useState("");
-  var [reschedulePaymentDiff, setReschedulePaymentDiff] = useState(0);
+  const [rescheduling, setRescheduling] = useState<Booking | null>(null);
+  const [rescheduleSlots, setRescheduleSlots] = useState<Slot[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [rebookConfirmSlot, setRebookConfirmSlot] = useState<Slot | null>(null);
+  const [excessAction, setExcessAction] = useState("VOUCHER");
+  const [reschedulePaymentUrl, setReschedulePaymentUrl] = useState("");
+  const [reschedulePaymentDiff, setReschedulePaymentDiff] = useState(0);
 
   // Edit guests modal
-  var [editGuestsBooking, setEditGuestsBooking] = useState<Booking | null>(null);
-  var [guestQty, setGuestQty] = useState(1);
-  var [guestExcessAction, setGuestExcessAction] = useState("VOUCHER");
-  var [guestVoucherCode, setGuestVoucherCode] = useState("");
-  var [guestVoucherApplied, setGuestVoucherApplied] = useState<{ code: string; balance: number } | null>(null);
-  var [guestVoucherError, setGuestVoucherError] = useState("");
-  var [guestPromoCode, setGuestPromoCode] = useState("");
-  var [guestPromoApplied, setGuestPromoApplied] = useState<{ id: string; code: string; discount_type: string; discount_value: number } | null>(null);
-  var [guestPromoError, setGuestPromoError] = useState("");
+  const [editGuestsBooking, setEditGuestsBooking] = useState<Booking | null>(null);
+  const [guestQty, setGuestQty] = useState(1);
+  const [guestExcessAction, setGuestExcessAction] = useState("VOUCHER");
+  const [guestVoucherCode, setGuestVoucherCode] = useState("");
+  const [guestVoucherApplied, setGuestVoucherApplied] = useState<{ code: string; balance: number } | null>(null);
+  const [guestVoucherError, setGuestVoucherError] = useState("");
+  const [guestPromoCode, setGuestPromoCode] = useState("");
+  const [guestPromoApplied, setGuestPromoApplied] = useState<{ id: string; code: string; discount_type: string; discount_value: number } | null>(null);
+  const [guestPromoError, setGuestPromoError] = useState("");
 
   // Contact details modal
-  var [contactBooking, setContactBooking] = useState<Booking | null>(null);
-  var [contactName, setContactName] = useState("");
-  var [contactEmail, setContactEmail] = useState("");
-  var [contactPhone, setContactPhone] = useState("");
+  const [contactBooking, setContactBooking] = useState<Booking | null>(null);
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
 
   // Special request modal
-  var [requestBooking, setRequestBooking] = useState<Booking | null>(null);
-  var [specialRequest, setSpecialRequest] = useState("");
+  const [requestBooking, setRequestBooking] = useState<Booking | null>(null);
+  const [specialRequest, setSpecialRequest] = useState("");
 
   // Cancel modal
-  var [cancelTarget, setCancelTarget] = useState<Booking | null>(null);
-  var [refundCalcs, setRefundCalcs] = useState<Record<string, { percent: number; amount: number }>>({});
+  const [cancelTarget, setCancelTarget] = useState<Booking | null>(null);
+  const [refundCalcs, setRefundCalcs] = useState<Record<string, { percent: number; amount: number }>>({});
 
   // C9: Countdown timer tick
-  var [countdownTick, setCountdownTick] = useState(0);
+  const [countdownTick, setCountdownTick] = useState(0);
 
   // C11: Voucher balance checker
-  var [voucherCode, setVoucherCode] = useState("");
-  var [voucherResult, setVoucherResult] = useState<{ code: string; status: string; current_balance: number; expires_at?: string | null } | null>(null);
-  var [voucherLoading, setVoucherLoading] = useState(false);
-  var [voucherError, setVoucherError] = useState("");
+  const [voucherCode, setVoucherCode] = useState("");
+  const [voucherResult, setVoucherResult] = useState<{ code: string; status: string; current_balance: number; expires_at?: string | null } | null>(null);
+  const [voucherLoading, setVoucherLoading] = useState(false);
+  const [voucherError, setVoucherError] = useState("");
 
   // C4: Trip photos
-  var [tripPhotos, setTripPhotos] = useState<Record<string, string[]>>({});
+  const [tripPhotos, setTripPhotos] = useState<Record<string, string[]>>({});
 
   // C7: Booking logs / timeline
-  var [bookingLogs, setBookingLogs] = useState<Record<string, BookingLog[]>>({});
-  var [expandedTimeline, setExpandedTimeline] = useState<Record<string, boolean>>({});
+  const [bookingLogs, setBookingLogs] = useState<Record<string, BookingLog[]>>({});
+  const [expandedTimeline, setExpandedTimeline] = useState<Record<string, boolean>>({});
 
   // C10: Meeting point / what to bring
-  var [expandedWhatToBring, setExpandedWhatToBring] = useState<Record<string, boolean>>({});
+  const [expandedWhatToBring, setExpandedWhatToBring] = useState<Record<string, boolean>>({});
 
   // Tab navigation
-  var [activeTab, setActiveTab] = useState<"trips" | "profile">("trips");
+  const [activeTab, setActiveTab] = useState<"trips" | "profile">("trips");
 
   // Profile
-  var [customer, setCustomer] = useState<any>(null);
-  var [authUser, setAuthUser] = useState<any>(null);
+  const [customer, setCustomer] = useState<any>(null);
+  const [authUser, setAuthUser] = useState<any>(null);
 
   // C14: Payment polling
-  var [paymentPending, setPaymentPending] = useState<string | null>(null);
-  var paymentPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [paymentPending, setPaymentPending] = useState<string | null>(null);
+  const paymentPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   /* ───── Check for active Supabase auth session ───── */
   useEffect(() => {
@@ -166,12 +166,12 @@ export default function MyBookings() {
   useEffect(() => {
     if (!authSession || !loggedIn || bookings.length === 0 || customer) return;
     (async () => {
-      var { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
       setAuthUser(session.user);
-      var bizId = bookings[0]?.business_id;
+      const bizId = bookings[0]?.business_id;
       if (!bizId) return;
-      var { data } = await supabase.from("customers")
+      const { data } = await supabase.from("customers")
         .select("id, email, name, phone, date_of_birth, marketing_consent, total_bookings, total_spent, first_booking_at, created_at")
         .eq("business_id", bizId)
         .eq("user_id", session.user.id)
@@ -183,7 +183,7 @@ export default function MyBookings() {
   /* ───── C9: Countdown interval ───── */
   useEffect(() => {
     if (!loggedIn || bookings.length === 0) return;
-    var interval = setInterval(() => setCountdownTick(t => t + 1), 60000);
+    const interval = setInterval(() => setCountdownTick(t => t + 1), 60000);
     return () => clearInterval(interval);
   }, [loggedIn, bookings.length]);
 
@@ -202,14 +202,14 @@ export default function MyBookings() {
 
   /* ───── Edge function caller ───── */
   async function callRebook(body: Record<string, unknown>): Promise<Record<string, unknown>> {
-    var resp = await supabase.functions.invoke("rebook-booking", { body });
+    const resp = await supabase.functions.invoke("rebook-booking", { body });
     if (resp.error) {
-      var msg = "Something went wrong. Please try again.";
+      let msg = "Something went wrong. Please try again.";
       try {
         if (resp.error && typeof (resp.error as Record<string, unknown>).context === "object") {
-          var ctx = (resp.error as Record<string, unknown>).context as { json?: () => Promise<{ error?: string }> } | null;
+          const ctx = (resp.error as Record<string, unknown>).context as { json?: () => Promise<{ error?: string }> } | null;
           if (ctx && typeof ctx.json === "function") {
-            var parsed = await ctx.json();
+            const parsed = await ctx.json();
             if (parsed?.error) msg = parsed.error;
           }
         } else if (resp.data && typeof resp.data === "object" && (resp.data as Record<string, unknown>).error) {
@@ -227,28 +227,28 @@ export default function MyBookings() {
   /* ───── Resend cooldown timer ───── */
   useEffect(() => {
     if (!otpSentAt) return;
-    var update = () => { var left = Math.max(0, 60 - Math.floor((Date.now() - otpSentAt) / 1000)); setResendCountdown(left); };
+    const update = () => { const left = Math.max(0, 60 - Math.floor((Date.now() - otpSentAt) / 1000)); setResendCountdown(left); };
     update();
-    var iv = setInterval(update, 1000);
+    const iv = setInterval(update, 1000);
     return () => clearInterval(iv);
   }, [otpSentAt]);
 
   /* ───── Send OTP ───── */
-  var sendOtp = useCallback(async function () {
+  const sendOtp = useCallback(async function () {
     if (!email.trim() || !phoneDigits.trim()) return;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setEmailError("Please enter a valid email"); return; }
-    var cleanDigits = phoneDigits.replace(/\D/g, "");
+    const cleanDigits = phoneDigits.replace(/\D/g, "");
     if (cleanDigits.length < 6 || cleanDigits.length > 12) { setPhoneError("Please enter a valid phone number"); return; }
     setEmailError(""); setPhoneError(""); setLoginError(""); setOtpError("");
     setOtpSending(true);
-    var norm = normalizePhone(dialCode, phoneDigits);
-    var phoneTail = norm.replace(/\D/g, "").slice(-9);
+    const norm = normalizePhone(dialCode, phoneDigits);
+    const phoneTail = norm.replace(/\D/g, "").slice(-9);
     try {
-      var resp = await supabase.functions.invoke("send-otp", {
+      const resp = await supabase.functions.invoke("send-otp", {
         body: { action: "send", email: email.toLowerCase(), phone_tail: phoneTail },
       });
       if (resp.error || !(resp.data as Record<string, unknown>)?.success) {
-        var errMsg = "Something went wrong. Please try again.";
+        let errMsg = "Something went wrong. Please try again.";
         if (resp.data && typeof resp.data === "object" && (resp.data as Record<string, unknown>).error) {
           errMsg = (resp.data as Record<string, unknown>).error as string;
         }
@@ -267,15 +267,15 @@ export default function MyBookings() {
   }, [email, phoneDigits, dialCode]);
 
   /* ───── Verify OTP then load bookings ───── */
-  var verifyOtp = useCallback(async function () {
+  const verifyOtp = useCallback(async function () {
     if (!otpToken || !otpCode.trim()) return;
     setOtpError("");
     setOtpVerifying(true);
     try {
-      var resp = await supabase.functions.invoke("send-otp", {
+      const resp = await supabase.functions.invoke("send-otp", {
         body: { action: "verify", token: otpToken, code: otpCode.trim() },
       });
-      var respData = (resp.data || {}) as Record<string, unknown>;
+      const respData = (resp.data || {}) as Record<string, unknown>;
       if (!respData.verified) {
         setOtpError(String(respData.error || "Invalid code. Please try again."));
         setOtpVerifying(false);
@@ -290,19 +290,19 @@ export default function MyBookings() {
   }, [otpToken, otpCode]);
 
   /* ───── Lookup bookings (called after OTP verified or auth session) ───── */
-  var lookupBookings = useCallback(async function (emailOnly?: boolean) {
+  const lookupBookings = useCallback(async function (emailOnly?: boolean) {
     setLoading(true);
-    var { data } = await supabase.from("bookings")
+    let { data } = await supabase.from("bookings")
       .select("id, business_id, customer_name, email, phone, qty, total_amount, status, refund_status, refund_amount, created_at, unit_price, tour_id, slot_id, custom_fields, converted_to_voucher_id, cancelled_at, cancellation_reason, waiver_status, waiver_token, yoco_payment_id, slots(start_time, capacity_total, booked, held), tours(name, description, duration_minutes)")
       .eq("email", email.toLowerCase()).order("created_at", { ascending: false });
-    var matched: typeof data;
+    let matched: typeof data;
     if (emailOnly) {
       matched = data || [];
     } else {
-      var norm = normalizePhone(dialCode, phoneDigits);
-      var phoneTail = norm.replace(/\D/g, "").slice(-9);
+      const norm = normalizePhone(dialCode, phoneDigits);
+      const phoneTail = norm.replace(/\D/g, "").slice(-9);
       matched = (data || []).filter(function (b) {
-        var rawPhone = (b.phone || "").replace(/\D/g, "");
+        const rawPhone = (b.phone || "").replace(/\D/g, "");
         if (!rawPhone) return true;
         return rawPhone.slice(-9) === phoneTail;
       });
@@ -323,17 +323,17 @@ export default function MyBookings() {
     sessionStorage.setItem("mb_loggedIn", "1");
 
     // C4: Fetch trip photos for completed bookings
-    var completedSlotIds = (data as unknown as Booking[])
+    const completedSlotIds = (data as unknown as Booking[])
       .filter((b) => b.status === "COMPLETED" || (["PAID", "CONFIRMED"].includes(b.status) && getTimeTier(b) === "PAST"))
       .map((b) => b.slot_id)
       .filter(Boolean);
     if (completedSlotIds.length > 0) {
-      var { data: photos } = await supabase.from("trip_photos")
+      const { data: photos } = await supabase.from("trip_photos")
         .select("id, photo_urls, slot_id")
         .in("slot_id", completedSlotIds);
       if (photos && photos.length > 0) {
-        var photoMap: Record<string, string[]> = {};
-        for (var p of photos) {
+        const photoMap: Record<string, string[]> = {};
+        for (const p of photos) {
           if (p.slot_id && p.photo_urls) {
             if (!photoMap[p.slot_id]) photoMap[p.slot_id] = [];
             photoMap[p.slot_id] = photoMap[p.slot_id].concat(Array.isArray(p.photo_urls) ? p.photo_urls : [p.photo_urls]);
@@ -344,15 +344,15 @@ export default function MyBookings() {
     }
 
     // C7: Fetch booking logs
-    var bookingIds = (data as unknown as Booking[]).map((b: Booking) => b.id);
+    const bookingIds = (data as unknown as Booking[]).map((b: Booking) => b.id);
     if (bookingIds.length > 0) {
-      var { data: logs } = await supabase.from("logs")
+      const { data: logs } = await supabase.from("logs")
         .select("id, booking_id, action, created_at, details")
         .in("booking_id", bookingIds)
         .order("created_at", { ascending: true });
       if (logs && logs.length > 0) {
-        var logMap: Record<string, BookingLog[]> = {};
-        for (var l of logs) {
+        const logMap: Record<string, BookingLog[]> = {};
+        for (const l of logs) {
           if (!logMap[l.booking_id]) logMap[l.booking_id] = [];
           logMap[l.booking_id].push(l);
         }
@@ -361,12 +361,12 @@ export default function MyBookings() {
     }
 
     // Fetch refund calculations for upcoming paid bookings
-    var upcoming = (data as unknown as Booking[]).filter(function (b) { return ["PAID", "CONFIRMED"].includes(b.status) && b.slots?.start_time && new Date(b.slots.start_time) > new Date(); });
+    const upcoming = (data as unknown as Booking[]).filter(function (b) { return ["PAID", "CONFIRMED"].includes(b.status) && b.slots?.start_time && new Date(b.slots.start_time) > new Date(); });
     if (upcoming.length > 0) {
-      var calcs: Record<string, { percent: number; amount: number }> = {};
-      for (var ub of upcoming) {
+      const calcs: Record<string, { percent: number; amount: number }> = {};
+      for (const ub of upcoming) {
         try {
-          var { data: rc } = await supabase.rpc("calculate_booking_refund", { p_booking_id: ub.id });
+          const { data: rc } = await supabase.rpc("calculate_booking_refund", { p_booking_id: ub.id });
           if (rc && !rc.error) calcs[ub.id] = { percent: rc.percent, amount: Number(rc.amount) };
         } catch { /* ignore */ }
       }
@@ -380,7 +380,7 @@ export default function MyBookings() {
     setVoucherLoading(true);
     setVoucherError("");
     setVoucherResult(null);
-    var { data, error } = await supabase.from("vouchers")
+    const { data, error } = await supabase.from("vouchers")
       .select("code, status, current_balance, expires_at")
       .eq("code", voucherCode.trim().toUpperCase())
       .maybeSingle();
@@ -395,7 +395,7 @@ export default function MyBookings() {
   /* ───── C14: Start payment polling ───── */
   function startPaymentPolling(bookingId: string) {
     setPaymentPending(bookingId);
-    var attempts = 0;
+    let attempts = 0;
     if (paymentPollRef.current) clearInterval(paymentPollRef.current);
     paymentPollRef.current = setInterval(async () => {
       attempts++;
@@ -404,7 +404,7 @@ export default function MyBookings() {
         setPaymentPending(null);
         return;
       }
-      var { data } = await supabase.from("bookings")
+      const { data } = await supabase.from("bookings")
         .select("status")
         .eq("id", bookingId)
         .maybeSingle();
@@ -421,7 +421,7 @@ export default function MyBookings() {
   async function requestAdminReview(b: Booking, action: string) {
     if (!confirm("Your trip is within 12 hours. Send a request to our team?")) return;
     setActionLoading(b.id);
-    var hrs = getHrsBefore(b);
+    const hrs = getHrsBefore(b);
     await supabase.from("chat_messages").insert({
       business_id: b.business_id,
       phone: b.phone,
@@ -437,10 +437,10 @@ export default function MyBookings() {
   async function startReschedule(b: Booking) {
     setRescheduling(b);
     setLoadingSlots(true);
-    var now = new Date();
-    var cutoff = new Date(Date.now() + 60 * 60 * 1000);
-    var later = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
-    var { data } = await supabase.from("slots").select("*, tours(name, base_price_per_person)")
+    const now = new Date();
+    const cutoff = new Date(Date.now() + 60 * 60 * 1000);
+    const later = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+    const { data } = await supabase.from("slots").select("*, tours(name, base_price_per_person)")
       .eq("status", "OPEN").eq("tour_id", b.tour_id)
       .gt("start_time", cutoff.toISOString()).lt("start_time", later.toISOString())
       .order("start_time", { ascending: true });
@@ -452,7 +452,7 @@ export default function MyBookings() {
     if (!rescheduling || !rebookConfirmSlot) return;
     setActionLoading("reschedule");
     try {
-      var result = await callRebook({
+      const result = await callRebook({
         booking_id: rescheduling.id,
         action: "RESCHEDULE",
         new_slot_id: rebookConfirmSlot.id,
@@ -489,14 +489,14 @@ export default function MyBookings() {
   async function applyGuestVoucher() {
     if (!guestVoucherCode.trim()) return;
     setGuestVoucherError("");
-    var code = guestVoucherCode.toUpperCase().replace(/\s/g, "");
+    const code = guestVoucherCode.toUpperCase().replace(/\s/g, "");
     if (code.length !== 8) { setGuestVoucherError("Codes are 8 characters"); return; }
-    var { data } = await supabase.from("vouchers").select("*").eq("code", code).single();
+    const { data } = await supabase.from("vouchers").select("*").eq("code", code).single();
     if (!data) { setGuestVoucherError("Code not found"); return; }
     if (data.status === "REDEEMED") { setGuestVoucherError("Already redeemed"); return; }
     if (data.status !== "ACTIVE") { setGuestVoucherError("Not valid"); return; }
     if (data.expires_at && new Date(data.expires_at) < new Date()) { setGuestVoucherError("Expired"); return; }
-    var bal = Number(data.current_balance ?? data.value ?? data.purchase_amount ?? 0);
+    const bal = Number(data.current_balance ?? data.value ?? data.purchase_amount ?? 0);
     if (bal <= 0) { setGuestVoucherError("No balance remaining"); return; }
     setGuestVoucherApplied({ code, balance: bal });
     setGuestVoucherCode("");
@@ -505,8 +505,8 @@ export default function MyBookings() {
   async function applyGuestPromo() {
     if (!guestPromoCode.trim() || !editGuestsBooking) return;
     setGuestPromoError("");
-    var code = guestPromoCode.toUpperCase().trim();
-    var { data: promo } = await supabase.from("promotions").select("*").eq("code", code).eq("business_id", editGuestsBooking.business_id).maybeSingle();
+    const code = guestPromoCode.toUpperCase().trim();
+    const { data: promo } = await supabase.from("promotions").select("*").eq("code", code).eq("business_id", editGuestsBooking.business_id).maybeSingle();
     if (!promo) { setGuestPromoError("Code not found"); return; }
     if (!promo.active) { setGuestPromoError("No longer active"); return; }
     if (promo.valid_until && new Date(promo.valid_until) < new Date()) { setGuestPromoError("Expired"); return; }
@@ -517,11 +517,11 @@ export default function MyBookings() {
 
   async function submitEditGuests() {
     if (!editGuestsBooking || guestQty === editGuestsBooking.qty) { setEditGuestsBooking(null); return; }
-    var b = editGuestsBooking;
+    const b = editGuestsBooking;
     setActionLoading("guests");
     try {
       if (guestQty > b.qty) {
-        var result = await callRebook({ booking_id: b.id, action: "ADD_GUESTS", new_qty: guestQty });
+        const result = await callRebook({ booking_id: b.id, action: "ADD_GUESTS", new_qty: guestQty });
         if (result.payment_url) {
           showToast((guestQty - b.qty) + " guest(s) added! Pay R" + result.diff + " to confirm.");
           window.open(result.payment_url as string, "_blank");
@@ -530,7 +530,7 @@ export default function MyBookings() {
           showToast("Guests added!");
         }
       } else {
-        var result2 = await callRebook({ booking_id: b.id, action: "REMOVE_GUESTS", new_qty: guestQty, excess_action: guestExcessAction });
+        const result2 = await callRebook({ booking_id: b.id, action: "REMOVE_GUESTS", new_qty: guestQty, excess_action: guestExcessAction });
         if (result2.voucher_code) {
           showToast("Guests removed. Voucher " + result2.voucher_code + " for R" + result2.voucher_amount + " sent to you.");
         } else if (result2.refund_amount) {
@@ -582,7 +582,7 @@ export default function MyBookings() {
     if (!cancelTarget) return;
     setActionLoading("cancel");
     try {
-      var result = await callRebook({ booking_id: cancelTarget.id, action: "CANCEL_REFUND" });
+      const result = await callRebook({ booking_id: cancelTarget.id, action: "CANCEL_REFUND" });
       if (result.voucher_code) {
         showToast("Your booking has been cancelled. A voucher of R" + result.voucher_amount + " has been issued. Code: " + result.voucher_code);
       } else if (result.manual_refund || result.refund_type === "MANUAL_EFT_REQUIRED") {
@@ -603,7 +603,7 @@ export default function MyBookings() {
     if (!cancelTarget) return;
     setActionLoading("cancel");
     try {
-      var result = await callRebook({ booking_id: cancelTarget.id, action: "CANCEL_VOUCHER" });
+      const result = await callRebook({ booking_id: cancelTarget.id, action: "CANCEL_VOUCHER" });
       showToast("Converted to voucher! Code: " + result.voucher_code + " (R" + result.voucher_amount + ")");
       setCancelTarget(null);
       lookupBookings();
@@ -615,7 +615,7 @@ export default function MyBookings() {
   async function handleClaimCredit(b: Booking, creditAction: "VOUCHER" | "REFUND") {
     setActionLoading(b.id);
     try {
-      var res = await callRebook({ booking_id: b.id, action: "CLAIM_CREDIT", credit_action: creditAction });
+      const res = await callRebook({ booking_id: b.id, action: "CLAIM_CREDIT", credit_action: creditAction });
       if (creditAction === "VOUCHER") {
         showToast("Voucher issued! Code: " + (res.voucher_code || "Check your email") + " for R" + Number(b.refund_amount).toFixed(2));
       } else {
@@ -678,11 +678,11 @@ export default function MyBookings() {
   /* ═══════════════════════════════════════════════════════
      BOOKINGS LIST
      ═══════════════════════════════════════════════════════ */
-  var upcoming = bookings.filter(b => ["PAID", "CONFIRMED", "HELD", "PENDING"].includes(b.status) && getTimeTier(b) !== "PAST");
-  var past = bookings.filter(b => b.status === "COMPLETED" || b.status === "EXPIRED" || (["PAID", "CONFIRMED"].includes(b.status) && getTimeTier(b) === "PAST"));
-  var cancelled = bookings.filter(b => b.status === "CANCELLED");
+  const upcoming = bookings.filter(b => ["PAID", "CONFIRMED", "HELD", "PENDING"].includes(b.status) && getTimeTier(b) !== "PAST");
+  const past = bookings.filter(b => b.status === "COMPLETED" || b.status === "EXPIRED" || (["PAID", "CONFIRMED"].includes(b.status) && getTimeTier(b) === "PAST"));
+  const cancelled = bookings.filter(b => b.status === "CANCELLED");
 
-  var cardProps = {
+  const cardProps = {
     countdownTick, paymentPending, actionLoading, tripPhotos, bookingLogs,
     expandedTimeline, setExpandedTimeline, expandedWhatToBring, setExpandedWhatToBring,
     onReschedule: startReschedule, onEditGuests: openEditGuests,
@@ -733,9 +733,9 @@ export default function MyBookings() {
         ) : (<>
 
         {(() => {
-          var paidTrips = bookings.filter(function (b) { return ["PAID", "CONFIRMED", "COMPLETED"].includes(b.status); });
-          var tripCount = paidTrips.length;
-          var firstName = (paidTrips[0]?.customer_name || email.split("@")[0] || "").split(" ")[0];
+          const paidTrips = bookings.filter(function (b) { return ["PAID", "CONFIRMED", "COMPLETED"].includes(b.status); });
+          const tripCount = paidTrips.length;
+          const firstName = (paidTrips[0]?.customer_name || email.split("@")[0] || "").split(" ")[0];
           if (tripCount >= 2) return (
             <div className="mb-6 p-4 rounded-2xl border flex items-center gap-4" style={{ background: "color-mix(in srgb, var(--cta, #14b8a6) 8%, white)", borderColor: "color-mix(in srgb, var(--cta, #14b8a6) 25%, white)" }}>
               <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-lg" style={{ background: "color-mix(in srgb, var(--cta, #14b8a6) 15%, white)" }}>

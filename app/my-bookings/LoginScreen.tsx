@@ -40,18 +40,18 @@ export default function LoginScreen({
   otpSending, otpVerifying, resendCountdown,
   onSendOtp, onVerifyOtp, onResendOtp, onBackToEmail,
 }: LoginScreenProps) {
-  var otpInputRef = useRef<HTMLInputElement>(null);
-  var [mode, setMode] = useState<"magic" | "otp">("magic");
-  var [magicSent, setMagicSent] = useState(false);
-  var [magicSending, setMagicSending] = useState(false);
-  var [magicError, setMagicError] = useState("");
+  const otpInputRef = useRef<HTMLInputElement>(null);
+  const [mode, setMode] = useState<"magic" | "otp">("magic");
+  const [magicSent, setMagicSent] = useState(false);
+  const [magicSending, setMagicSending] = useState(false);
+  const [magicError, setMagicError] = useState("");
 
   useEffect(() => {
     if (otpStep && otpInputRef.current) otpInputRef.current.focus();
   }, [otpStep]);
 
   function maskEmail(e: string) {
-    var [local, domain] = e.split("@");
+    const [local, domain] = e.split("@");
     if (!domain) return e;
     if (local.length <= 2) return local[0] + "***@" + domain;
     return local[0] + local[1] + "***@" + domain;
@@ -65,7 +65,7 @@ export default function LoginScreen({
     setMagicSending(true);
     setMagicError("");
     setLoginError("");
-    var { error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signInWithOtp({
       email: email.toLowerCase(),
       options: { emailRedirectTo: window.location.origin + "/auth/callback" },
     });
@@ -91,7 +91,7 @@ export default function LoginScreen({
     onBackToEmail();
   }
 
-  var subtitle = mode === "magic"
+  const subtitle = mode === "magic"
     ? (magicSent ? "Check your email for a sign-in link." : "Enter your email to receive a sign-in link.")
     : (otpStep ? "Enter the verification code we sent to your email." : "Enter the details you used when booking.");
 

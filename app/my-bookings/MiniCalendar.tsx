@@ -4,26 +4,26 @@ import { fmtFull, fmtTime, dateKey } from "../lib/format";
 import type { Slot } from "../lib/types";
 
 export default function MiniCalendar({ slots, onSelect }: { slots: Slot[]; onSelect: (slot: Slot) => void }) {
-  var now = new Date();
-  var [vMonth, setVMonth] = useState(now.getMonth());
-  var [vYear, setVYear] = useState(now.getFullYear());
-  var [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const now = new Date();
+  const [vMonth, setVMonth] = useState(now.getMonth());
+  const [vYear, setVYear] = useState(now.getFullYear());
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
-  var slotsByDate: Record<string, Slot[]> = {};
-  for (var s of slots) { var dk = dateKey(s.start_time); if (!slotsByDate[dk]) slotsByDate[dk] = []; slotsByDate[dk].push(s); }
+  const slotsByDate: Record<string, Slot[]> = {};
+  for (const s of slots) { const dk = dateKey(s.start_time); if (!slotsByDate[dk]) slotsByDate[dk] = []; slotsByDate[dk].push(s); }
 
-  var firstDay = new Date(vYear, vMonth, 1).getDay();
-  var daysInMonth = new Date(vYear, vMonth + 1, 0).getDate();
-  var monthName = new Date(vYear, vMonth).toLocaleDateString("en-ZA", { month: "long", year: "numeric" });
-  var dayNames = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
-  var canPrev = vYear > now.getFullYear() || (vYear === now.getFullYear() && vMonth > now.getMonth());
-  var maxDate = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
-  var canNext = new Date(vYear, vMonth + 1, 1) < maxDate;
+  const firstDay = new Date(vYear, vMonth, 1).getDay();
+  const daysInMonth = new Date(vYear, vMonth + 1, 0).getDate();
+  const monthName = new Date(vYear, vMonth).toLocaleDateString("en-ZA", { month: "long", year: "numeric" });
+  const dayNames = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+  const canPrev = vYear > now.getFullYear() || (vYear === now.getFullYear() && vMonth > now.getMonth());
+  const maxDate = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+  const canNext = new Date(vYear, vMonth + 1, 1) < maxDate;
 
-  var cells: ({ day: number; date: string; isPast: boolean; hasSlots: boolean } | null)[] = [];
-  for (var i = 0; i < firstDay; i++) cells.push(null);
-  for (var d = 1; d <= daysInMonth; d++) {
-    var ds = vYear + "-" + String(vMonth + 1).padStart(2, "0") + "-" + String(d).padStart(2, "0");
+  const cells: ({ day: number; date: string; isPast: boolean; hasSlots: boolean } | null)[] = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = vYear + "-" + String(vMonth + 1).padStart(2, "0") + "-" + String(d).padStart(2, "0");
     cells.push({ day: d, date: ds, isPast: new Date(ds) < new Date(now.toISOString().split("T")[0]), hasSlots: !!slotsByDate[ds] });
   }
 
@@ -44,7 +44,7 @@ export default function MiniCalendar({ slots, onSelect }: { slots: Slot[]; onSel
           {cells.map((c, i) => {
             if (!c) return <div key={"e" + i} />;
             if (c.isPast || !c.hasSlots) return <div key={c.date} className="text-center py-2 text-sm text-[color:var(--textMuted)]/30 rounded-lg">{c.day}</div>;
-            var isSelected = selectedDate === c.date;
+            const isSelected = selectedDate === c.date;
             return (
               <button key={c.date} onClick={() => setSelectedDate(c.date)}
                 className={"text-center py-2 text-sm font-semibold rounded-lg transition-all relative " + (isSelected ? "bg-[color:var(--accent)] text-white shadow-sm" : "text-[color:var(--text)] hover:bg-[color:var(--accentSoft)]")}>
@@ -60,7 +60,7 @@ export default function MiniCalendar({ slots, onSelect }: { slots: Slot[]; onSel
         <div className="space-y-2">
           <p className="text-sm font-semibold text-[color:var(--text)] px-1">{fmtFull((slotsByDate[selectedDate] || [])[0].start_time)}</p>
           {(slotsByDate[selectedDate] || []).map((sl: Slot) => {
-            var avail = sl.capacity_total - sl.booked - (sl.held || 0);
+            const avail = sl.capacity_total - sl.booked - (sl.held || 0);
             return (
               <button key={sl.id} onClick={() => onSelect(sl)}
                 className="w-full text-left border border-[color:var(--border)] rounded-xl p-4 hover:border-[color:var(--accent)] hover:shadow-sm transition-all bg-[color:var(--surface)]">

@@ -43,9 +43,9 @@ export default function RescheduleFlow({
 
   // Confirm screen
   if (rebookConfirmSlot) {
-    var unitPrice = rebookConfirmSlot.price_per_person_override ?? rebookConfirmSlot.tours!.base_price_per_person;
-    var newTotal = unitPrice * rescheduling.qty;
-    var diff = newTotal - Number(rescheduling.total_amount);
+    const unitPrice = rebookConfirmSlot.price_per_person_override ?? rebookConfirmSlot.tours!.base_price_per_person;
+    const newTotal = unitPrice * rescheduling.qty;
+    const diff = newTotal - Number(rescheduling.total_amount);
 
     return (
       <div className="app-container max-w-lg page-wrap py-8">

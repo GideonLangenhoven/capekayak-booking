@@ -9,13 +9,13 @@ function getServiceClient() {
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
-  var supabase = getServiceClient();
-  var { token } = await params;
+  const supabase = getServiceClient();
+  const { token } = await params;
   if (!token || token.length < 10) {
     return NextResponse.json({ error: "Invalid token" }, { status: 400 });
   }
 
-  var { data, error } = await supabase
+  const { data, error } = await supabase
     .from("reviews")
     .select("id, business_id, tour_id, booking_id, rating, comment, reviewer_name, submitted_at, tours(name), businesses(business_name)")
     .eq("submission_token", token)

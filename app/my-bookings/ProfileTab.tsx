@@ -10,23 +10,23 @@ type Props = {
 };
 
 export default function ProfileTab({ customer, user, onUpdate, onSignOut }: Props) {
-  var [name, setName] = useState(customer?.name ?? "");
-  var [phone, setPhone] = useState(customer?.phone ?? "");
-  var [dob, setDob] = useState(customer?.date_of_birth ?? "");
-  var [marketingConsent, setMarketingConsent] = useState(!!customer?.marketing_consent);
-  var [emailDraft, setEmailDraft] = useState(user?.email ?? "");
-  var [saving, setSaving] = useState(false);
-  var [savedAt, setSavedAt] = useState<number | null>(null);
-  var [emailMsg, setEmailMsg] = useState<string | null>(null);
-  var [error, setError] = useState<string | null>(null);
+  const [name, setName] = useState(customer?.name ?? "");
+  const [phone, setPhone] = useState(customer?.phone ?? "");
+  const [dob, setDob] = useState(customer?.date_of_birth ?? "");
+  const [marketingConsent, setMarketingConsent] = useState(!!customer?.marketing_consent);
+  const [emailDraft, setEmailDraft] = useState(user?.email ?? "");
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [emailMsg, setEmailMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSaving(true);
     try {
-      var cleanPhone = phone.replace(/[\s\-()]/g, "");
-      var { error: err } = await supabase
+      const cleanPhone = phone.replace(/[\s\-()]/g, "");
+      const { error: err } = await supabase
         .from("customers")
         .update({
           name: (name || "").trim() || null,
@@ -48,12 +48,12 @@ export default function ProfileTab({ customer, user, onUpdate, onSignOut }: Prop
   async function changeEmail() {
     setEmailMsg(null);
     setError(null);
-    var trimmed = emailDraft.trim().toLowerCase();
+    const trimmed = emailDraft.trim().toLowerCase();
     if (!trimmed || trimmed === user.email) {
       setEmailMsg("That's already your current email.");
       return;
     }
-    var { error: err } = await supabase.auth.updateUser({ email: trimmed });
+    const { error: err } = await supabase.auth.updateUser({ email: trimmed });
     if (err) {
       setError(err.message);
       return;

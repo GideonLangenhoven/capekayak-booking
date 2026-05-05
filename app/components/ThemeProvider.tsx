@@ -31,7 +31,7 @@ type ThemeData = {
   refund_policy_text: string | null;
 };
 
-var defaults: ThemeData = {
+const defaults: ThemeData = {
   id: null, color_main: null, color_secondary: null, color_cta: null,
   color_bg: null, color_nav: null, color_hover: null, chatbot_avatar: null,
   hero_eyebrow: null, hero_title: null, hero_subtitle: null,
@@ -46,8 +46,8 @@ var defaults: ThemeData = {
 /** Map a raw DB row (which may have extra or missing columns) to ThemeData safely */
 function toTheme(row: Record<string, unknown> | null): ThemeData {
   if (!row) return defaults;
-  var t: ThemeData = { ...defaults };
-  for (var key of Object.keys(defaults) as (keyof ThemeData)[]) {
+  const t: ThemeData = { ...defaults };
+  for (const key of Object.keys(defaults) as (keyof ThemeData)[]) {
     if (key in row && row[key] !== undefined) {
       (t as any)[key] = row[key];
     }
@@ -55,26 +55,26 @@ function toTheme(row: Record<string, unknown> | null): ThemeData {
   return t;
 }
 
-var ThemeCtx = createContext<ThemeData>(defaults);
+const ThemeCtx = createContext<ThemeData>(defaults);
 
 export function useTheme() { return useContext(ThemeCtx); }
 
 function hexToRgb(hex: string) {
-  var h = hex.replace("#", "");
+  let h = hex.replace("#", "");
   if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
-  var n = parseInt(h, 16);
+  const n = parseInt(h, 16);
   return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
 }
 
 function darken(hex: string, pct: number) {
-  var { r, g, b } = hexToRgb(hex);
-  var f = 1 - pct / 100;
+  const { r, g, b } = hexToRgb(hex);
+  const f = 1 - pct / 100;
   return "#" + [Math.round(r * f), Math.round(g * f), Math.round(b * f)].map(v => v.toString(16).padStart(2, "0")).join("");
 }
 
 function lighten(hex: string, pct: number) {
-  var { r, g, b } = hexToRgb(hex);
-  var f = pct / 100;
+  const { r, g, b } = hexToRgb(hex);
+  const f = pct / 100;
   return "#" + [Math.round(r + (255 - r) * f), Math.round(g + (255 - g) * f), Math.round(b + (255 - b) * f)].map(v => v.toString(16).padStart(2, "0")).join("");
 }
 
@@ -89,37 +89,37 @@ function lighten(hex: string, pct: number) {
  */
 async function resolveBusiness(): Promise<ThemeData> {
   // 1. Environment variable — most reliable, set once per Vercel deployment
-  var envBusinessId = process.env.NEXT_PUBLIC_BUSINESS_ID || "";
+  const envBusinessId = process.env.NEXT_PUBLIC_BUSINESS_ID || "";
   if (envBusinessId) {
-    var { data: envBiz } = await supabase.from("businesses").select("*").eq("id", envBusinessId).maybeSingle();
+    const { data: envBiz } = await supabase.from("businesses").select("*").eq("id", envBusinessId).maybeSingle();
     if (envBiz) return toTheme(envBiz);
   }
 
   // 2. Query parameter override (e.g. ?business_id=xxx for testing)
   if (typeof window !== "undefined") {
-    var params = new URLSearchParams(window.location.search);
-    var paramId = params.get("business_id");
+    const params = new URLSearchParams(window.location.search);
+    const paramId = params.get("business_id");
     if (paramId) {
-      var { data: paramBiz } = await supabase.from("businesses").select("*").eq("id", paramId).maybeSingle();
+      const { data: paramBiz } = await supabase.from("businesses").select("*").eq("id", paramId).maybeSingle();
       if (paramBiz) return toTheme(paramBiz);
     }
   }
 
   // 3. Match current domain against booking_site_url in the businesses table
-  var origin = typeof window !== "undefined" ? window.location.origin : "";
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
   if (origin) {
-    var { data: allBiz } = await supabase.from("businesses").select("*");
+    const { data: allBiz } = await supabase.from("businesses").select("*");
     if (allBiz && allBiz.length > 0) {
-      var normOrigin = origin.replace(/\/+$/, "").toLowerCase();
+      const normOrigin = origin.replace(/\/+$/, "").toLowerCase();
 
-      for (var i = 0; i < allBiz.length; i++) {
-        var siteUrl = String((allBiz[i] as any).booking_site_url || "").replace(/\/+$/, "").toLowerCase();
+      for (let i = 0; i < allBiz.length; i++) {
+        const siteUrl = String((allBiz[i] as any).booking_site_url || "").replace(/\/+$/, "").toLowerCase();
         if (siteUrl && normOrigin === siteUrl) {
           return toTheme(allBiz[i]);
         }
         if (siteUrl) {
           try {
-            var parsed = new URL(siteUrl);
+            const parsed = new URL(siteUrl);
             if (parsed.origin.toLowerCase() === normOrigin) {
               return toTheme(allBiz[i]);
             }
@@ -133,23 +133,23 @@ async function resolveBusiness(): Promise<ThemeData> {
   }
 
   // Ultimate fallback: just grab the first one
-  var { data: fallback } = await supabase.from("businesses").select("*").limit(1).single();
+  const { data: fallback } = await supabase.from("businesses").select("*").limit(1).single();
   return toTheme(fallback);
 }
 
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {
-  var [theme, setTheme] = useState<ThemeData>(defaults);
+  const [theme, setTheme] = useState<ThemeData>(defaults);
 
   useEffect(() => {
     (async () => {
-      var resolved = await resolveBusiness();
+      const resolved = await resolveBusiness();
       if (resolved) {
         setTheme(resolved);
       }
     })();
     // Load dotlottie script for animated avatars
     if (!document.getElementById("dotlottie-script")) {
-      var script = document.createElement("script");
+      const script = document.createElement("script");
       script.id = "dotlottie-script";
       script.src = "https://unpkg.com/@lottiefiles/dotlottie-wc@0.9.3/dist/dotlottie-wc.js";
       script.type = "module";
@@ -158,7 +158,7 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
   }, []);
 
   useEffect(() => {
-    var root = document.documentElement;
+    const root = document.documentElement;
     if (theme.color_main) {
       root.style.setProperty("--accent", theme.color_main);
       root.style.setProperty("--accentHover", darken(theme.color_main, 15));

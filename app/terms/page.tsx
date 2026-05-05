@@ -6,12 +6,12 @@ import { sanitizeHtml } from "../lib/sanitize";
 import PolicySkeleton from "../components/skeletons/PolicySkeleton";
 
 export default function TermsPage() {
-  var [content, setContent] = useState("");
-  var [loading, setLoading] = useState(true);
+  const [content, setContent] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      var { data } = await supabase.from("businesses").select("terms_conditions").limit(1).single();
+      const { data } = await supabase.from("businesses").select("terms_conditions").limit(1).single();
       if (data?.terms_conditions) setContent(data.terms_conditions);
       setLoading(false);
     })();

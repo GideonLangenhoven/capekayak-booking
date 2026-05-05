@@ -6,12 +6,12 @@ import { sanitizeHtml } from "../lib/sanitize";
 import PolicySkeleton from "../components/skeletons/PolicySkeleton";
 
 export default function PrivacyPage() {
-  var [content, setContent] = useState("");
-  var [loading, setLoading] = useState(true);
+  const [content, setContent] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      var { data } = await supabase.from("businesses").select("privacy_policy").limit(1).single();
+      const { data } = await supabase.from("businesses").select("privacy_policy").limit(1).single();
       if (data?.privacy_policy) setContent(data.privacy_policy);
       setLoading(false);
     })();

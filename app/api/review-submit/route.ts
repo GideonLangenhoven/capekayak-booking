@@ -9,15 +9,15 @@ function getServiceClient() {
 }
 
 export async function POST(req: NextRequest) {
-  var supabase = getServiceClient();
-  var body: any;
+  const supabase = getServiceClient();
+  let body: any;
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  var { token, rating, comment, reviewerName } = body;
+  const { token, rating, comment, reviewerName } = body;
 
   if (!token || typeof token !== "string") {
     return NextResponse.json({ error: "Missing token" }, { status: 400 });
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Rating must be 1-5" }, { status: 400 });
   }
 
-  var { data: review } = await supabase
+  const { data: review } = await supabase
     .from("reviews")
     .select("id, submitted_at")
     .eq("submission_token", token)
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Already submitted" }, { status: 410 });
   }
 
-  var { error } = await supabase
+  const { error } = await supabase
     .from("reviews")
     .update({
       rating,

@@ -6,12 +6,12 @@ import { sanitizeHtml } from "../lib/sanitize";
 import PolicySkeleton from "../components/skeletons/PolicySkeleton";
 
 export default function CookiesPage() {
-  var [content, setContent] = useState("");
-  var [loading, setLoading] = useState(true);
+  const [content, setContent] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      var { data } = await supabase.from("businesses").select("cookies_policy").limit(1).single();
+      const { data } = await supabase.from("businesses").select("cookies_policy").limit(1).single();
       if (data?.cookies_policy) setContent(data.cookies_policy);
       setLoading(false);
     })();

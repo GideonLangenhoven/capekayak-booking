@@ -6,19 +6,19 @@ import { useTheme } from "./ThemeProvider";
 import type { ChatMessage, ChatButton } from "../lib/types";
 
 export default function ChatWidget() {
-  var { chatbot_avatar, business_name } = useTheme();
-  var [open, setOpen] = useState(false);
-  var [msgs, setMsgs] = useState<ChatMessage[]>([]);
-  var [input, setInput] = useState("");
-  var [typing, setTyping] = useState(false);
-  var [st, setSt] = useState<Record<string, unknown>>({ step: "IDLE" });
-  var isHuman = st.status === "HUMAN";
-  var adminName = String(st.admin_name || "");
-  var [showJoined, setShowJoined] = useState(false);
-  var prevHumanRef = useRef(false);
-  var endRef = useRef<HTMLDivElement>(null);
-  var inRef = useRef<HTMLInputElement>(null);
-  var greeted = useRef(false);
+  const { chatbot_avatar, business_name } = useTheme();
+  const [open, setOpen] = useState(false);
+  const [msgs, setMsgs] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [typing, setTyping] = useState(false);
+  const [st, setSt] = useState<Record<string, unknown>>({ step: "IDLE" });
+  const isHuman = st.status === "HUMAN";
+  const adminName = String(st.admin_name || "");
+  const [showJoined, setShowJoined] = useState(false);
+  const prevHumanRef = useRef(false);
+  const endRef = useRef<HTMLDivElement>(null);
+  const inRef = useRef<HTMLInputElement>(null);
+  const greeted = useRef(false);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, typing]);
   useEffect(() => {
     if (isHuman && !prevHumanRef.current) {
@@ -35,28 +35,28 @@ export default function ChatWidget() {
     if (open) setTimeout(() => inRef.current?.focus(), 100);
   }, [open]);
   async function send(ovr?: string) {
-    var msg = ovr || input.trim();
+    const msg = ovr || input.trim();
     if (!msg || typing) return;
-    var isBtn = msg.startsWith("btn:");
-    var displayMsg = msg;
+    const isBtn = msg.startsWith("btn:");
+    let displayMsg = msg;
     if (isBtn) {
-      var lastBot = [...msgs].reverse().find(m => m.buttons || m.calendar);
-      if (lastBot?.buttons) { var bm = lastBot.buttons.find((b: ChatButton) => "btn:" + b.value === msg); if (bm) displayMsg = bm.label; }
+      const lastBot = [...msgs].reverse().find(m => m.buttons || m.calendar);
+      if (lastBot?.buttons) { const bm = lastBot.buttons.find((b: ChatButton) => "btn:" + b.value === msg); if (bm) displayMsg = bm.label; }
       if (lastBot?.calendar && msg.startsWith("btn:2")) {
-        var cd = lastBot.calendar.find((d) => "btn:" + d.date === msg);
+        const cd = lastBot.calendar.find((d) => "btn:" + d.date === msg);
         if (cd) displayMsg = cd.label;
       }
     }
-    var newM: ChatMessage[] = [...msgs, { role: "user", text: displayMsg }];
+    const newM: ChatMessage[] = [...msgs, { role: "user", text: displayMsg }];
     setMsgs(newM);
     setInput("");
     setTyping(true);
     try {
-      var hist = newM.slice(-12).map(m => ({ role: m.role, text: m.text }));
-      var res = await supabase.functions.invoke("web-chat", { body: { messages: hist.slice(0, -1), message: msg, state: st } });
-      var d = res.data || {};
+      const hist = newM.slice(-12).map(m => ({ role: m.role, text: m.text }));
+      const res = await supabase.functions.invoke("web-chat", { body: { messages: hist.slice(0, -1), message: msg, state: st } });
+      const d = res.data || {};
       setSt(d.state || st);
-      var delay = 800 + Math.min((d.reply || "").length * 6, 1500) + Math.random() * 500;
+      const delay = 800 + Math.min((d.reply || "").length * 6, 1500) + Math.random() * 500;
       setTimeout(() => { setTyping(false); setMsgs(prev => [...prev, { role: "bot", text: d.reply || "Try again?", buttons: d.buttons || null, paymentUrl: d.paymentUrl || null, calendar: d.calendar || null }]); }, delay);
     } catch {
       setTimeout(() => { setTyping(false); setMsgs(prev => [...prev, { role: "bot", text: "Sorry, try that again?" }]); }, 800);
