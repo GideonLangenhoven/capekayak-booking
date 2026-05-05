@@ -31,47 +31,45 @@ export default function Home() {
   useEffect(() => {
     if (!theme.id) return;
     (async () => {
-      const { data } = await supabase.from("tours").select("*").eq("business_id", theme.id).eq("active", true).order("sort_order", { ascending: true });
-      const activeTours = (data || []).filter((t: any) => !t.hidden);
-      setTours(activeTours);
-
-      // Load combo offers
-      const { data: combos } = await supabase.from("combo_offers")
-        .select("*, tour_a:tours!combo_offers_tour_a_id_fkey(id, name, image_url, duration_minutes), tour_b:tours!combo_offers_tour_b_id_fkey(id, name, image_url, duration_minutes)")
-        .or(`business_a_id.eq.${theme.id},business_b_id.eq.${theme.id}`)
-        .eq("active", true)
-        .order("sort_order", { ascending: true });
-      setComboOffers(combos || []);
-
-      // Urgency: load remaining spots this week per tour
       const now = new Date();
       const weekEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-      const { data: slots } = await supabase.from("slots")
-        .select("tour_id, capacity_total, booked, held")
-        .eq("business_id", theme.id)
-        .eq("status", "OPEN")
-        .gte("start_time", now.toISOString())
-        .lte("start_time", weekEnd.toISOString());
+
+      const [toursRes, combosRes, slotsRes, bookingsRes, rvStatsRes] = await Promise.all([
+        supabase.from("tours").select("*").eq("business_id", theme.id).eq("active", true).order("sort_order", { ascending: true }),
+        supabase.from("combo_offers")
+          .select("*, tour_a:tours!combo_offers_tour_a_id_fkey(id, name, image_url, duration_minutes), tour_b:tours!combo_offers_tour_b_id_fkey(id, name, image_url, duration_minutes)")
+          .or(`business_a_id.eq.${theme.id},business_b_id.eq.${theme.id}`)
+          .eq("active", true)
+          .order("sort_order", { ascending: true }),
+        supabase.from("slots")
+          .select("tour_id, capacity_total, booked, held")
+          .eq("business_id", theme.id)
+          .eq("status", "OPEN")
+          .gte("start_time", now.toISOString())
+          .lte("start_time", weekEnd.toISOString()),
+        supabase.from("bookings")
+          .select("id", { count: "exact", head: true })
+          .eq("business_id", theme.id)
+          .in("status", ["PAID", "CONFIRMED", "COMPLETED"]),
+        supabase.from("tour_review_stats")
+          .select("tour_id, avg_rating, review_count")
+          .eq("business_id", theme.id),
+      ]);
+
+      const activeTours = (toursRes.data || []).filter((t: any) => !t.hidden);
+      setTours(activeTours);
+      setComboOffers(combosRes.data || []);
+
       const spotMap: Record<string, number> = {};
-      for (const s of (slots || [])) {
+      for (const s of (slotsRes.data || [])) {
         const avail = Math.max(0, (s.capacity_total || 0) - (s.booked || 0) - (s.held || 0));
         spotMap[s.tour_id] = (spotMap[s.tour_id] || 0) + avail;
       }
       setSpotsThisWeek(spotMap);
+      setTotalBookings(bookingsRes.count || 0);
 
-      // Trust signal: total completed bookings
-      const { count } = await supabase.from("bookings")
-        .select("id", { count: "exact", head: true })
-        .eq("business_id", theme.id)
-        .in("status", ["PAID", "CONFIRMED", "COMPLETED"]);
-      setTotalBookings(count || 0);
-
-      // Review stats per tour
-      const { data: rvStats } = await supabase.from("tour_review_stats")
-        .select("tour_id, avg_rating, review_count")
-        .eq("business_id", theme.id);
       const rvMap: Record<string, { avg: number; count: number }> = {};
-      for (const rs of (rvStats || [])) {
+      for (const rs of (rvStatsRes.data || [])) {
         if (rs.review_count > 0) rvMap[rs.tour_id] = { avg: Number(rs.avg_rating), count: rs.review_count };
       }
       setReviewStats(rvMap);
@@ -145,7 +143,7 @@ export default function Home() {
 
       {/* Mobile tour cards — compact 2-column grid */}
       <div className="grid grid-cols-2 gap-3 md:hidden">
-        {tours.map((tour) => {
+        {tours.map((tour, idx) => {
           const rv = reviewStats[tour.id];
           const spots = spotsThisWeek[tour.id];
           const urgencyLabel = spots !== undefined && spots <= 6 && spots > 0
@@ -156,8 +154,8 @@ export default function Home() {
               aria-label={"Book " + tour.name}
               onClick={() => router.push("/book?tour=" + tour.id)}>
               <div className="relative aspect-square">
-                <Image src={tour.image_url || TOUR_IMAGES[tour.name] || TOUR_IMAGES["Sea Kayak"]} alt={tour.name}
-                  fill sizes="(max-width: 768px) 45vw, 285px" className="object-cover" />
+                <Image src={tour.image_url || TOUR_IMAGES[tour.name] || TOUR_IMAGES["Sea Kayak"]} alt={tour.name + " tour"}
+                  fill sizes="(max-width: 768px) 45vw, 285px" className="object-cover" priority={idx === 0} loading={idx === 0 ? "eager" : "lazy"} />
                 {urgencyLabel && (
                   <div className="absolute top-2.5 right-2.5 bg-gray-900/85 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
                     {urgencyLabel}
@@ -185,7 +183,7 @@ export default function Home() {
 
       {/* Desktop tour cards — original hover layout */}
       <div className="hidden md:grid gap-8 justify-items-center" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(275px, 1fr))" }}>
-        {tours.map((tour) => {
+        {tours.map((tour, idx) => {
           const rv = reviewStats[tour.id];
           const spots = spotsThisWeek[tour.id];
           const urgencyLabel = spots !== undefined && spots <= 6 && spots > 0
@@ -198,8 +196,8 @@ export default function Home() {
 
                 {/* Image */}
                 <div className="absolute top-0 left-0 w-full h-[65%]">
-                  <Image src={tour.image_url || TOUR_IMAGES[tour.name] || TOUR_IMAGES["Sea Kayak"]} alt={tour.name}
-                    fill sizes="285px" className="object-cover" />
+                  <Image src={tour.image_url || TOUR_IMAGES[tour.name] || TOUR_IMAGES["Sea Kayak"]} alt={tour.name + " tour"}
+                    fill sizes="285px" className="object-cover" priority={idx === 0} loading={idx === 0 ? "eager" : "lazy"} />
                   <div className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-70"
                     style={{ backgroundColor: 'var(--hoverOverlay, #48cfad)' }} />
                   {/* Urgency badge */}
