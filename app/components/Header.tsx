@@ -5,12 +5,12 @@ import { useState } from "react";
 import { useTheme } from "./ThemeProvider";
 
 export default function Header() {
-  var theme = useTheme();
-  var name = theme.business_name || "Book Your Tour";
-  var tagline = theme.business_tagline || "";
-  var logoUrl = theme.logo_url;
-  var voucherLabel = theme.nav_gift_voucher_label || "Gift Voucher";
-  var bookingsLabel = theme.nav_my_bookings_label || "My Bookings";
+  const theme = useTheme();
+  const name = theme.business_name || "Book Your Tour";
+  const tagline = theme.business_tagline || "";
+  const logoUrl = theme.logo_url;
+  const voucherLabel = theme.nav_gift_voucher_label || "Gift Voucher";
+  const bookingsLabel = theme.nav_my_bookings_label || "My Bookings";
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (

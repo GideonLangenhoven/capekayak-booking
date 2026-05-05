@@ -35,7 +35,7 @@ function getTenantSlug(): string {
 function readRaw(): BookingDraft | null {
   if (typeof window === "undefined") return null;
   try {
-    var raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     return JSON.parse(raw) as BookingDraft;
   } catch {
@@ -46,8 +46,8 @@ function readRaw(): BookingDraft | null {
 export function saveDraft(partial: Partial<BookingDraft>) {
   if (typeof window === "undefined") return;
   try {
-    var existing = readRaw();
-    var merged: BookingDraft = {
+    const existing = readRaw();
+    const merged: BookingDraft = {
       ...empty,
       ...(existing ?? {}),
       ...partial,
@@ -59,11 +59,11 @@ export function saveDraft(partial: Partial<BookingDraft>) {
 }
 
 export function readValidDraft(): BookingDraft | null {
-  var d = readRaw();
+  const d = readRaw();
   if (!d) return null;
-  var age = Date.now() - (d.savedAt || 0);
-  var tenant = getTenantSlug();
-  var valid = age >= 0 && age < TTL_MS && d.tenantSlug === tenant && !!d.tourId;
+  const age = Date.now() - (d.savedAt || 0);
+  const tenant = getTenantSlug();
+  const valid = age >= 0 && age < TTL_MS && d.tenantSlug === tenant && !!d.tourId;
   if (!valid) {
     clearDraft();
     return null;
@@ -77,7 +77,7 @@ export function clearDraft() {
 }
 
 export function draftResumeUrl(d: BookingDraft): string {
-  var qs = new URLSearchParams();
+  const qs = new URLSearchParams();
   if (d.tourId) qs.set("tour", d.tourId);
   if (d.slotId) qs.set("slot", d.slotId);
   if (d.date) qs.set("date", d.date);

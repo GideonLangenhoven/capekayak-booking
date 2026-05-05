@@ -22,9 +22,9 @@ function SuccessContent() {
       const { data } = await supabase.from("bookings")
         .select("id, customer_name, email, phone, qty, total_amount, unit_price, status, created_at, waiver_status, waiver_token, tours(id, name, duration_minutes), slots(start_time)")
         .eq("id", ref).single();
-      var tourObj = Array.isArray(data?.tours) ? data.tours[0] : data?.tours;
-      var slotObj = Array.isArray(data?.slots) ? data.slots[0] : data?.slots;
-      var normalizedData = data ? { ...data, tours: tourObj, slots: slotObj } : null;
+      const tourObj = Array.isArray(data?.tours) ? data.tours[0] : data?.tours;
+      const slotObj = Array.isArray(data?.slots) ? data.slots[0] : data?.slots;
+      const normalizedData = data ? { ...data, tours: tourObj, slots: slotObj } : null;
       setBooking(normalizedData as unknown as Booking);
 
       // Load other tours for upsell

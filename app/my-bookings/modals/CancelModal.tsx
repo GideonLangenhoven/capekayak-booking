@@ -14,12 +14,12 @@ interface CancelModalProps {
 export default function CancelModal({ booking, actionLoading, onClose, onCancelRefund, onCancelVoucher, refundCalc }: CancelModalProps) {
   if (!booking) return <Modal open={false} onClose={onClose} title="Cancel Booking"><div /></Modal>;
 
-  var ypi = (booking.yoco_payment_id || "").toUpperCase();
-  var isVoucherPaid = ypi.startsWith("VOUCHER");
-  var isManualPaid = !ypi && booking.status === "PAID";
-  var isSplitPaid = ypi.startsWith("SPLIT");
+  const ypi = (booking.yoco_payment_id || "").toUpperCase();
+  const isVoucherPaid = ypi.startsWith("VOUCHER");
+  const isManualPaid = !ypi && booking.status === "PAID";
+  const isSplitPaid = ypi.startsWith("SPLIT");
 
-  var isZeroValue = Number(booking.total_amount) === 0;
+  const isZeroValue = Number(booking.total_amount) === 0;
 
   return (
     <Modal open={true} onClose={onClose} title="Cancel Booking">

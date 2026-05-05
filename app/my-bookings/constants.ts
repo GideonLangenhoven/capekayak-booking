@@ -29,7 +29,7 @@ export function getHrsBefore(b: Booking): number {
 }
 
 export function getTimeTier(b: Booking): TimeTier {
-  var hrs = getHrsBefore(b);
+  const hrs = getHrsBefore(b);
   if (hrs < 0) return "PAST";
   if (hrs < 12) return "LOCKED";
   if (hrs < 24) return "LIMITED";
@@ -37,17 +37,17 @@ export function getTimeTier(b: Booking): TimeTier {
 }
 
 export function getCountdownText(startIso: string): string | null {
-  var now = new Date();
-  var start = new Date(startIso);
-  var diffMs = start.getTime() - now.getTime();
+  const now = new Date();
+  const start = new Date(startIso);
+  const diffMs = start.getTime() - now.getTime();
   if (diffMs <= 0) return null;
-  var diffH = Math.floor(diffMs / (1000 * 60 * 60));
-  var diffM = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  const diffH = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffM = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
   if (diffH >= 48) return null;
-  var todayStr = now.toISOString().split("T")[0];
-  var tomorrowDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-  var tomorrowStr = tomorrowDate.toISOString().split("T")[0];
-  var startStr = start.toISOString().split("T")[0];
+  const todayStr = now.toISOString().split("T")[0];
+  const tomorrowDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const tomorrowStr = tomorrowDate.toISOString().split("T")[0];
+  const startStr = start.toISOString().split("T")[0];
   if (startStr === todayStr) {
     if (diffH > 0) return "Trip starts in " + diffH + "h " + diffM + "m";
     return "Trip starts in " + diffM + "m";

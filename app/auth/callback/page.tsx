@@ -4,22 +4,22 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
 
 export default function AuthCallback() {
-  var router = useRouter();
-  var [error, setError] = useState("");
+  const router = useRouter();
+  const [error, setError] = useState("");
 
   useEffect(() => {
     async function handleCallback() {
-      var params = new URLSearchParams(window.location.search);
-      var code = params.get("code");
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
       if (code) {
-        var { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+        const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
         if (exchangeErr) {
           setError("Sign-in link expired. Please try again.");
           return;
         }
       }
 
-      var { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         try { await supabase.rpc("link_customer_user"); } catch (_) { void _; }
         if (session.user?.email) {
@@ -29,7 +29,7 @@ export default function AuthCallback() {
         return;
       }
 
-      var { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, sess) => {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, sess) => {
         if (event === "SIGNED_IN" && sess) {
           try { await supabase.rpc("link_customer_user"); } catch (_) { void _; }
           if (sess.user?.email) {

@@ -3,16 +3,16 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
 export default function ReviewPage() {
-  var { token } = useParams<{ token: string }>();
-  var [loading, setLoading] = useState(true);
-  var [info, setInfo] = useState<{ tourName: string | null; businessName: string | null; reviewerName: string | null } | null>(null);
-  var [error, setError] = useState("");
-  var [submitted, setSubmitted] = useState(false);
-  var [rating, setRating] = useState(0);
-  var [hoverRating, setHoverRating] = useState(0);
-  var [comment, setComment] = useState("");
-  var [name, setName] = useState("");
-  var [saving, setSaving] = useState(false);
+  const { token } = useParams<{ token: string }>();
+  const [loading, setLoading] = useState(true);
+  const [info, setInfo] = useState<{ tourName: string | null; businessName: string | null; reviewerName: string | null } | null>(null);
+  const [error, setError] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -20,7 +20,7 @@ export default function ReviewPage() {
       .then(async (res) => {
         if (res.status === 410) { setSubmitted(true); setLoading(false); return; }
         if (!res.ok) { setError("This review link is invalid or has expired."); setLoading(false); return; }
-        var data = await res.json();
+        const data = await res.json();
         setInfo(data);
         if (data.reviewerName) setName(data.reviewerName);
         setLoading(false);
@@ -32,7 +32,7 @@ export default function ReviewPage() {
     e.preventDefault();
     if (rating === 0) return;
     setSaving(true);
-    var res = await fetch("/api/review-submit", {
+    const res = await fetch("/api/review-submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token, rating, comment: comment.trim() || null, reviewerName: name.trim() || null }),
@@ -40,7 +40,7 @@ export default function ReviewPage() {
     if (res.ok) {
       setSubmitted(true);
     } else {
-      var data = await res.json().catch(() => ({}));
+      const data = await res.json().catch(() => ({}));
       setError(data.error || "Failed to submit. Please try again.");
     }
     setSaving(false);

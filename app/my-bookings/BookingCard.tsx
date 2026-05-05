@@ -33,33 +33,33 @@ export default function BookingCard({
   onReschedule, onEditGuests, onContactDetails, onSpecialRequest, onCancel, onAdminReview, onClaimCredit,
   refundCalc,
 }: BookingCardProps) {
-  var router = useRouter();
-  var tier = getTimeTier(b);
-  var isPast = tier === "PAST";
-  var isActive = ["PAID", "CONFIRMED"].includes(b.status);
-  var isCancelled = b.status === "CANCELLED";
-  var isExpired = b.status === "EXPIRED";
-  var isCompleted = b.status === "COMPLETED" || (isActive && isPast);
+  const router = useRouter();
+  const tier = getTimeTier(b);
+  const isPast = tier === "PAST";
+  const isActive = ["PAID", "CONFIRMED"].includes(b.status);
+  const isCancelled = b.status === "CANCELLED";
+  const isExpired = b.status === "EXPIRED";
+  const isCompleted = b.status === "COMPLETED" || (isActive && isPast);
 
   // C9: countdown
-  var countdown = b.slots?.start_time && !isPast ? getCountdownText(b.slots.start_time) : null;
+  const countdown = b.slots?.start_time && !isPast ? getCountdownText(b.slots.start_time) : null;
   void countdownTick;
 
   // C2: waiver
-  var waiverSigned = b.waiver_status === "SIGNED" || b.waiver_status === "signed";
-  var waiverPending = !waiverSigned && !isPast && !isCancelled && isActive;
-  var isUrgentWaiver = waiverPending && b.slots?.start_time && getHrsBefore(b) < 24;
+  const waiverSigned = b.waiver_status === "SIGNED" || b.waiver_status === "signed";
+  const waiverPending = !waiverSigned && !isPast && !isCancelled && isActive;
+  const isUrgentWaiver = waiverPending && b.slots?.start_time && getHrsBefore(b) < 24;
 
   // C10: meeting point
-  var meetingPoint = b.tours?.meeting_point;
-  var whatToBring = b.tours?.what_to_bring;
-  var mapsUrl = meetingPoint ? "https://www.google.com/maps/search/" + encodeURIComponent(meetingPoint) : null;
+  const meetingPoint = b.tours?.meeting_point;
+  const whatToBring = b.tours?.what_to_bring;
+  const mapsUrl = meetingPoint ? "https://www.google.com/maps/search/" + encodeURIComponent(meetingPoint) : null;
 
   // C4: trip photos
-  var photos = b.slot_id ? tripPhotos[b.slot_id] : null;
+  const photos = b.slot_id ? tripPhotos[b.slot_id] : null;
 
   // C7: timeline logs
-  var logs = bookingLogs[b.id] || [];
+  const logs = bookingLogs[b.id] || [];
 
   return (
     <div key={b.id} className={"rounded-[1.5rem] p-5 shadow-sm border mb-3 flex flex-col relative overflow-hidden transition-shadow " + (isCancelled ? "bg-slate-50 border-slate-100 opacity-80" : "bg-[#FDFDFB] border-slate-100 hover:shadow-md")}>

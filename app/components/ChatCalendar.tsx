@@ -15,9 +15,9 @@ interface CalendarCell {
 }
 
 export default function ChatCalendar({ availableDates, onSelectDate }: CalendarProps) {
-  var now = new Date();
-  var [viewMonth, setViewMonth] = useState(now.getMonth());
-  var [viewYear, setViewYear] = useState(now.getFullYear());
+  const now = new Date();
+  const [viewMonth, setViewMonth] = useState(now.getMonth());
+  const [viewYear, setViewYear] = useState(now.getFullYear());
 
   useEffect(() => {
     if (availableDates.length > 0) {
@@ -27,13 +27,13 @@ export default function ChatCalendar({ availableDates, onSelectDate }: CalendarP
     }
   }, [availableDates]);
 
-  var availSet = new Set(availableDates.map(d => d.date));
+  const availSet = new Set(availableDates.map(d => d.date));
 
-  var firstDay = new Date(viewYear, viewMonth, 1).getDay();
-  var daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  var monthName = new Date(viewYear, viewMonth).toLocaleDateString("en-ZA", { month: "long", year: "numeric" });
+  const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const monthName = new Date(viewYear, viewMonth).toLocaleDateString("en-ZA", { month: "long", year: "numeric" });
 
-  var dayNames = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+  const dayNames = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
   function prevMonth() {
     if (viewMonth === 0) { setViewMonth(11); setViewYear(viewYear - 1); }
@@ -44,16 +44,16 @@ export default function ChatCalendar({ availableDates, onSelectDate }: CalendarP
     else setViewMonth(viewMonth + 1);
   }
 
-  var canPrev = viewYear > now.getFullYear() || (viewYear === now.getFullYear() && viewMonth > now.getMonth());
-  var maxDate = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
-  var canNext = new Date(viewYear, viewMonth + 1, 1) < maxDate;
+  const canPrev = viewYear > now.getFullYear() || (viewYear === now.getFullYear() && viewMonth > now.getMonth());
+  const maxDate = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+  const canNext = new Date(viewYear, viewMonth + 1, 1) < maxDate;
 
-  var cells: (CalendarCell | null)[] = [];
-  for (var i = 0; i < firstDay; i++) cells.push(null);
-  for (var d = 1; d <= daysInMonth; d++) {
-    var dateStr = viewYear + "-" + String(viewMonth + 1).padStart(2, "0") + "-" + String(d).padStart(2, "0");
-    var isPast = new Date(dateStr) < new Date(now.toISOString().split("T")[0]);
-    var hasSlots = availSet.has(dateStr);
+  const cells: (CalendarCell | null)[] = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = viewYear + "-" + String(viewMonth + 1).padStart(2, "0") + "-" + String(d).padStart(2, "0");
+    const isPast = new Date(dateStr) < new Date(now.toISOString().split("T")[0]);
+    const hasSlots = availSet.has(dateStr);
     cells.push({ day: d, date: dateStr, isPast: isPast, hasSlots: hasSlots });
   }
 

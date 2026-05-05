@@ -4,9 +4,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
 function VoucherSuccessRedirect() {
-  var router = useRouter();
-  var params = useSearchParams();
-  var code = params.get("code") || "";
+  const router = useRouter();
+  const params = useSearchParams();
+  const code = params.get("code") || "";
 
   useEffect(() => {
     router.replace("/voucher-confirmed" + (code ? "?code=" + encodeURIComponent(code) : ""));

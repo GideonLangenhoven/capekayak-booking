@@ -59,7 +59,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   useEffect(() => {
     if (hydratedRef.current || !selectedTour || allSlots.length === 0) return;
     hydratedRef.current = true;
-    var d = readValidDraft();
+    const d = readValidDraft();
     if (!d || d.tourId !== selectedTour.id) return;
     if (d.customerName) setName(d.customerName);
     if (d.customerEmail) setEmail(d.customerEmail);
@@ -68,13 +68,13 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     if (d.marketingConsent) setMarketingOptIn(true);
     if (d.promoCode) setPromoCode(d.promoCode);
     if (d.addOns?.length) {
-      var ao: Record<string, number> = {};
+      const ao: Record<string, number> = {};
       d.addOns.forEach(function (a) { ao[a.id] = a.qty; });
       setSelectedAddOns(ao);
     }
     // If URL has slot + date, auto-select and jump to details
     if (draftSlotId && draftDate) {
-      var matchSlot = allSlots.find(function (s) { return s.id === draftSlotId; });
+      const matchSlot = allSlots.find(function (s) { return s.id === draftSlotId; });
       if (matchSlot) {
         setSelectedDate(new Date(draftDate));
         setSelectedSlot(matchSlot);
@@ -112,7 +112,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   // Debounced save to localStorage on form field changes
   useEffect(() => {
     if (!selectedTour) return;
-    var id = setTimeout(function () {
+    const id = setTimeout(function () {
       saveLocalDraft({
         tourId: selectedTour.id,
         tourName: selectedTour.name,
@@ -164,17 +164,17 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   useEffect(() => {
     if (!selectedTour || !theme.id) return;
     (async () => {
-      var { data: nativeRevs } = await supabase.from("reviews")
+      const { data: nativeRevs } = await supabase.from("reviews")
         .select("id, rating, comment, reviewer_name, reviewer_avatar_url, source, submitted_at")
         .eq("tour_id", selectedTour.id).eq("status", "APPROVED").not("rating", "is", null)
         .order("submitted_at", { ascending: false }).limit(10);
-      var { data: googleRevs } = await supabase.from("reviews")
+      const { data: googleRevs } = await supabase.from("reviews")
         .select("id, rating, comment, reviewer_name, reviewer_avatar_url, source, submitted_at")
         .eq("business_id", theme.id).eq("source", "GOOGLE").eq("status", "APPROVED").not("rating", "is", null)
         .order("submitted_at", { ascending: false }).limit(10);
-      var combined = [...(nativeRevs || []), ...(googleRevs || [])];
-      var seen = new Set<string>();
-      var deduped = combined.filter(r => { if (seen.has(r.id)) return false; seen.add(r.id); return true; });
+      const combined = [...(nativeRevs || []), ...(googleRevs || [])];
+      const seen = new Set<string>();
+      const deduped = combined.filter(r => { if (seen.has(r.id)) return false; seen.add(r.id); return true; });
       deduped.sort((a, b) => new Date(b.submitted_at || 0).getTime() - new Date(a.submitted_at || 0).getTime());
       setReviews(deduped.slice(0, 20));
     })();

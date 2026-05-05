@@ -2,10 +2,10 @@
 import { useTheme } from "./ThemeProvider";
 
 export default function Footer() {
-  var theme = useTheme();
-  var name = theme.business_name || "Your Booking";
-  var line1 = theme.footer_line_one || (name + (theme.business_tagline ? " \u00B7 " + theme.business_tagline : ""));
-  var line2 = theme.footer_line_two || "";
+  const theme = useTheme();
+  const name = theme.business_name || "Your Booking";
+  const line1 = theme.footer_line_one || (name + (theme.business_tagline ? " \u00B7 " + theme.business_tagline : ""));
+  const line2 = theme.footer_line_two || "";
 
   return (
     <footer className="mt-14 border-t border-[color:var(--border)]">

@@ -5,16 +5,16 @@ import { BookingFlow } from "../book/page";
 import BookingFlowSkeleton from "../components/skeletons/BookingFlowSkeleton";
 
 function EmbedContent() {
-  var containerRef = useRef<HTMLDivElement>(null);
-  var params = useSearchParams();
-  var bg = params.get("bg") || "transparent";
+  const containerRef = useRef<HTMLDivElement>(null);
+  const params = useSearchParams();
+  const bg = params.get("bg") || "transparent";
 
   useEffect(() => {
-    var el = containerRef.current;
+    const el = containerRef.current;
     if (!el) return;
-    var observer = new ResizeObserver(function (entries) {
-      for (var e of entries) {
-        var h = Math.ceil(e.contentRect.height);
+    const observer = new ResizeObserver(function (entries) {
+      for (const e of entries) {
+        const h = Math.ceil(e.contentRect.height);
         window.parent?.postMessage({ type: "bt:resize", height: h }, "*");
       }
     });

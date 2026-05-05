@@ -34,16 +34,16 @@ export default function EditGuestsModal({
 }: EditGuestsModalProps) {
   if (!booking) return <Modal open={false} onClose={onClose} title="Edit Guests"><div /></Modal>;
 
-  var b = booking;
-  var tier = getTimeTier(b);
-  var unitPrice = Number(b.unit_price || 0);
-  var guestDiff = guestQty - b.qty;
-  var canRemove = tier === "FULL";
-  var maxQty = (b.slots?.capacity_total || 999) - (b.slots?.booked || 0) - (b.slots?.held || 0) + b.qty;
-  var addCost = guestDiff > 0 ? guestDiff * unitPrice : 0;
+  const b = booking;
+  const tier = getTimeTier(b);
+  const unitPrice = Number(b.unit_price || 0);
+  const guestDiff = guestQty - b.qty;
+  const canRemove = tier === "FULL";
+  const maxQty = (b.slots?.capacity_total || 999) - (b.slots?.booked || 0) - (b.slots?.held || 0) + b.qty;
+  const addCost = guestDiff > 0 ? guestDiff * unitPrice : 0;
 
   // Calculate discounts
-  var promoDiscount = 0;
+  let promoDiscount = 0;
   if (promoApplied && addCost > 0) {
     if (promoApplied.discount_type === "PERCENT") {
       promoDiscount = Math.round(addCost * promoApplied.discount_value / 100 * 100) / 100;
@@ -51,9 +51,9 @@ export default function EditGuestsModal({
       promoDiscount = Math.min(promoApplied.discount_value, addCost);
     }
   }
-  var afterPromo = Math.max(0, addCost - promoDiscount);
-  var voucherCredit = voucherApplied ? Math.min(voucherApplied.balance, afterPromo) : 0;
-  var finalCost = Math.max(0, afterPromo - voucherCredit);
+  const afterPromo = Math.max(0, addCost - promoDiscount);
+  const voucherCredit = voucherApplied ? Math.min(voucherApplied.balance, afterPromo) : 0;
+  const finalCost = Math.max(0, afterPromo - voucherCredit);
 
   return (
     <Modal open={true} onClose={onClose} title="Edit Guests">
