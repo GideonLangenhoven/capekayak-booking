@@ -301,8 +301,8 @@ function WaiverContent() {
                   {participantDobs.map((dob, i) => {
                     const parts = dob ? dob.split("-") : ["", "", ""];
                     const y = parts[0] || "";
-                    const m = parts[1] || "";
-                    const d = parts[2] || "";
+                    const m = parts[1] ? String(Number(parts[1])) : "";
+                    const d = parts[2] ? String(Number(parts[2])) : "";
                     const updateDob = (day: string, month: string, year: string) => {
                       const updated = [...participantDobs];
                       updated[i] = (year || "") + "-" + (month ? month.padStart(2, "0") : "") + "-" + (day ? day.padStart(2, "0") : "");
