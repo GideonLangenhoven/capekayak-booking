@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useRef, Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
-import { supabase } from "../lib/supabase";
+import { createTenantSupabase, createVoucherSupabase, supabase } from "../lib/supabase";
 import { useTheme } from "../components/ThemeProvider";
 import BookingFlowSkeleton from "../components/skeletons/BookingFlowSkeleton";
 import Toast from "../components/ui/Toast";
@@ -15,6 +15,7 @@ import { saveDraft as saveLocalDraft, clearDraft as clearLocalDraft, readValidDr
 export function BookingFlow({ embed = false }: { embed?: boolean }) {
   const params = useSearchParams();
   const theme = useTheme();
+  const tenantSupabase = useMemo(() => createTenantSupabase(theme.id), [theme.id]);
   const tz = theme.timezone || "Africa/Johannesburg";
   const tzAbbr = useMemo(() => {
     try {
@@ -148,7 +149,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   useEffect(() => {
     if (!theme.id) return; // wait for ThemeProvider to resolve business id
     (async () => {
-      const q = supabase.from("tours").select("*").eq("business_id", theme.id).order("sort_order", { ascending: true });
+      const q = tenantSupabase.from("tours").select("*").eq("business_id", theme.id).order("sort_order", { ascending: true });
       const { data } = await q;
       setTours((data || []) as unknown as Tour[]);
       if (tourId) {
@@ -161,20 +162,20 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
         }
       }
       // Fetch active add-ons for this business
-      const { data: addOnsData } = await supabase.from("add_ons").select("id, name, description, price, image_url").eq("business_id", theme.id).eq("active", true).order("sort_order");
+      const { data: addOnsData } = await tenantSupabase.from("add_ons").select("id, name, description, price, image_url").eq("business_id", theme.id).eq("active", true).order("sort_order");
       setAvailableAddOns((addOnsData || []) as AddOn[]);
       setLoading(false);
     })();
-  }, [tourId, theme.id]);
+  }, [tenantSupabase, tourId, theme.id]);
 
   useEffect(() => {
     if (!selectedTour || !theme.id) return;
     (async () => {
-      const { data: nativeRevs } = await supabase.from("reviews")
+      const { data: nativeRevs } = await tenantSupabase.from("reviews")
         .select("id, rating, comment, reviewer_name, reviewer_avatar_url, source, submitted_at")
         .eq("tour_id", selectedTour.id).eq("status", "APPROVED").not("rating", "is", null)
         .order("submitted_at", { ascending: false }).limit(10);
-      const { data: googleRevs } = await supabase.from("reviews")
+      const { data: googleRevs } = await tenantSupabase.from("reviews")
         .select("id, rating, comment, reviewer_name, reviewer_avatar_url, source, submitted_at")
         .eq("business_id", theme.id).eq("source", "GOOGLE").eq("status", "APPROVED").not("rating", "is", null)
         .order("submitted_at", { ascending: false }).limit(10);
@@ -184,7 +185,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
       deduped.sort((a, b) => new Date(b.submitted_at || 0).getTime() - new Date(a.submitted_at || 0).getTime());
       setReviews(deduped.slice(0, 20));
     })();
-  }, [selectedTour, theme.id]);
+  }, [tenantSupabase, selectedTour, theme.id]);
 
   const BOOKING_CUTOFF_MINUTES = 60;
 
@@ -192,7 +193,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     const now = new Date();
     const cutoff = new Date(now.getTime() + BOOKING_CUTOFF_MINUTES * 60 * 1000);
     const later = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
-    const { data } = await supabase.from("slots").select("*").eq("tour_id", tid).eq("status", "OPEN")
+    const { data } = await tenantSupabase.from("slots").select("*").eq("tour_id", tid).eq("status", "OPEN")
       .gt("start_time", cutoff.toISOString()).lt("start_time", later.toISOString()).order("start_time", { ascending: true });
     setAllSlots(((data || []) as unknown as Slot[]).filter((s) => s.capacity_total - s.booked - (s.held || 0) > 0));
   }
@@ -266,7 +267,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     const code = voucherCode.toUpperCase().replace(/\s/g, "");
     if (code.length !== 8) { setVoucherError("Codes are 8 characters"); return; }
     if (vouchers.some(v => v.code === code)) { setVoucherError("Already applied"); return; }
-    const { data } = await supabase.from("vouchers").select("*").eq("code", code).single();
+    const { data } = await createVoucherSupabase(code).from("vouchers").select("*").eq("code", code).single();
     if (!data) { setVoucherError("Code not found"); return; }
     if (data.status === "REDEEMED") { setVoucherError("Already redeemed"); return; }
     if (data.status !== "ACTIVE") { setVoucherError("Not valid"); return; }

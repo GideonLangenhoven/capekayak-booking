@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { supabase } from "./lib/supabase";
+import { createTenantSupabase } from "./lib/supabase";
 import { useRouter } from "next/navigation";
 import SectionHeader from "./components/ui/SectionHeader";
 import Card from "./components/ui/Card";
@@ -17,6 +17,7 @@ const TOUR_IMAGES: Record<string, string> = {
 
 export default function Home() {
   const theme = useTheme();
+  const tenantSupabase = useMemo(() => createTenantSupabase(theme.id), [theme.id]);
   const router = useRouter();
   const [tours, setTours] = useState<any[]>([]);
   const [comboOffers, setComboOffers] = useState<any[]>([]);
@@ -35,23 +36,23 @@ export default function Home() {
       const weekEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
       const [toursRes, combosRes, slotsRes, bookingsRes, rvStatsRes] = await Promise.all([
-        supabase.from("tours").select("*").eq("business_id", theme.id).eq("active", true).order("sort_order", { ascending: true }),
-        supabase.from("combo_offers")
+        tenantSupabase.from("tours").select("*").eq("business_id", theme.id).eq("active", true).order("sort_order", { ascending: true }),
+        tenantSupabase.from("combo_offers")
           .select("*, tour_a:tours!combo_offers_tour_a_id_fkey(id, name, image_url, duration_minutes), tour_b:tours!combo_offers_tour_b_id_fkey(id, name, image_url, duration_minutes)")
           .or(`business_a_id.eq.${theme.id},business_b_id.eq.${theme.id}`)
           .eq("active", true)
           .order("sort_order", { ascending: true }),
-        supabase.from("slots")
+        tenantSupabase.from("slots")
           .select("tour_id, capacity_total, booked, held")
           .eq("business_id", theme.id)
           .eq("status", "OPEN")
           .gte("start_time", now.toISOString())
           .lte("start_time", weekEnd.toISOString()),
-        supabase.from("bookings")
+        tenantSupabase.from("bookings")
           .select("id", { count: "exact", head: true })
           .eq("business_id", theme.id)
           .in("status", ["PAID", "CONFIRMED", "COMPLETED"]),
-        supabase.from("tour_review_stats")
+        tenantSupabase.from("tour_review_stats")
           .select("tour_id, avg_rating, review_count")
           .eq("business_id", theme.id),
       ]);
@@ -76,7 +77,7 @@ export default function Home() {
 
       setLoading(false);
     })();
-  }, [theme.id]);
+  }, [tenantSupabase, theme.id]);
 
   if (loading) return (
     <div className="app-container page-wrap">

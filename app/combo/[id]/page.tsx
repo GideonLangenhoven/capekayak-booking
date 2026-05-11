@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
-import { supabase } from "../../lib/supabase";
+import { createTenantSupabase } from "../../lib/supabase";
 import { useTheme } from "../../components/ThemeProvider";
 import { fmtDate, fmtTime, fmtMonth, dateKeyInTz, isSameDay, getDaysInMonth, getFirstDay } from "../../lib/format";
 import type { ComboOffer, Slot } from "../../lib/types";
@@ -11,9 +11,23 @@ const BOOKING_CUTOFF_MINUTES = 60;
 const SU = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SK = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
+type PaysafeCheckout = {
+  setup: (
+    apiKey: string,
+    options: Record<string, unknown>,
+    callback: (instance: { close?: () => void }, error: unknown, result: { paymentHandleToken?: string } | null) => void,
+    closeCallback?: (stage: string, expired: boolean) => void,
+  ) => void;
+};
+
+type PaysafeWindow = Window & {
+  paysafe?: { checkout?: PaysafeCheckout };
+};
+
 export default function ComboBookingPage() {
   const { id: comboId } = useParams<{ id: string }>();
   const theme = useTheme();
+  const tenantSupabase = useMemo(() => createTenantSupabase(theme.id), [theme.id]);
   const tz = theme.timezone || "Africa/Johannesburg";
 
   const [combo, setCombo] = useState<ComboOffer | null>(null);
@@ -53,9 +67,9 @@ export default function ComboBookingPage() {
 
   // Load combo offer
   useEffect(() => {
-    if (!comboId) return;
+    if (!comboId || !theme.id) return;
     (async () => {
-      const { data } = await supabase.from("combo_offers")
+      const { data } = await tenantSupabase.from("combo_offers")
         .select("*, tour_a:tours!combo_offers_tour_a_id_fkey(id, name, image_url, duration_minutes, base_price_per_person, business_id), tour_b:tours!combo_offers_tour_b_id_fkey(id, name, image_url, duration_minutes, base_price_per_person, business_id)")
         .eq("id", comboId)
         .eq("active", true)
@@ -68,7 +82,7 @@ export default function ComboBookingPage() {
       }
       setLoading(false);
     })();
-  }, [comboId]);
+  }, [tenantSupabase, comboId, theme.id]);
 
   // Load Paysafe SDK
   useEffect(() => {
@@ -85,7 +99,7 @@ export default function ComboBookingPage() {
     const now = new Date();
     const cutoff = new Date(now.getTime() + BOOKING_CUTOFF_MINUTES * 60 * 1000);
     const later = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
-    const { data } = await supabase.from("slots").select("*").eq("tour_id", tourId).eq("status", "OPEN")
+    const { data } = await tenantSupabase.from("slots").select("*").eq("tour_id", tourId).eq("status", "OPEN")
       .gt("start_time", cutoff.toISOString()).lt("start_time", later.toISOString()).order("start_time", { ascending: true });
     setter(((data || []) as unknown as Slot[]).filter((s) => s.capacity_total - s.booked - (s.held || 0) > 0));
   }
@@ -255,13 +269,14 @@ export default function ComboBookingPage() {
       setBookingRefB((data.booking_b_id || "").substring(0, 8).toUpperCase());
 
       // Launch Paysafe checkout overlay
-      if (paysafeReady && (window as { paysafe?: { checkout?: { setup: Function } } }).paysafe?.checkout) {
+      const paysafeCheckout = (window as PaysafeWindow).paysafe?.checkout;
+      if (paysafeReady && paysafeCheckout) {
         const totalCents = Math.round(comboTotal * 100);
         const nameParts = name.trim().split(/\s+/);
         const firstName = nameParts[0] || name;
         const lastName = nameParts.slice(1).join(" ") || name;
 
-        ((window as { paysafe?: { checkout?: { setup: Function } } }).paysafe!.checkout!.setup as Function)(data.paysafe_api_key, {
+        paysafeCheckout.setup(data.paysafe_api_key, {
           amount: totalCents,
           currency: combo.currency || "ZAR",
           merchantRefNum: data.combo_booking_id,

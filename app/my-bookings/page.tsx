@@ -1,8 +1,9 @@
 "use client";
-import { useState, useCallback, useEffect, useRef } from "react";
-import { supabase } from "../lib/supabase";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { createScopedSupabase, createTenantSupabase, createVoucherSupabase, supabase } from "../lib/supabase";
 import Link from "next/link";
 import { normalizePhone } from "../lib/phone";
+import { useTheme } from "../components/ThemeProvider";
 import { getTimeTier, getHrsBefore } from "./constants";
 import type { Booking, Slot, BookingLog } from "../lib/types";
 
@@ -37,6 +38,8 @@ function Toast({ message, type, onDismiss }: { message: string; type: "success" 
    MAIN COMPONENT
    ═══════════════════════════════════════════════════════ */
 export default function MyBookings() {
+  const theme = useTheme();
+  const tenantSupabase = useMemo(() => createTenantSupabase(theme.id), [theme.id]);
   // Login — restore from sessionStorage if available
   const [email, setEmail] = useState(() => {
     if (typeof window !== "undefined") return sessionStorage.getItem("mb_email") || "";
@@ -157,9 +160,6 @@ export default function MyBookings() {
       lookupBookings(true);
       return;
     }
-    if (typeof window !== "undefined" && sessionStorage.getItem("mb_loggedIn") === "1" && email && phoneDigits) {
-      lookupBookings();
-    }
   }, [sessionChecked, autoLoginAttempted, loggedIn, email, phoneDigits, authSession]);
 
   /* ───── Fetch customer profile (auth-session users only) ───── */
@@ -171,14 +171,14 @@ export default function MyBookings() {
       setAuthUser(session.user);
       const bizId = bookings[0]?.business_id;
       if (!bizId) return;
-      const { data } = await supabase.from("customers")
+      const { data } = await tenantSupabase.from("customers")
         .select("id, email, name, phone, date_of_birth, marketing_consent, total_bookings, total_spent, first_booking_at, created_at")
         .eq("business_id", bizId)
         .eq("user_id", session.user.id)
         .maybeSingle();
       if (data) setCustomer(data);
     })();
-  }, [authSession, loggedIn, bookings, customer]);
+  }, [tenantSupabase, authSession, loggedIn, bookings, customer]);
 
   /* ───── C9: Countdown interval ───── */
   useEffect(() => {
@@ -245,7 +245,7 @@ export default function MyBookings() {
     const phoneTail = norm.replace(/\D/g, "").slice(-9);
     try {
       const resp = await supabase.functions.invoke("send-otp", {
-        body: { action: "send", email: email.toLowerCase(), phone_tail: phoneTail },
+        body: { action: "send", email: email.toLowerCase(), phone_tail: phoneTail, business_id: theme.id },
       });
       if (resp.error || !(resp.data as Record<string, unknown>)?.success) {
         let errMsg = "Something went wrong. Please try again.";
@@ -264,7 +264,7 @@ export default function MyBookings() {
       setLoginError("Failed to send verification code. Please try again.");
     }
     setOtpSending(false);
-  }, [email, phoneDigits, dialCode]);
+  }, [email, phoneDigits, dialCode, theme.id]);
 
   /* ───── Verify OTP then load bookings ───── */
   const verifyOtp = useCallback(async function () {
@@ -272,63 +272,52 @@ export default function MyBookings() {
     setOtpError("");
     setOtpVerifying(true);
     try {
-      const resp = await supabase.functions.invoke("send-otp", {
-        body: { action: "verify", token: otpToken, code: otpCode.trim() },
+      const resp = await supabase.functions.invoke("my-bookings-lookup", {
+        body: {
+          token: otpToken,
+          code: otpCode.trim(),
+          email: email.toLowerCase(),
+          business_id: theme.id,
+        },
       });
       const respData = (resp.data || {}) as Record<string, unknown>;
-      if (!respData.verified) {
+      if (resp.error || !respData.success) {
         setOtpError(String(respData.error || "Invalid code. Please try again."));
         setOtpVerifying(false);
         return;
       }
-      // OTP verified — now load bookings
-      await lookupBookings();
+      applyLookupResponse(respData, false);
+      await loadBookingExtras((respData.bookings || []) as unknown as Booking[]);
     } catch {
       setOtpError("Verification failed. Please try again.");
     }
     setOtpVerifying(false);
-  }, [otpToken, otpCode]);
+  }, [otpToken, otpCode, email, theme.id]);
 
-  /* ───── Lookup bookings (called after OTP verified or auth session) ───── */
-  const lookupBookings = useCallback(async function (emailOnly?: boolean) {
-    setLoading(true);
-    let { data } = await supabase.from("bookings")
-      .select("id, business_id, customer_name, email, phone, qty, total_amount, status, refund_status, refund_amount, created_at, unit_price, tour_id, slot_id, custom_fields, converted_to_voucher_id, cancelled_at, cancellation_reason, waiver_status, waiver_token, yoco_payment_id, slots(start_time, capacity_total, booked, held), tours(name, description, duration_minutes)")
-      .eq("email", email.toLowerCase()).order("created_at", { ascending: false });
-    let matched: typeof data;
-    if (emailOnly) {
-      matched = data || [];
-    } else {
-      const norm = normalizePhone(dialCode, phoneDigits);
-      const phoneTail = norm.replace(/\D/g, "").slice(-9);
-      matched = (data || []).filter(function (b) {
-        const rawPhone = (b.phone || "").replace(/\D/g, "");
-        if (!rawPhone) return true;
-        return rawPhone.slice(-9) === phoneTail;
-      });
-    }
-    if (!matched || matched.length === 0) {
+  function applyLookupResponse(respData: Record<string, unknown>, emailOnly?: boolean) {
+    const data = Array.isArray(respData.bookings) ? respData.bookings : [];
+    if (data.length === 0) {
       setLoginError(emailOnly ? "No bookings found for this email." : "No bookings found for this email and phone combination.");
       setLoading(false);
-      return;
+      return false;
     }
-    data = matched;
     setBookings(data as unknown as Booking[]);
     setLoggedIn(true);
     setLoading(false);
-    // Persist session so navigating away and back stays logged in
     sessionStorage.setItem("mb_email", email.toLowerCase());
     sessionStorage.setItem("mb_dialCode", dialCode);
     sessionStorage.setItem("mb_phone", phoneDigits);
-    sessionStorage.setItem("mb_loggedIn", "1");
+    return true;
+  }
 
+  async function loadBookingExtras(data: Booking[]) {
     // C4: Fetch trip photos for completed bookings
-    const completedSlotIds = (data as unknown as Booking[])
+    const completedSlotIds = data
       .filter((b) => b.status === "COMPLETED" || (["PAID", "CONFIRMED"].includes(b.status) && getTimeTier(b) === "PAST"))
       .map((b) => b.slot_id)
       .filter(Boolean);
     if (completedSlotIds.length > 0) {
-      const { data: photos } = await supabase.from("trip_photos")
+      const { data: photos } = await tenantSupabase.from("trip_photos")
         .select("id, photo_urls, slot_id")
         .in("slot_id", completedSlotIds);
       if (photos && photos.length > 0) {
@@ -344,9 +333,9 @@ export default function MyBookings() {
     }
 
     // C7: Fetch booking logs
-    const bookingIds = (data as unknown as Booking[]).map((b: Booking) => b.id);
+    const bookingIds = data.map((b: Booking) => b.id);
     if (bookingIds.length > 0) {
-      const { data: logs } = await supabase.from("logs")
+      const { data: logs } = await tenantSupabase.from("logs")
         .select("id, booking_id, action, created_at, details")
         .in("booking_id", bookingIds)
         .order("created_at", { ascending: true });
@@ -361,18 +350,42 @@ export default function MyBookings() {
     }
 
     // Fetch refund calculations for upcoming paid bookings
-    const upcoming = (data as unknown as Booking[]).filter(function (b) { return ["PAID", "CONFIRMED"].includes(b.status) && b.slots?.start_time && new Date(b.slots.start_time) > new Date(); });
+    const upcoming = data.filter(function (b) { return ["PAID", "CONFIRMED"].includes(b.status) && b.slots?.start_time && new Date(b.slots.start_time) > new Date(); });
     if (upcoming.length > 0) {
       const calcs: Record<string, { percent: number; amount: number }> = {};
       for (const ub of upcoming) {
         try {
-          const { data: rc } = await supabase.rpc("calculate_booking_refund", { p_booking_id: ub.id });
+          const { data: rc } = await tenantSupabase.rpc("calculate_booking_refund", { p_booking_id: ub.id });
           if (rc && !rc.error) calcs[ub.id] = { percent: rc.percent, amount: Number(rc.amount) };
         } catch { /* ignore */ }
       }
       setRefundCalcs(calcs);
     }
-  }, [email, phoneDigits, dialCode]);
+  }
+
+  /* ───── Lookup bookings (called after OTP verified or auth session) ───── */
+  const lookupBookings = useCallback(async function (emailOnly?: boolean) {
+    setLoading(true);
+    const resp = await supabase.functions.invoke("my-bookings-lookup", {
+      body: {
+        token: otpToken || undefined,
+        code: otpCode.trim() || undefined,
+        email: email.toLowerCase(),
+        phone_tail: normalizePhone(dialCode, phoneDigits).replace(/\D/g, "").slice(-9),
+        emailOnly: Boolean(emailOnly),
+        business_id: theme.id,
+      },
+    });
+    const respData = (resp.data || {}) as Record<string, unknown>;
+    if (resp.error || !respData.success) {
+      setLoginError(String(respData.error || "Please verify your email again."));
+      setLoggedIn(false);
+      setLoading(false);
+      return;
+    }
+    const ok = applyLookupResponse(respData, emailOnly);
+    if (ok) await loadBookingExtras((respData.bookings || []) as unknown as Booking[]);
+  }, [email, phoneDigits, dialCode, otpToken, otpCode, theme.id]);
 
   /* ───── C11: Voucher balance check ───── */
   async function checkVoucherBalance() {
@@ -380,7 +393,8 @@ export default function MyBookings() {
     setVoucherLoading(true);
     setVoucherError("");
     setVoucherResult(null);
-    const { data, error } = await supabase.from("vouchers")
+    const voucherSupabase = createVoucherSupabase(voucherCode, theme.id);
+    const { data, error } = await voucherSupabase.from("vouchers")
       .select("code, status, current_balance, expires_at")
       .eq("code", voucherCode.trim().toUpperCase())
       .maybeSingle();
@@ -404,7 +418,8 @@ export default function MyBookings() {
         setPaymentPending(null);
         return;
       }
-      const { data } = await supabase.from("bookings")
+      const statusSupabase = createScopedSupabase({ "x-booking-success-token": bookingId });
+      const { data } = await statusSupabase.from("bookings")
         .select("status")
         .eq("id", bookingId)
         .maybeSingle();
@@ -422,7 +437,7 @@ export default function MyBookings() {
     if (!confirm("Your trip is within 12 hours. Send a request to our team?")) return;
     setActionLoading(b.id);
     const hrs = getHrsBefore(b);
-    await supabase.from("chat_messages").insert({
+    await tenantSupabase.from("chat_messages").insert({
       business_id: b.business_id,
       phone: b.phone,
       direction: "IN",
@@ -440,7 +455,7 @@ export default function MyBookings() {
     const now = new Date();
     const cutoff = new Date(Date.now() + 60 * 60 * 1000);
     const later = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
-    const { data } = await supabase.from("slots").select("*, tours(name, base_price_per_person)")
+    const { data } = await tenantSupabase.from("slots").select("*, tours(name, base_price_per_person)")
       .eq("status", "OPEN").eq("tour_id", b.tour_id)
       .gt("start_time", cutoff.toISOString()).lt("start_time", later.toISOString())
       .order("start_time", { ascending: true });
@@ -491,7 +506,8 @@ export default function MyBookings() {
     setGuestVoucherError("");
     const code = guestVoucherCode.toUpperCase().replace(/\s/g, "");
     if (code.length !== 8) { setGuestVoucherError("Codes are 8 characters"); return; }
-    const { data } = await supabase.from("vouchers").select("*").eq("code", code).single();
+    const voucherSupabase = createVoucherSupabase(code, theme.id);
+    const { data } = await voucherSupabase.from("vouchers").select("*").eq("code", code).single();
     if (!data) { setGuestVoucherError("Code not found"); return; }
     if (data.status === "REDEEMED") { setGuestVoucherError("Already redeemed"); return; }
     if (data.status !== "ACTIVE") { setGuestVoucherError("Not valid"); return; }
@@ -506,7 +522,7 @@ export default function MyBookings() {
     if (!guestPromoCode.trim() || !editGuestsBooking) return;
     setGuestPromoError("");
     const code = guestPromoCode.toUpperCase().trim();
-    const { data: promo } = await supabase.from("promotions").select("*").eq("code", code).eq("business_id", editGuestsBooking.business_id).maybeSingle();
+    const { data: promo } = await tenantSupabase.from("promotions").select("*").eq("code", code).eq("business_id", editGuestsBooking.business_id).maybeSingle();
     if (!promo) { setGuestPromoError("Code not found"); return; }
     if (!promo.active) { setGuestPromoError("No longer active"); return; }
     if (promo.valid_until && new Date(promo.valid_until) < new Date()) { setGuestPromoError("Expired"); return; }

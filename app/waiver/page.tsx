@@ -1,7 +1,7 @@
 "use client";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { supabase } from "../lib/supabase";
+import { createScopedSupabase, createTenantSupabase } from "../lib/supabase";
 import { fmtDateTime } from "../lib/format";
 
 function WaiverContent() {
@@ -55,7 +55,8 @@ function WaiverContent() {
   useEffect(() => {
     if (!bookingId || !token) { setLoading(false); return; }
     (async () => {
-      const { data: b } = await supabase.from("bookings")
+      const scopedSupabase = createScopedSupabase({ "x-booking-id": bookingId, "x-booking-waiver-token": token });
+      const { data: b } = await scopedSupabase.from("bookings")
         .select("id, business_id, customer_name, qty, waiver_status, waiver_token, waiver_token_expires_at, waiver_signed_at, waiver_signed_name, waiver_payload, slots(start_time)")
         .eq("id", bookingId)
         .maybeSingle();
@@ -83,7 +84,8 @@ function WaiverContent() {
       setParticipantDobs(Array(b.qty || 1).fill(""));
 
       if (b.business_id) {
-        const { data: biz } = await supabase.from("businesses")
+        const tenantSupabase = createTenantSupabase(b.business_id);
+        const { data: biz } = await tenantSupabase.from("businesses")
           .select("id, name, business_name, timezone")
           .eq("id", b.business_id)
           .maybeSingle();
@@ -104,7 +106,8 @@ function WaiverContent() {
 
     setSubmitting(true);
     setError("");
-    const { error: updateErr } = await supabase.from("bookings").update({
+    const scopedSupabase = createScopedSupabase({ "x-booking-id": bookingId, "x-booking-waiver-token": token });
+    const { error: updateErr } = await scopedSupabase.from("bookings").update({
       waiver_status: "SIGNED",
       waiver_signed_at: new Date().toISOString(),
       waiver_signed_name: signerName.trim(),

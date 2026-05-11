@@ -2,7 +2,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "../lib/supabase";
+import { createVoucherSupabase } from "../lib/supabase";
 import ConfirmationSkeleton from "../components/skeletons/ConfirmationSkeleton";
 
 function VoucherConfirmedContent() {
@@ -18,7 +18,8 @@ function VoucherConfirmedContent() {
   useEffect(() => {
     if (!code) { setLoading(false); return; }
     (async () => {
-      const { data } = await supabase.from("vouchers").select("*").eq("code", code).single();
+      const voucherSupabase = createVoucherSupabase(code);
+      const { data } = await voucherSupabase.from("vouchers").select("*").eq("code", code).single();
       setVoucher(data);
       setLoading(false);
     })();

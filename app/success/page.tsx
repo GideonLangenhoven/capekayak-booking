@@ -1,8 +1,8 @@
 "use client";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "../lib/supabase";
+import { createScopedSupabase, createTenantSupabase, supabase } from "../lib/supabase";
 import { useTheme } from "../components/ThemeProvider";
 import ConfirmationSkeleton from "../components/skeletons/ConfirmationSkeleton";
 import { fmtFull, fmtTime, gCalFmt } from "../lib/format";
@@ -11,6 +11,7 @@ import type { Booking } from "../lib/types";
 function SuccessContent() {
   const params = useSearchParams();
   const theme = useTheme();
+  const tenantSupabase = useMemo(() => createTenantSupabase(theme.id), [theme.id]);
   const ref = params.get("ref");
   const [booking, setBooking] = useState<Booking | null>(null);
   const [loading, setLoading] = useState(true);
@@ -19,8 +20,9 @@ function SuccessContent() {
   useEffect(() => {
     if (!ref) { setLoading(false); return; }
     (async () => {
-      const { data } = await supabase.from("bookings")
-        .select("id, customer_name, email, phone, qty, total_amount, unit_price, status, created_at, waiver_status, waiver_token, tours(id, name, duration_minutes), slots(start_time)")
+      const scopedSupabase = createScopedSupabase({ "x-booking-success-token": ref });
+      const { data } = await scopedSupabase.from("bookings")
+        .select("id, business_id, customer_name, email, phone, qty, total_amount, unit_price, status, created_at, waiver_status, waiver_token, tours(id, name, duration_minutes), slots(start_time)")
         .eq("id", ref).single();
       const tourObj = Array.isArray(data?.tours) ? data.tours[0] : data?.tours;
       const slotObj = Array.isArray(data?.slots) ? data.slots[0] : data?.slots;
@@ -29,7 +31,7 @@ function SuccessContent() {
 
       // Load other tours for upsell
       if (tourObj?.id && theme.id) {
-        const { data: tours } = await supabase.from("tours")
+        const { data: tours } = await tenantSupabase.from("tours")
           .select("id, name, base_price_per_person, duration_minutes, image_url")
           .eq("business_id", theme.id)
           .eq("active", true)
@@ -44,7 +46,7 @@ function SuccessContent() {
         supabase.functions.invoke("confirm-booking", { body: { booking_id: data.id } }).catch(() => {});
       }
     })();
-  }, [ref, theme.id]);
+  }, [tenantSupabase, ref, theme.id]);
 
   if (loading) return <ConfirmationSkeleton />;
 

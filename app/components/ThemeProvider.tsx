@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, createContext, useContext } from "react";
-import { supabase } from "../lib/supabase";
+import { createBusinessResolverSupabase } from "../lib/supabase";
+import { tenantSubdomainFromHost } from "../lib/tenant-headers";
 
 type ThemeData = {
   id: string | null;
@@ -84,14 +85,14 @@ function lighten(hex: string, pct: number) {
  * Strategy (in order):
  * 1. NEXT_PUBLIC_BUSINESS_ID env var — set per Vercel deployment to lock to a business
  * 2. ?business_id= query parameter — for previewing / testing
- * 3. Match the current domain against `booking_site_url` in the businesses table
- * 4. Fall back to the first business in the table (single-tenant compat)
+ * 3. Match the current standard subdomain or current origin without enumerating businesses
  */
 async function resolveBusiness(): Promise<ThemeData> {
   // 1. Environment variable — most reliable, set once per Vercel deployment
   const envBusinessId = process.env.NEXT_PUBLIC_BUSINESS_ID || "";
   if (envBusinessId) {
-    const { data: envBiz } = await supabase.from("businesses").select("*").eq("id", envBusinessId).maybeSingle();
+    const scoped = createBusinessResolverSupabase({ businessId: envBusinessId });
+    const { data: envBiz } = await scoped.from("businesses").select("*").eq("id", envBusinessId).maybeSingle();
     if (envBiz) return toTheme(envBiz);
   }
 
@@ -100,41 +101,36 @@ async function resolveBusiness(): Promise<ThemeData> {
     const params = new URLSearchParams(window.location.search);
     const paramId = params.get("business_id");
     if (paramId) {
-      const { data: paramBiz } = await supabase.from("businesses").select("*").eq("id", paramId).maybeSingle();
+      const scoped = createBusinessResolverSupabase({ businessId: paramId });
+      const { data: paramBiz } = await scoped.from("businesses").select("*").eq("id", paramId).maybeSingle();
       if (paramBiz) return toTheme(paramBiz);
     }
   }
 
-  // 3. Match current domain against booking_site_url in the businesses table
+  // 3. Match current domain without fetching all tenants.
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   if (origin) {
-    const { data: allBiz } = await supabase.from("businesses").select("*");
-    if (allBiz && allBiz.length > 0) {
-      const normOrigin = origin.replace(/\/+$/, "").toLowerCase();
+    const hostname = window.location.hostname;
+    const subdomain = tenantSubdomainFromHost(hostname);
 
-      for (let i = 0; i < allBiz.length; i++) {
-        const siteUrl = String((allBiz[i] as any).booking_site_url || "").replace(/\/+$/, "").toLowerCase();
-        if (siteUrl && normOrigin === siteUrl) {
-          return toTheme(allBiz[i]);
-        }
-        if (siteUrl) {
-          try {
-            const parsed = new URL(siteUrl);
-            if (parsed.origin.toLowerCase() === normOrigin) {
-              return toTheme(allBiz[i]);
-            }
-          } catch { /* invalid URL, skip */ }
-        }
-      }
+    if (subdomain) {
+      const scoped = createBusinessResolverSupabase({ subdomain });
+      const { data: subdomainBiz } = await scoped.from("businesses").select("*").eq("subdomain", subdomain).maybeSingle();
+      if (subdomainBiz) return toTheme(subdomainBiz);
+    }
 
-      // 4. Fallback: first business (single-tenant compatibility)
-      return toTheme(allBiz[0]);
+    const scoped = createBusinessResolverSupabase({ origin });
+    const normOrigin = origin.replace(/\/+$/, "");
+    const { data: originBiz } = await scoped.from("businesses")
+      .select("*")
+      .in("booking_site_url", [normOrigin, normOrigin + "/"])
+      .maybeSingle();
+    if (originBiz) {
+      return toTheme(originBiz);
     }
   }
 
-  // Ultimate fallback: just grab the first one
-  const { data: fallback } = await supabase.from("businesses").select("*").limit(1).single();
-  return toTheme(fallback);
+  return defaults;
 }
 
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {

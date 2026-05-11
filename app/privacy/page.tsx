@@ -1,21 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabase";
+import { useEffect, useMemo, useState } from "react";
+import { createTenantSupabase } from "../lib/supabase";
 import { sanitizeHtml } from "../lib/sanitize";
 import PolicySkeleton from "../components/skeletons/PolicySkeleton";
+import { useTheme } from "../components/ThemeProvider";
 
 export default function PrivacyPage() {
+  const theme = useTheme();
+  const tenantSupabase = useMemo(() => createTenantSupabase(theme.id), [theme.id]);
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!theme.id) return;
     (async () => {
-      const { data } = await supabase.from("businesses").select("privacy_policy").limit(1).single();
+      const { data } = await tenantSupabase.from("businesses").select("privacy_policy").eq("id", theme.id).single();
       if (data?.privacy_policy) setContent(data.privacy_policy);
       setLoading(false);
     })();
-  }, []);
+  }, [tenantSupabase, theme.id]);
 
   if (loading) return <PolicySkeleton />;
 

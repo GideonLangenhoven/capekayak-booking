@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabase";
+import { useEffect, useMemo, useState } from "react";
+import { createTenantSupabase, createVoucherSupabase } from "../lib/supabase";
 import { useTheme } from "../components/ThemeProvider";
 import Button from "../components/ui/Button";
 import { Input, Textarea } from "../components/ui/Input";
@@ -11,6 +11,7 @@ import { useToast } from "../hooks/useToast";
 
 export default function VoucherPage() {
   const theme = useTheme();
+  const tenantSupabase = useMemo(() => createTenantSupabase(theme.id), [theme.id]);
   const [amount, setAmount] = useState("");
   const [recipientName, setRecipientName] = useState("");
   const [giftMessage, setGiftMessage] = useState("");
@@ -34,7 +35,8 @@ export default function VoucherPage() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) return;
     setSubmitting(true);
     const vcode = Array.from({ length: 8 }, () => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 31)]).join("");
-    const { data: voucher, error } = await supabase.from("vouchers").insert({
+    const voucherSupabase = createVoucherSupabase(vcode, theme.id);
+    const { data: voucher, error } = await voucherSupabase.from("vouchers").insert({
       business_id: theme.id, code: vcode, status: "PENDING", type: "MONETARY",
       value: parsedAmount, purchase_amount: parsedAmount,
       current_balance: parsedAmount,
@@ -43,7 +45,7 @@ export default function VoucherPage() {
       expires_at: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000).toISOString(),
     }).select().single();
     if (error || !voucher) { showToast("Something went wrong.", "error"); setSubmitting(false); return; }
-    const yocoRes = await supabase.functions.invoke("create-checkout", {
+    const yocoRes = await tenantSupabase.functions.invoke("create-checkout", {
       body: { voucher_id: voucher.id, voucher_code: vcode, amount: parsedAmount, type: "GIFT_VOUCHER" },
     });
     if (yocoRes.data?.redirectUrl) { setPaymentUrl(yocoRes.data.redirectUrl); setStep("pay"); }
