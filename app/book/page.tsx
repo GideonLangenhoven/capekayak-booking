@@ -16,6 +16,12 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   const params = useSearchParams();
   const theme = useTheme();
   const tz = theme.timezone || "Africa/Johannesburg";
+  const tzAbbr = useMemo(() => {
+    try {
+      const parts = new Intl.DateTimeFormat("en", { timeZone: tz, timeZoneName: "short" }).formatToParts(new Date());
+      return parts.find(p => p.type === "timeZoneName")?.value || tz;
+    } catch { return tz; }
+  }, [tz]);
   const tourId = params.get("tour");
   const [step, setStep] = useState<"calendar" | "details" | "payment">("calendar");
   const [tours, setTours] = useState<Tour[]>([]);
@@ -595,8 +601,9 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
             </div>
             
             <div>
-              <h2 className="text-2xl font-extrabold text-slate-800 mb-6 pl-2 tracking-tight">{selectedDate ? "Times for " + fmtDate(selectedDate.toISOString(), tz) : "Select timeslot"}</h2>
-              
+              <h2 className="text-2xl font-extrabold text-slate-800 mb-1 pl-2 tracking-tight">{selectedDate ? "Times for " + fmtDate(selectedDate.toISOString(), tz) : "Select timeslot"}</h2>
+              <p className="text-xs font-medium text-slate-500 mb-5 pl-2">All times shown in {tzAbbr}</p>
+
               {!selectedDate ? (
                 <div className="bg-slate-50/50 rounded-[2rem] border border-dashed border-slate-200 text-center py-16 px-6 flex flex-col items-center justify-center">
                   <div className="w-16 h-16 bg-white shadow-sm rounded-full flex items-center justify-center text-teal-500 mb-4">
