@@ -20,7 +20,10 @@ function SuccessContent() {
   useEffect(() => {
     if (!ref) { setLoading(false); return; }
     (async () => {
-      const scopedSupabase = createScopedSupabase({ "x-booking-success-token": ref });
+      const scopedSupabase = createScopedSupabase({
+        "x-booking-success-token": ref,
+        ...(theme.id ? { "x-tenant-business-id": theme.id } : {}),
+      });
       const { data } = await scopedSupabase.from("bookings")
         .select("id, business_id, customer_name, email, phone, qty, total_amount, unit_price, status, created_at, waiver_status, waiver_token, tours(id, name, duration_minutes), slots(start_time)")
         .eq("id", ref).single();
