@@ -1,5 +1,9 @@
 const STORAGE_KEY = "bt-booking-draft-v1";
-const TTL_MS = 24 * 60 * 60 * 1000;
+// PII-safety: keep the resume window short so an abandoned draft on a shared
+// browser doesn't surface another customer's name/email/phone to whoever
+// opens the booking site next. The draft is still only restored on explicit
+// "Resume" from the home-page banner.
+const TTL_MS = 2 * 60 * 60 * 1000;
 
 export type BookingDraft = {
   tourId: string | null;
@@ -81,5 +85,9 @@ export function draftResumeUrl(d: BookingDraft): string {
   if (d.tourId) qs.set("tour", d.tourId);
   if (d.slotId) qs.set("slot", d.slotId);
   if (d.date) qs.set("date", d.date);
+  // Explicit resume flag — /book hydrates customer PII from the draft only
+  // when this is present, so direct visits (or shared browsers) never see
+  // a previous customer's name/email/phone pre-filled.
+  qs.set("resume", "1");
   return "/book?" + qs.toString();
 }

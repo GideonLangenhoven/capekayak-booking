@@ -7,6 +7,7 @@ import { useTheme } from "../components/ThemeProvider";
 import ConfirmationSkeleton from "../components/skeletons/ConfirmationSkeleton";
 import { fmtFull, fmtTime, gCalFmt } from "../lib/format";
 import type { Booking } from "../lib/types";
+import { clearDraft as clearLocalDraft } from "../lib/booking-draft";
 
 function SuccessContent() {
   const params = useSearchParams();
@@ -16,6 +17,11 @@ function SuccessContent() {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [loading, setLoading] = useState(true);
   const [otherTours, setOtherTours] = useState<any[]>([]);
+
+  // Defence-in-depth: a successful booking means the customer is done with
+  // this device's draft. Clear localStorage so the next visitor on a shared
+  // browser never sees this customer's name/email/phone pre-filled.
+  useEffect(() => { clearLocalDraft(); }, []);
 
   useEffect(() => {
     if (!ref) { setLoading(false); return; }
@@ -123,6 +129,33 @@ function SuccessContent() {
         <p className="text-sm font-medium text-[color:var(--text)]">📧 Confirmation emailed to {booking.email}</p>
         <p className="mt-1 text-xs">Please check your inbox (and spam folder) for your receipt and details.</p>
       </div>
+
+      {/* Waiver CTA — sign it now while still in-tab; otherwise it shows up as
+          a green completed badge once signed. */}
+      {booking.waiver_status === "SIGNED" ? (
+        <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600 text-white text-base">✓</span>
+          <div>
+            <p className="text-sm font-semibold text-emerald-900">Waiver completed</p>
+            <p className="text-xs text-emerald-800">Thanks — you're all set. See you on the water!</p>
+          </div>
+        </div>
+      ) : (
+        (booking as any).waiver_token && (
+          <div className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-4">
+            <p className="text-sm font-semibold text-amber-900 mb-1">📝 Sign your waiver</p>
+            <p className="text-xs text-amber-800 mb-3">
+              All participants need to complete a quick digital waiver before launch. Save time on the day — sign now.
+            </p>
+            <Link
+              href={"/waiver?booking=" + booking.id + "&token=" + (booking as any).waiver_token}
+              className="btn btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm"
+            >
+              Sign Waiver Now →
+            </Link>
+          </div>
+        )
+      )}
 
       {theme.directions && (
         <div className="surface-muted mb-6 p-4">

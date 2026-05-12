@@ -62,11 +62,38 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   const draftDate = params.get("date");
   const hydratedRef = useRef(false);
 
-  // Hydrate form fields from localStorage draft on mount (once slots/tour are loaded)
+  // Hydrate form fields from localStorage draft on mount (once slots/tour are loaded).
+  // PII-safety: only restore name/email/phone/promo when the visitor explicitly
+  // clicked "Resume" from the home-page banner (?resume=1). Otherwise a stale
+  // draft from a previous customer on a shared browser would leak their PII
+  // into a fresh visitor's form (POPIA risk). Slot/date selection is still
+  // pulled from the URL because those are not PII.
   useEffect(() => {
     if (hydratedRef.current || !selectedTour || allSlots.length === 0) return;
     hydratedRef.current = true;
+    const explicitResume = params.get("resume") === "1";
     const d = readValidDraft();
+    // Always honour an explicit slot+date in the URL (deep-linking from
+    // marketing, calendar, etc.). PII restoration is gated separately.
+    if (draftSlotId && draftDate) {
+      const matchSlot = allSlots.find(function (s) { return s.id === draftSlotId; });
+      if (matchSlot) {
+        setSelectedDate(new Date(draftDate));
+        setSelectedSlot(matchSlot);
+        if (explicitResume && d?.tourId === selectedTour.id && d.step >= 2) {
+          setHoldExpiresAt(new Date(Date.now() + 15 * 60 * 1000));
+          setStep("details");
+        }
+      } else if (draftDate) {
+        setSelectedDate(new Date(draftDate));
+      }
+    }
+    if (!explicitResume) {
+      // No explicit resume request — proactively clear the stored draft so the
+      // next interaction can start clean.
+      clearLocalDraft();
+      return;
+    }
     if (!d || d.tourId !== selectedTour.id) return;
     if (d.customerName) setName(d.customerName);
     if (d.customerEmail) setEmail(d.customerEmail);
@@ -79,21 +106,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
       d.addOns.forEach(function (a) { ao[a.id] = a.qty; });
       setSelectedAddOns(ao);
     }
-    // If URL has slot + date, auto-select and jump to details
-    if (draftSlotId && draftDate) {
-      const matchSlot = allSlots.find(function (s) { return s.id === draftSlotId; });
-      if (matchSlot) {
-        setSelectedDate(new Date(draftDate));
-        setSelectedSlot(matchSlot);
-        if (d.step >= 2) {
-          setHoldExpiresAt(new Date(Date.now() + 15 * 60 * 1000));
-          setStep("details");
-        }
-      } else if (draftDate) {
-        setSelectedDate(new Date(draftDate));
-      }
-    }
-  }, [selectedTour, allSlots, draftSlotId, draftDate]);
+  }, [selectedTour, allSlots, draftSlotId, draftDate, params]);
 
   // Auto-fill from authenticated customer session
   useEffect(() => {
