@@ -93,7 +93,7 @@ export default function VoucherPage() {
           <Button onClick={() => setStep("amount")} variant="ghost" className="px-0">← Back</Button>
           <Card muted className="p-4">
             <p className="font-semibold text-[color:var(--text)]">Gift Voucher</p>
-            <p className="text-sm">Value: R{parsedAmount} · Valid 12 months · Any activity</p>
+            <p className="text-sm">Value: R{parsedAmount} · Valid 3 years · Any activity</p>
           </Card>
           <div>
             <label htmlFor="voucher-recipient" className="field-label">Recipient Name *</label>

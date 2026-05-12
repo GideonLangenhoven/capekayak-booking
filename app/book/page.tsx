@@ -258,6 +258,15 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     return afterPromoTotal - remaining;
   }, [vouchers, afterPromoTotal, selectedTour]);
   const finalTotal = Math.max(0, afterPromoTotal - effectiveVoucherCredit);
+  // Per-voucher applied / remaining breakdown for the "R200 applied · R400 remaining" copy.
+  const voucherBreakdown = useMemo(() => {
+    let remaining = afterPromoTotal;
+    return vouchers.map((v) => {
+      const applied = Math.min(v.value, Math.max(0, remaining));
+      remaining = Math.max(0, remaining - applied);
+      return { code: v.code, value: v.value, applied, leftover: Math.max(0, v.value - applied) };
+    });
+  }, [vouchers, afterPromoTotal]);
   const avail = selectedSlot ? selectedSlot.capacity_total - selectedSlot.booked - (selectedSlot.held || 0) : 10;
 
   function toggleAddOn(id: string) {
@@ -844,19 +853,27 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                      <button onClick={applyVoucher} className="bg-slate-800 text-white px-6 py-3.5 rounded-2xl text-[14px] font-extrabold hover:bg-slate-900 transition-colors">Apply</button>
                    </div>
                    {voucherError && <p className="text-red-500 text-[12px] font-bold mt-2 ml-1">{voucherError}</p>}
-                   {vouchers.map((v, i) => (
-                     <div key={v.code} className="flex items-center justify-between mt-3 bg-emerald-50 border border-emerald-200/60 px-5 py-4 rounded-[1.25rem]">
-                       <div className="flex items-center gap-3">
-                         <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                   {vouchers.map((v, i) => {
+                     const b = voucherBreakdown[i];
+                     return (
+                       <div key={v.code} className="flex items-center justify-between mt-3 bg-emerald-50 border border-emerald-200/60 px-5 py-4 rounded-[1.25rem]">
+                         <div className="flex items-center gap-3">
+                           <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                           </div>
+                           <span className="text-[14px] text-emerald-900 font-extrabold font-mono tracking-widest">
+                             {v.code}
+                             <span className="font-sans text-emerald-700/80 tracking-normal ml-2">
+                               — R{b?.applied ?? v.value} applied{b && b.leftover > 0 ? ` · R${b.leftover} remaining` : ""}
+                             </span>
+                           </span>
                          </div>
-                         <span className="text-[14px] text-emerald-900 font-extrabold font-mono tracking-widest">{v.code} <span className="font-sans text-emerald-700/80 tracking-normal ml-2">— R{v.value} applied</span></span>
+                         <button onClick={() => removeVoucher(i)} className="text-slate-400 bg-white hover:bg-slate-100 hover:text-red-500 w-8 h-8 rounded-full flex items-center justify-center transition-colors">
+                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                         </button>
                        </div>
-                       <button onClick={() => removeVoucher(i)} className="text-slate-400 bg-white hover:bg-slate-100 hover:text-red-500 w-8 h-8 rounded-full flex items-center justify-center transition-colors">
-                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-                       </button>
-                     </div>
-                   ))}
+                     );
+                   })}
                  </div>
               </div>
 
