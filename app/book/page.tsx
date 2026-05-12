@@ -314,14 +314,16 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
       return;
     }
     const code = promoCode.toUpperCase().trim();
-    const phoneVal = phone ? normalizePhone("+27", phone) : "";
-    // Server-side validation (checks expiry, usage limits, per-email, per-phone)
+    // Server-side validation (checks expiry, usage limits, per-email).
+    // NOTE: 5-arg overload (with p_customer_phone) was dropped in migration
+    // 20260507135500_drop_validate_promo_duplicate_overload.sql. Sending the
+    // extra arg makes PostgREST return 404. Per-phone limits are not
+    // currently enforced server-side.
     const { data: result } = await supabase.rpc("validate_promo_code", {
       p_business_id: theme.id,
       p_code: code,
       p_order_amount: grandTotal,
       p_customer_email: emailVal.toLowerCase(),
-      p_customer_phone: phoneVal || null,
     });
     if (!result || !result.valid) {
       setPromoError(result?.error || "Invalid promo code");
