@@ -70,7 +70,14 @@ export default function LoginScreen({
       options: { emailRedirectTo: window.location.origin + "/auth/callback" },
     });
     if (error) {
-      setMagicError(error.message);
+      const raw = (error.message || "").toLowerCase();
+      // Translate Supabase technical errors into customer-friendly copy.
+      const friendly = raw.includes("rate limit")
+        ? "Too many requests. Please wait a few minutes before trying again."
+        : raw.includes("invalid")
+          ? "That email doesn't look right. Please double-check it."
+          : "We couldn't send the link right now. Please try again in a moment.";
+      setMagicError(friendly);
       setMagicSending(false);
       return;
     }
@@ -92,8 +99,8 @@ export default function LoginScreen({
   }
 
   const subtitle = mode === "magic"
-    ? (magicSent ? "Check your email for a sign-in link." : "Enter your email to receive a sign-in link.")
-    : (otpStep ? "Enter the verification code we sent to your email." : "Enter the details you used when booking.");
+    ? (magicSent ? "If we found your account, a sign-in link is on its way. Check your inbox and spam folder." : "Enter your email to receive a sign-in link.")
+    : (otpStep ? "If your email + phone match a booking, we've emailed a 6-digit code. Check inbox and spam." : "Enter the details you used when booking.");
 
   return (
     <div className="app-container max-w-sm py-16 px-4">
@@ -112,10 +119,10 @@ export default function LoginScreen({
             <div className="text-center mb-6">
               <div className="inline-flex items-center gap-2 bg-[color:var(--accentSoft)] text-[color:var(--accent)] text-sm font-medium px-4 py-2 rounded-full mb-4">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                Link sent to {maskEmail(email)}
+                Check your email
               </div>
               <p className="text-sm text-[color:var(--textMuted)] mt-3">
-                Click the link in your email to sign in.<br />You can close this page after clicking the link.
+                If a booking exists with this email, a sign-in link is on its way to {maskEmail(email)}.<br />Don't forget the spam folder. You can close this page after clicking the link.
               </p>
             </div>
             <div className="mt-6 flex flex-col items-center gap-3">
@@ -128,7 +135,7 @@ export default function LoginScreen({
                 <div className="flex-1 border-t border-[color:var(--border)]" />
               </div>
               <button onClick={switchToOtp} className="text-sm text-[color:var(--textMuted)] hover:text-[color:var(--text)] transition-colors">
-                Use phone verification instead
+                Sign in with a 6-digit code instead
               </button>
             </div>
           </>
@@ -210,8 +217,11 @@ export default function LoginScreen({
           <div className="text-center mb-6">
             <div className="inline-flex items-center gap-2 bg-[color:var(--accentSoft)] text-[color:var(--accent)] text-sm font-medium px-4 py-2 rounded-full mb-4">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-              Code sent to {maskEmail(email)}
+              Check your email
             </div>
+            <p className="text-xs text-[color:var(--textMuted)]">
+              If your email + phone match a booking, a 6-digit code is on its way to {maskEmail(email)}. Check inbox + spam.
+            </p>
           </div>
 
           <div className="space-y-4">
