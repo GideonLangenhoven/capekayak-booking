@@ -152,6 +152,47 @@ export default function MyBookings() {
     });
   }, []);
 
+  /* ───── Auto-resume from stored customer-session token (OTP path) ───── */
+  // After a successful OTP login we store an HMAC-signed token in
+  // localStorage. On every page load we replay it to my-bookings-lookup
+  // so the customer doesn't have to re-OTP for 30 days.
+  useEffect(() => {
+    if (loggedIn) return;
+    if (typeof window === "undefined") return;
+    let cancelled = false;
+    (async () => {
+      const token = localStorage.getItem("mb_customer_session");
+      const storedEmail = localStorage.getItem("mb_customer_email");
+      const expRaw = localStorage.getItem("mb_customer_session_exp");
+      if (!token || !storedEmail) return;
+      const exp = Number(expRaw || 0);
+      if (exp && exp < Date.now()) {
+        localStorage.removeItem("mb_customer_session");
+        localStorage.removeItem("mb_customer_email");
+        localStorage.removeItem("mb_customer_session_exp");
+        return;
+      }
+      try {
+        const resp = await supabase.functions.invoke("my-bookings-lookup", {
+          body: { customer_session: token, email: storedEmail, business_id: theme.id },
+        });
+        if (cancelled) return;
+        const respData = (resp.data || {}) as Record<string, unknown>;
+        if (resp.error || !respData.success) {
+          // Token rejected — drop it so the user falls through to the login form.
+          localStorage.removeItem("mb_customer_session");
+          localStorage.removeItem("mb_customer_email");
+          localStorage.removeItem("mb_customer_session_exp");
+          return;
+        }
+        setEmail(storedEmail);
+        applyLookupResponse(respData, true);
+        await loadBookingExtras((respData.bookings || []) as unknown as Booking[]);
+      } catch { /* network blip — silent, user can still log in manually */ }
+    })();
+    return () => { cancelled = true; };
+  }, [loggedIn, theme.id]);
+
   /* ───── Auto-login from session ───── */
   useEffect(() => {
     if (!sessionChecked || autoLoginAttempted || loggedIn) return;
@@ -304,9 +345,21 @@ export default function MyBookings() {
     setBookings(data as unknown as Booking[]);
     setLoggedIn(true);
     setLoading(false);
+    // Keep last-tab inputs handy for resend flows etc.
     sessionStorage.setItem("mb_email", email.toLowerCase());
     sessionStorage.setItem("mb_dialCode", dialCode);
     sessionStorage.setItem("mb_phone", phoneDigits);
+    // Persist a customer-session token to localStorage so reloading or
+    // navigating away & back keeps the customer signed in for 30 days.
+    if (typeof respData.customer_session === "string" && respData.customer_session) {
+      try {
+        localStorage.setItem("mb_customer_session", respData.customer_session as string);
+        localStorage.setItem("mb_customer_email", email.toLowerCase());
+        if (typeof respData.customer_session_expires_at === "number") {
+          localStorage.setItem("mb_customer_session_exp", String(respData.customer_session_expires_at));
+        }
+      } catch { /* localStorage may be disabled in some browsers */ }
+    }
     return true;
   }
 
@@ -724,7 +777,7 @@ export default function MyBookings() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={async () => { if (authSession) { await supabase.auth.signOut(); setAuthSession(false); } setLoggedIn(false); setBookings([]); setEmail(""); setDialCode("+27"); setPhoneDigits(""); setLoginError(""); setToast(null); setAutoLoginAttempted(false); setSessionChecked(true); sessionStorage.removeItem("mb_loggedIn"); sessionStorage.removeItem("mb_email"); sessionStorage.removeItem("mb_dialCode"); sessionStorage.removeItem("mb_phone"); }}
+            <button onClick={async () => { if (authSession) { await supabase.auth.signOut(); setAuthSession(false); } setLoggedIn(false); setBookings([]); setEmail(""); setDialCode("+27"); setPhoneDigits(""); setLoginError(""); setToast(null); setAutoLoginAttempted(false); setSessionChecked(true); sessionStorage.removeItem("mb_loggedIn"); sessionStorage.removeItem("mb_email"); sessionStorage.removeItem("mb_dialCode"); sessionStorage.removeItem("mb_phone"); try { localStorage.removeItem("mb_customer_session"); localStorage.removeItem("mb_customer_email"); localStorage.removeItem("mb_customer_session_exp"); } catch { /* */ } }}
               className="w-10 h-10 shrink-0 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors border border-slate-100">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
             </button>
@@ -843,7 +896,6 @@ export default function MyBookings() {
               <div>
                  <div className="flex justify-between items-center mb-4 px-1">
                     <h2 className="text-sm font-bold text-slate-800">Notifications</h2>
-                    <Link href="/" className="text-[13px] text-teal-700 font-bold hover:text-teal-800">View all</Link>
                  </div>
                  
                  <div className="space-y-4">

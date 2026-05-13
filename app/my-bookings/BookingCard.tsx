@@ -167,11 +167,31 @@ export default function BookingCard({
             )}
 
             {/* Status indicators */}
-            {b.refund_status === "CREDIT_PENDING" && Number(b.refund_amount || 0) > 0 && (
+            {/* Weather/admin cancellation decision panel: appears for any
+                cancelled booking that's awaiting a customer choice on what
+                to do with the refund. Covers both refund_status values used
+                in the codebase ("CREDIT_PENDING" via the claim flow, and
+                "ACTION_REQUIRED" written by weather-cancel). */}
+            {(b.refund_status === "CREDIT_PENDING" || b.refund_status === "ACTION_REQUIRED")
+              && Number(b.refund_amount || 0) > 0
+              && !b.converted_to_voucher_id && (
               <div className="mb-3 rounded-xl border border-teal-200 bg-teal-50 p-4">
-                  <p className="text-[13px] font-bold text-teal-900 mb-1">Available credit: R{Number(b.refund_amount).toFixed(2)}</p>
-                  <p className="text-[12px] text-teal-700 mb-3">Choose how to receive your credit:</p>
+                  <p className="text-[13px] font-bold text-teal-900 mb-1">
+                    {String(b.cancellation_reason || "").toLowerCase().includes("weather")
+                      ? "Trip was weather-cancelled"
+                      : "Available credit"}: R{Number(b.refund_amount).toFixed(2)}
+                  </p>
+                  <p className="text-[12px] text-teal-700 mb-3">
+                    Pick a new date, convert it to a voucher, or request a refund:
+                  </p>
                   <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => onReschedule(b)}
+                      disabled={actionLoading === b.id}
+                      className="px-3.5 py-1.5 text-[12px] font-bold rounded-lg border border-teal-300 bg-white text-teal-800 hover:bg-teal-100 disabled:opacity-50 transition-colors"
+                    >
+                      Pick a New Date
+                    </button>
                     <button
                       onClick={() => onClaimCredit(b, "VOUCHER")}
                       disabled={actionLoading === b.id}
