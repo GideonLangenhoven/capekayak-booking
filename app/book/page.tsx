@@ -230,7 +230,19 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     return allSlots.filter(s => isSameDay(new Date(s.start_time), selectedDate));
   }, [allSlots, selectedDate]);
 
-  const baseTotal = selectedTour ? selectedTour.base_price_per_person * qty : 0;
+  // Effective per-person price honours slot.price_per_person_override (peak
+  // pricing) when the customer has selected a specific slot. Falls back to
+  // the tour's base price before a slot is picked. The backend recomputes
+  // and overrides anyway, but the booking-summary UI must agree with what
+  // the customer is actually charged.
+  const effectiveUnitPrice = selectedSlot && selectedSlot.price_per_person_override != null
+    ? Number(selectedSlot.price_per_person_override)
+    : selectedTour
+      ? Number(selectedTour.base_price_per_person || 0)
+      : 0;
+  const isPeakPrice = !!(selectedSlot && selectedSlot.price_per_person_override != null
+    && Number(selectedSlot.price_per_person_override) !== Number(selectedTour?.base_price_per_person || 0));
+  const baseTotal = effectiveUnitPrice * qty;
   const addOnsTotal = useMemo(() => {
     return availableAddOns.reduce((sum, ao) => {
       const q = selectedAddOns[ao.id] || 0;
@@ -310,7 +322,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     const draftData = {
       business_id: selectedTour.business_id, tour_id: selectedTour.id, slot_id: selectedSlot.id,
       customer_name: name.trim(), email: email.toLowerCase().trim(),
-      qty, unit_price: selectedTour.base_price_per_person,
+      qty, unit_price: effectiveUnitPrice,
       total_amount: grandTotal, original_total: grandTotal,
       status: "DRAFT" as const, source: embed ? "WIDGET" : "WEB",
     };
@@ -374,7 +386,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     const bookingPayload = {
       business_id: selectedTour!.business_id, tour_id: selectedTour!.id, slot_id: selectedSlot!.id,
       customer_name: name, phone: phone ? normalizePhone("+27", phone) : "", email: email.toLowerCase(),
-      qty, unit_price: selectedTour!.base_price_per_person, total_amount: finalTotal, original_total: grandTotal,
+      qty, unit_price: effectiveUnitPrice, total_amount: finalTotal, original_total: grandTotal,
       status: "PENDING", source: embed ? "WIDGET" : "WEB",
       marketing_opt_in: marketingOptIn || null,
       ...promoInsertFields,
@@ -614,7 +626,11 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                </div>
                <div className="text-left">
                  <h3 className="font-extrabold text-[16px] text-slate-800 leading-tight">{selectedTour?.name}</h3>
-                 <p className="text-slate-500 text-[12px] font-bold mt-0.5">{selectedTour?.duration_minutes} min &middot; R{selectedTour?.base_price_per_person} per person</p>
+                 <p className="text-slate-500 text-[12px] font-bold mt-0.5">
+                   {selectedTour?.duration_minutes} min &middot; {selectedSlot
+                     ? <>R{effectiveUnitPrice} per person{isPeakPrice ? <span className="ml-1 inline-block rounded-full bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider">Peak</span> : null}</>
+                     : <>From R{selectedTour?.base_price_per_person} per person</>}
+                 </p>
                </div>
              </div>
           </div>
@@ -905,7 +921,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                   <div className="flex justify-between items-center"><span className="text-slate-400 font-bold">Guests</span><span className="font-extrabold text-right">{qty}</span></div>
                   
                   <div className="border-t border-slate-700/50 pt-4 mt-4 space-y-3">
-                    <div className="flex justify-between items-center"><span className="text-slate-300 font-medium tracking-wide">R{selectedTour?.base_price_per_person} × {qty}</span><span className="font-extrabold text-[15px]">R{baseTotal}</span></div>
+                    <div className="flex justify-between items-center"><span className="text-slate-300 font-medium tracking-wide">R{effectiveUnitPrice} × {qty}{isPeakPrice ? <span className="ml-1.5 inline-block rounded-full bg-amber-500/20 text-amber-200 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider">Peak</span> : null}</span><span className="font-extrabold text-[15px]">R{baseTotal}</span></div>
                     {availableAddOns.filter(ao => selectedAddOns[ao.id]).map(ao => (
                       <div key={ao.id} className="flex justify-between items-center text-teal-300">
                         <span className="font-medium tracking-wide">{ao.name}{selectedAddOns[ao.id] > 1 ? ` × ${selectedAddOns[ao.id]}` : ""}</span>
