@@ -16,6 +16,16 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "insideguide.co.za" },
     ],
   },
+  async redirects() {
+    // Footer / external links sometimes point at /legal/<doc>; the live
+    // pages live at /terms, /privacy, /cookies. Redirect rather than 404.
+    return [
+      { source: "/legal/terms", destination: "/terms", permanent: false },
+      { source: "/legal/privacy", destination: "/privacy", permanent: false },
+      { source: "/legal/cookies", destination: "/cookies", permanent: false },
+      { source: "/legal", destination: "/terms", permanent: false },
+    ];
+  },
   async headers() {
     return [
       {
