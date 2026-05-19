@@ -44,6 +44,12 @@ const defaults: ThemeData = {
   subscription_status: null, refund_policy_text: null,
 };
 
+// AN3 P1: explicit column list mirrors the ThemeData keys above so anon reads
+// don't fan out to encrypted credentials / internal billing columns. Without
+// this, switching the businesses table to column-level grants would 401 on
+// `select=*` because PostgREST expands `*` to every introspected column.
+const BUSINESS_THEME_COLS = (Object.keys(defaults) as string[]).join(",");
+
 /** Map a raw DB row (which may have extra or missing columns) to ThemeData safely */
 function toTheme(row: Record<string, unknown> | null): ThemeData {
   if (!row) return defaults;
@@ -92,8 +98,8 @@ async function resolveBusiness(): Promise<ThemeData> {
   const envBusinessId = process.env.NEXT_PUBLIC_BUSINESS_ID || "";
   if (envBusinessId) {
     const scoped = createBusinessResolverSupabase({ businessId: envBusinessId });
-    const { data: envBiz } = await scoped.from("businesses").select("*").eq("id", envBusinessId).maybeSingle();
-    if (envBiz) return toTheme(envBiz);
+    const { data: envBiz } = await scoped.from("businesses").select(BUSINESS_THEME_COLS).eq("id", envBusinessId).maybeSingle();
+    if (envBiz) return toTheme(envBiz as unknown as Record<string, unknown>);
   }
 
   // 2. Query parameter override (e.g. ?business_id=xxx for testing)
@@ -102,8 +108,8 @@ async function resolveBusiness(): Promise<ThemeData> {
     const paramId = params.get("business_id");
     if (paramId) {
       const scoped = createBusinessResolverSupabase({ businessId: paramId });
-      const { data: paramBiz } = await scoped.from("businesses").select("*").eq("id", paramId).maybeSingle();
-      if (paramBiz) return toTheme(paramBiz);
+      const { data: paramBiz } = await scoped.from("businesses").select(BUSINESS_THEME_COLS).eq("id", paramId).maybeSingle();
+      if (paramBiz) return toTheme(paramBiz as unknown as Record<string, unknown>);
     }
   }
 
@@ -115,18 +121,18 @@ async function resolveBusiness(): Promise<ThemeData> {
 
     if (subdomain) {
       const scoped = createBusinessResolverSupabase({ subdomain });
-      const { data: subdomainBiz } = await scoped.from("businesses").select("*").eq("subdomain", subdomain).maybeSingle();
-      if (subdomainBiz) return toTheme(subdomainBiz);
+      const { data: subdomainBiz } = await scoped.from("businesses").select(BUSINESS_THEME_COLS).eq("subdomain", subdomain).maybeSingle();
+      if (subdomainBiz) return toTheme(subdomainBiz as unknown as Record<string, unknown>);
     }
 
     const scoped = createBusinessResolverSupabase({ origin });
     const normOrigin = origin.replace(/\/+$/, "");
     const { data: originBiz } = await scoped.from("businesses")
-      .select("*")
+      .select(BUSINESS_THEME_COLS)
       .in("booking_site_url", [normOrigin, normOrigin + "/"])
       .maybeSingle();
     if (originBiz) {
-      return toTheme(originBiz);
+      return toTheme(originBiz as unknown as Record<string, unknown>);
     }
   }
 
