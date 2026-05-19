@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { randomBytes, createHash } from "crypto";
+import { enforceRateLimit } from "@/app/lib/rate-limit";
 
 // AK1: customer-facing mirror of /admin /api/popia/request so the booking
 // site can accept POPIA data-subject requests directly without cross-origin
@@ -26,6 +27,9 @@ export async function POST(req: NextRequest) {
     console.error("POPIA_REQUEST_ENV_MISSING url=" + !!supabaseUrl + " key=" + !!serviceKey);
     return NextResponse.json({ error: "Server is missing the required Supabase credentials." }, { status: 500 });
   }
+
+  const rl = await enforceRateLimit({ req, endpoint: "popia/request", maxPerMinute: 10 });
+  if (rl) return rl;
 
   let body: { email?: string; business_id?: string; type?: string; reason?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }

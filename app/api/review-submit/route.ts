@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { enforceRateLimit } from "@/app/lib/rate-limit";
 
 function getServiceClient() {
   return createClient(
@@ -9,6 +10,8 @@ function getServiceClient() {
 }
 
 export async function POST(req: NextRequest) {
+  const rl = await enforceRateLimit({ req, endpoint: "review-submit", maxPerMinute: 20 });
+  if (rl) return rl;
   const supabase = getServiceClient();
   let body: any;
   try {
