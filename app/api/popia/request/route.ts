@@ -8,14 +8,25 @@ import { randomBytes, createHash } from "crypto";
 // the admin route — kept structurally identical so prod migrations apply
 // to one schema.
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
+// Env access mirrors /api/review-submit's pattern: tolerate either
+// SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL (Vercel envs aren't always
+// `NEXT_PUBLIC_` prefixed) and never throw at module load on missing
+// keys — surface the failure in the handler instead.
 function adminClient() {
-  return createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+  return createClient(url, key, { auth: { persistSession: false } });
 }
 
 export async function POST(req: NextRequest) {
+  try {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+  if (!supabaseUrl || !serviceKey) {
+    console.error("POPIA_REQUEST_ENV_MISSING url=" + !!supabaseUrl + " key=" + !!serviceKey);
+    return NextResponse.json({ error: "Server is missing the required Supabase credentials." }, { status: 500 });
+  }
+
   let body: { email?: string; business_id?: string; type?: string; reason?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
@@ -80,4 +91,8 @@ export async function POST(req: NextRequest) {
   }).catch((e) => console.warn("POPIA_CONFIRM_EMAIL_ERR:", e));
 
   return NextResponse.json({ request_id: request.id, expires_at: expiresAt });
+  } catch (err: unknown) {
+    console.error("POPIA_REQUEST_HANDLER_ERR:", err);
+    return NextResponse.json({ error: (err as Error)?.message || "Unhandled error" }, { status: 500 });
+  }
 }
