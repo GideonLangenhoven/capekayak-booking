@@ -12,10 +12,14 @@ export default function Footer() {
       <div className="app-container py-8 text-center text-sm text-[color:var(--textMuted)]">
         <p className="max-w-none">{line1}</p>
         {line2 && <p className="mt-1 max-w-none">{line2}</p>}
-        <nav className="mt-4 flex justify-center gap-4">
+        <nav className="mt-4 flex flex-wrap justify-center gap-4">
           <a href="/terms" className="underline underline-offset-2 hover:text-[color:var(--text)]">Terms &amp; Conditions</a>
           <a href="/privacy" className="underline underline-offset-2 hover:text-[color:var(--text)]">Privacy Policy</a>
           <a href="/cookies" className="underline underline-offset-2 hover:text-[color:var(--text)]">Cookies Policy</a>
+          {/* AK1: surface the POPIA data-subject request form alongside the
+              other legal links so customers can find it without needing
+              the direct URL. */}
+          <a href="/popia" className="underline underline-offset-2 hover:text-[color:var(--text)]">Privacy Request</a>
         </nav>
       </div>
     </footer>
