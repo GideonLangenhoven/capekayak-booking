@@ -51,6 +51,28 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-DNS-Prefetch-Control", value: "on" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          // AN9: Content-Security-Policy on customer pages. The booking site
+          // loads its own bundles + the dotlottie web component (unpkg) and
+          // talks to Supabase REST + Realtime (https + wss). Inline script
+          // and style stay enabled because Next.js inlines hydration data
+          // and Tailwind utility classes attach inline styles. The /embed
+          // route keeps its own narrower CSP block above so iframe hosts
+          // can frame it.
+          {
+            key: "Content-Security-Policy",
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: blob: https:",
+              "font-src 'self' data:",
+              "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+              "frame-ancestors 'none'",
+              "form-action 'self'",
+              "base-uri 'self'",
+              "object-src 'none'",
+            ].join("; "),
+          },
         ],
       },
     ];
