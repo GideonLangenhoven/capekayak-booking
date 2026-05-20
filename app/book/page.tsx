@@ -108,8 +108,12 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     }
   }, [selectedTour, allSlots, draftSlotId, draftDate, params]);
 
-  // Auto-fill from authenticated customer session
+  // Auto-fill from authenticated customer session — PII-gated.
+  // Without ?resume=1, a previous customer's session on a shared browser
+  // would silently fill the next visitor's name/email/phone (POPIA risk).
+  // Same gate as the localStorage draft restore above.
   useEffect(() => {
+    if (params.get("resume") !== "1") return;
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session?.user) return;
       supabase.from("customers")
