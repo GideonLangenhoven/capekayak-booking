@@ -25,18 +25,33 @@ export async function enforceRateLimit(opts: {
   const ip = getClientIp(opts.req);
   const db = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
-  const { data, error } = await db.rpc("check_rate_limit", {
-    p_ip: ip,
-    p_endpoint: opts.endpoint,
-    p_max: opts.maxPerMinute,
-  });
+  // Retry once on transient RPC failure. Without this, a single hiccup
+  // (cold pool, momentary saturation under a 100+ burst) caused the prior
+  // fail-open path to let everything through — the 120-request QA burst
+  // exercise found this gap.
+  async function call() {
+    return db.rpc("check_rate_limit", {
+      p_ip: ip,
+      p_endpoint: opts.endpoint,
+      p_max: opts.maxPerMinute,
+    });
+  }
+  let { data, error } = await call();
+  if (error) {
+    await new Promise((r) => setTimeout(r, 50));
+    ({ data, error } = await call());
+  }
 
   if (error) {
-    // Fail-open: if the rate-limit RPC errors, log and let the request
-    // through rather than locking everyone out. The coarse middleware
-    // limit is still in effect.
+    // After one retry the RPC is still erroring — fail-closed with 503 so
+    // we don't silently bypass the limit. The caller sees a clearly server-
+    // side response and can retry. The coarse middleware fence keeps total
+    // throughput bounded in the meantime.
     console.warn("RATE_LIMIT_RPC_ERR:", error.message, opts.endpoint, ip);
-    return null;
+    return NextResponse.json(
+      { error: "Rate limiter unavailable, please retry shortly." },
+      { status: 503, headers: { "Retry-After": "5" } },
+    );
   }
   if (data === false) {
     return NextResponse.json(

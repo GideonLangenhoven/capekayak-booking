@@ -51,7 +51,14 @@ export const DIAL_CODES = [
   { code: "+52",  flag: "\u{1F1F2}\u{1F1FD}", country: "Mexico" },
 ] as const;
 
+// AO4: returns E.164 form ("+<country><number>") so stored phones match the
+// international convention. Edge functions that POST to WhatsApp Graph strip
+// non-digits via _shared/tenant.normalizePhone, so the leading "+" is dropped
+// before the outbound API call — keeping this fix isolated to what gets
+// persisted in `bookings.phone` / `customers.phone`.
 export function normalizePhone(dialCode: string, digits: string): string {
   const clean = digits.replace(/\D/g, "").replace(/^0+/, "");
-  return dialCode.replace(/\D/g, "") + clean;
+  const cc = dialCode.replace(/\D/g, "");
+  if (!clean) return "";
+  return cc ? "+" + cc + clean : clean;
 }

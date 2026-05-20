@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createTenantSupabase } from "../lib/supabase";
 import { sanitizeHtml } from "../lib/sanitize";
+import { defaultCookies, isPlaceholderPolicy } from "../lib/policy-fallback";
 import PolicySkeleton from "../components/skeletons/PolicySkeleton";
 import { useTheme } from "../components/ThemeProvider";
 
@@ -23,14 +24,13 @@ export default function CookiesPage() {
 
   if (loading) return <PolicySkeleton />;
 
+  const useFallback = isPlaceholderPolicy(content);
+  const body = useFallback ? defaultCookies(theme.business_name || "") : content;
+
   return (
     <div className="app-container page-wrap">
       <h1 className="headline-lg mb-8">Cookies Policy</h1>
-      {content ? (
-        <div className="prose" dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }} />
-      ) : (
-        <p className="text-[color:var(--textMuted)]">No cookies policy has been published yet.</p>
-      )}
+      <div className="prose" dangerouslySetInnerHTML={{ __html: sanitizeHtml(body) }} />
     </div>
   );
 }

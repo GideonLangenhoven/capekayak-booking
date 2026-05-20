@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createTenantSupabase } from "../lib/supabase";
 import { sanitizeHtml } from "../lib/sanitize";
+import { defaultPrivacyPolicy, isPlaceholderPolicy } from "../lib/policy-fallback";
 import PolicySkeleton from "../components/skeletons/PolicySkeleton";
 import { useTheme } from "../components/ThemeProvider";
 
@@ -23,14 +24,16 @@ export default function PrivacyPage() {
 
   if (loading) return <PolicySkeleton />;
 
+  // AK-Privacy: render the default POPIA-compliant template whenever the
+  // operator hasn't published substantive copy, so customers never see a
+  // placeholder ("Yo-yo", "TBD", etc.) or an empty policy page.
+  const useFallback = isPlaceholderPolicy(content);
+  const body = useFallback ? defaultPrivacyPolicy(theme.business_name || "") : content;
+
   return (
     <div className="app-container page-wrap">
       <h1 className="headline-lg mb-8">Privacy Policy</h1>
-      {content ? (
-        <div className="prose" dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }} />
-      ) : (
-        <p className="text-[color:var(--textMuted)]">No privacy policy has been published yet.</p>
-      )}
+      <div className="prose" dangerouslySetInnerHTML={{ __html: sanitizeHtml(body) }} />
     </div>
   );
 }
