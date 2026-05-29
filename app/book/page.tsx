@@ -48,6 +48,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   const [soldOutMsg, setSoldOutMsg] = useState("");
   const [tourNotFound, setTourNotFound] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [availableAddOns, setAvailableAddOns] = useState<AddOn[]>([]);
   const [selectedAddOns, setSelectedAddOns] = useState<Record<string, number>>({});
   const [promoCode, setPromoCode] = useState("");
@@ -377,7 +378,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   }
 
   async function submitBooking() {
-    if (!name.trim() || !email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !phone.trim()) return;
+    if (!name.trim() || !email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !phone.trim() || !termsAccepted) return;
     setSubmitting(true);
     const promoInsertFields: Record<string, unknown> = {};
     if (appliedPromo) {
@@ -393,6 +394,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
       qty, unit_price: effectiveUnitPrice, total_amount: finalTotal, original_total: grandTotal,
       status: "PENDING", source: embed ? "WIDGET" : "WEB",
       marketing_opt_in: marketingOptIn || null,
+      terms_accepted_at: new Date().toISOString(),
       ...promoInsertFields,
     };
     let booking: any; let error: any;
@@ -834,14 +836,14 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
               {/* Discounts Block */}
               <div className="bg-[#FDFDFB] rounded-[1.5rem] p-6 border border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-6">
                  <div>
-                   <label className="block text-[14px] font-extrabold text-slate-800 tracking-wide mb-3 uppercase">Promo Code</label>
+                   <label htmlFor="book-promo" className="block text-[14px] font-extrabold text-slate-800 tracking-wide mb-3 uppercase">Promo Code</label>
                    {!appliedPromo ? (
                      <>
                        <div className="flex gap-2 relative">
                          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
                          </div>
-                         <input type="text" value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder="e.g. SUMMER20"
+                         <input id="book-promo" type="text" value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder="e.g. SUMMER20"
                            className="flex-1 pl-10 pr-4 py-3.5 bg-slate-50 border-transparent rounded-2xl text-[14px] font-bold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white placeholder:normal-case placeholder:font-medium placeholder:text-slate-400"
                            onKeyDown={e => e.key === "Enter" && applyPromo()} />
                          <button onClick={applyPromo} className="bg-slate-800 text-white px-6 py-3.5 rounded-2xl text-[14px] font-extrabold hover:bg-slate-900 transition-colors">Apply</button>
@@ -908,6 +910,14 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
               </div>
               
               <label className="flex items-start gap-4 mt-6 cursor-pointer group bg-[#FDFDFB] rounded-[1.5rem] p-5 border border-slate-100 hover:border-slate-200 transition-colors">
+                <input type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)}
+                  className="mt-0.5 w-5 h-5 shrink-0 rounded text-teal-600 focus:ring-teal-500 cursor-pointer" />
+                <span className="text-[13px] font-bold text-slate-500 leading-relaxed group-hover:text-slate-700 transition-colors">
+                  I accept the <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-teal-600 underline hover:text-teal-700">Terms &amp; Conditions</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-teal-600 underline hover:text-teal-700">Privacy Policy</a>.
+                </span>
+              </label>
+
+              <label className="flex items-start gap-4 mt-3 cursor-pointer group bg-[#FDFDFB] rounded-[1.5rem] p-5 border border-slate-100 hover:border-slate-200 transition-colors">
                 <input type="checkbox" checked={marketingOptIn} onChange={e => setMarketingOptIn(e.target.checked)}
                   className="mt-0.5 w-5 h-5 shrink-0 rounded text-teal-600 focus:ring-teal-500 cursor-pointer" />
                 <span className="text-[13px] font-bold text-slate-500 leading-relaxed group-hover:text-slate-700 transition-colors">I agree to receive booking updates and occasional promotions by email and SMS. You can opt out at any time.</span>
@@ -954,9 +964,9 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                   </div>
                 </div>
                 
-                <button onClick={submitBooking} disabled={submitting || !name.trim() || !email.trim() || !phone.trim()}
-                  className={"w-full mt-8 py-4 rounded-[1.5rem] text-[15px] font-extrabold transition-all shadow-lg flex items-center justify-center gap-2 " + 
-                   (submitting || !name.trim() || !email.trim() || !phone.trim() ? "bg-slate-800 text-slate-500 shadow-none" : "bg-teal-500 text-slate-900 hover:bg-teal-400 shadow-teal-500/20")}>
+                <button onClick={submitBooking} disabled={submitting || !name.trim() || !email.trim() || !phone.trim() || !termsAccepted}
+                  className={"w-full mt-8 py-4 rounded-[1.5rem] text-[15px] font-extrabold transition-all shadow-lg flex items-center justify-center gap-2 " +
+                   (submitting || !name.trim() || !email.trim() || !phone.trim() || !termsAccepted ? "bg-slate-800 text-slate-500 shadow-none" : "bg-teal-500 text-slate-900 hover:bg-teal-400 shadow-teal-500/20")}>
                   {submitting ? "Processing..." : finalTotal <= 0 ? "Confirm Booking ✓" : "Pay R" + finalTotal + " Securely"}
                 </button>
                 <div className="flex items-center justify-center gap-2 mt-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest">
