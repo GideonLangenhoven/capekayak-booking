@@ -107,11 +107,11 @@ function WaiverContent() {
     setSubmitting(true);
     setError("");
     const scopedSupabase = createScopedSupabase({ "x-booking-id": bookingId, "x-booking-waiver-token": token });
-    const { error: updateErr } = await scopedSupabase.from("bookings").update({
-      waiver_status: "SIGNED",
-      waiver_signed_at: new Date().toISOString(),
-      waiver_signed_name: signerName.trim(),
-      waiver_payload: {
+    const { data: result, error: updateErr } = await scopedSupabase.rpc("sign_waiver", {
+      p_booking_id: bookingId,
+      p_waiver_token: token,
+      p_signed_name: signerName.trim(),
+      p_payload: {
         notes: notes.trim() || null,
         id_number: idNumber.trim() || null,
         accept_risk: true,
@@ -124,10 +124,20 @@ function WaiverContent() {
           guardian_signature: guardianSignature.trim(),
         } : {}),
       },
-    }).eq("id", bookingId).eq("waiver_token", token);
+    });
 
     if (updateErr) {
       setError("Failed to save waiver: " + updateErr.message);
+      setSubmitting(false);
+      return;
+    }
+    if (!result?.ok) {
+      const reason = result?.error === "expired"
+        ? "This waiver link has expired. Please contact the operator for a new link."
+        : result?.error === "invalid_token"
+        ? "This waiver link is invalid. Please open the link from your booking confirmation email."
+        : "We couldn't record your waiver. Please try again or contact the operator.";
+      setError(reason);
       setSubmitting(false);
       return;
     }
