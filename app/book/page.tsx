@@ -427,49 +427,54 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     }
 
     if (finalTotal <= 0) {
-      await supabase.from("bookings").update({ status: "PAID", yoco_payment_id: "VOUCHER_WEB" }).eq("id", booking.id);
-      // Sequential voucher deduction using atomic RPC (prevents double-spend race conditions)
-      let remainingCost = grandTotal;
-      const remainders: { code: string; remaining: number }[] = [];
-      for (const v of vouchers) {
-        if (remainingCost <= 0) break;
-        const deductionAmount = Math.min(v.value, remainingCost);
-        // Atomic deduction via RPC — drains this voucher fully before moving to next
-        const { data: rpcResult } = await supabase.rpc("deduct_voucher_balance", { p_voucher_id: v.id, p_amount: deductionAmount });
-        if (rpcResult?.success) {
-          const deducted = Number(rpcResult.deducted);
-          const remaining = Number(rpcResult.remaining);
-          remainingCost -= deducted;
-          await supabase.from("vouchers").update({ redeemed_booking_id: booking.id }).eq("id", v.id);
-          if (remaining > 0) {
-            remainders.push({ code: v.code, remaining });
-            try {
-              await supabase.functions.invoke("send-email", {
-                body: {
-                  type: "VOUCHER_BALANCE",
-                  data: {
-                    email: email.toLowerCase(),
-                    customer_name: name,
-                    voucher_code: v.code,
-                    original_value: v.value,
-                    amount_used: deducted,
-                    remaining_balance: remaining,
-                    booking_ref: booking.id.substring(0, 8).toUpperCase(),
-                    tour_name: selectedTour!.name,
-                    business_id: selectedTour!.business_id,
-                  },
-                },
-              });
-            } catch (e) { console.error("VOUCHER_BALANCE_EMAIL_ERR:", e); }
-          }
-        }
-      }
-      await supabase.rpc("create_hold_with_capacity_check", {
+      // Server-side confirmation: confirm_voucher_booking recomputes the total,
+      // verifies the vouchers actually cover it, reserves capacity, deducts the
+      // vouchers and sets PAID — all atomically. Anon can no longer mark a booking
+      // PAID directly, and capacity is checked before confirmation (never PAID on
+      // a sold-out slot).
+      const { data: confirmRes, error: confirmErr } = await supabase.rpc("confirm_voucher_booking", {
         p_booking_id: booking.id,
-        p_slot_id: selectedSlot!.id,
-        p_qty: qty,
-        p_expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        p_voucher_ids: vouchers.map(v => v.id),
       });
+      if (confirmErr || !confirmRes?.ok) {
+        if (confirmRes?.error === "no_capacity") {
+          await supabase.from("bookings").update({ status: "CANCELLED", cancellation_reason: "No capacity" }).eq("id", booking.id);
+          setSoldOutMsg(confirmRes?.message || "This slot just sold out! Please select another time.");
+          setSelectedSlot(null);
+          setStep("calendar");
+          setSubmitting(false);
+          if (selectedTour) loadSlots(selectedTour.id);
+          return;
+        }
+        showToast(confirmRes?.error === "insufficient_voucher"
+          ? "Your voucher no longer covers the full amount. Please try again."
+          : "We couldn't confirm your booking. Please try again.", "error");
+        setSubmitting(false);
+        return;
+      }
+      // Email customers any leftover voucher balance the server reported.
+      const remainders: { code: string; remaining: number }[] = (confirmRes.remainders || []).map((r: { code: string; remaining: number }) => ({ code: r.code, remaining: Number(r.remaining) }));
+      for (const r of remainders) {
+        const used = vouchers.find(v => v.code === r.code);
+        try {
+          await supabase.functions.invoke("send-email", {
+            body: {
+              type: "VOUCHER_BALANCE",
+              data: {
+                email: email.toLowerCase(),
+                customer_name: name,
+                voucher_code: r.code,
+                original_value: used?.value ?? null,
+                amount_used: used ? used.value - r.remaining : null,
+                remaining_balance: r.remaining,
+                booking_ref: booking.id.substring(0, 8).toUpperCase(),
+                tour_name: selectedTour!.name,
+                business_id: selectedTour!.business_id,
+              },
+            },
+          });
+        } catch (e) { console.error("VOUCHER_BALANCE_EMAIL_ERR:", e); }
+      }
       // Confirm booking (handles email + WhatsApp + invoice + marketing sync)
       try {
         await supabase.functions.invoke("confirm-booking", {
