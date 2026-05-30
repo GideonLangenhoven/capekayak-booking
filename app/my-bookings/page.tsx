@@ -292,6 +292,15 @@ export default function MyBookings() {
         let errMsg = "Something went wrong. Please try again.";
         if (resp.data && typeof resp.data === "object" && (resp.data as Record<string, unknown>).error) {
           errMsg = (resp.data as Record<string, unknown>).error as string;
+        } else if (resp.error && typeof (resp.error as Record<string, unknown>).context === "object") {
+          // Non-2xx (e.g. 429 rate limit): supabase-js puts the body on error.context.
+          const ctx = (resp.error as Record<string, unknown>).context as { json?: () => Promise<{ error?: string }> } | null;
+          try {
+            if (ctx && typeof ctx.json === "function") {
+              const parsed = await ctx.json();
+              if (parsed?.error) errMsg = parsed.error;
+            }
+          } catch { /* fall back to generic */ }
         }
         setLoginError(errMsg);
         setOtpSending(false);
