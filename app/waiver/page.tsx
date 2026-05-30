@@ -98,7 +98,8 @@ function WaiverContent() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!signerName.trim()) { setError("Please enter your full name."); return; }
-    if (!acceptRisk || !guardianConsent) { setError("Please accept all required confirmations."); return; }
+    if (!acceptRisk) { setError("Please accept all required confirmations."); return; }
+    if (hasMinor && !guardianConsent) { setError("A minor is listed — please confirm you are the parent/legal guardian."); return; }
     if (hasMinor && (!guardianName.trim() || !guardianIdNumber.trim() || !guardianSignature.trim())) {
       setError("A minor is listed — please complete the parent/guardian countersignature section.");
       return;
@@ -115,7 +116,7 @@ function WaiverContent() {
         notes: notes.trim() || null,
         id_number: idNumber.trim() || null,
         accept_risk: true,
-        guardian_consent: true,
+        guardian_consent: hasMinor ? guardianConsent : null,
         user_agent: navigator.userAgent || null,
         participant_dobs: participantDobs.filter(d => d) || null,
         ...(hasMinor ? {
@@ -385,13 +386,15 @@ function WaiverContent() {
                 </span>
               </label>
 
-              <label className="flex gap-3 items-start rounded-2xl border border-[color:var(--border)] bg-[color:var(--bg)] p-4 cursor-pointer">
-                <input type="checkbox" checked={guardianConsent} onChange={e => setGuardianConsent(e.target.checked)}
-                  className="mt-1 w-5 h-5 shrink-0" />
-                <span className="text-sm text-[color:var(--textMuted)] leading-relaxed">
-                  If any participant in this booking is under 18 years of age, I confirm that I am their parent or legal guardian and I accept all terms on their behalf with full legal authority to do so.
-                </span>
-              </label>
+              {hasMinor && (
+                <label className="flex gap-3 items-start rounded-2xl border border-[color:var(--border)] bg-[color:var(--bg)] p-4 cursor-pointer">
+                  <input type="checkbox" checked={guardianConsent} onChange={e => setGuardianConsent(e.target.checked)}
+                    className="mt-1 w-5 h-5 shrink-0" />
+                  <span className="text-sm text-[color:var(--textMuted)] leading-relaxed">
+                    A participant in this booking is under 18 years of age. I confirm that I am their parent or legal guardian and I accept all terms on their behalf with full legal authority to do so.
+                  </span>
+                </label>
+              )}
 
               <button type="submit" disabled={submitting}
                 className="w-full rounded-full py-4 text-base font-bold text-white bg-gradient-to-br from-[#0f766e] to-[#134e4a] hover:opacity-90 disabled:opacity-50 transition-opacity">
