@@ -30,6 +30,9 @@ type ThemeData = {
   footer_line_two: string | null;
   subscription_status: string | null;
   refund_policy_text: string | null;
+  public_email: string | null;
+  public_phone: string | null;
+  public_whatsapp: string | null;
 };
 
 const defaults: ThemeData = {
@@ -42,6 +45,7 @@ const defaults: ThemeData = {
   card_cta_label: null, chat_widget_label: null,
   footer_line_one: null, footer_line_two: null,
   subscription_status: null, refund_policy_text: null,
+  public_email: null, public_phone: null, public_whatsapp: null,
 };
 
 // AN3 P1: explicit column list mirrors the ThemeData keys above so anon reads
@@ -93,8 +97,17 @@ function lighten(hex: string, pct: number) {
  * 2. ?business_id= query parameter — for previewing / testing
  * 3. Match the current standard subdomain or current origin without enumerating businesses
  */
-async function resolveBusiness(): Promise<ThemeData> {
-  // 1. Environment variable — most reliable, set once per Vercel deployment
+async function resolveBusiness(initialBusinessId?: string | null): Promise<ThemeData> {
+  // 0. Server-resolved tenant (shared-deployment model): the layout resolves the
+  // tenant from the request Host and passes its id in. Most authoritative — one
+  // indexed lookup, no dependency on a per-deploy env var.
+  if (initialBusinessId) {
+    const scoped = createBusinessResolverSupabase({ businessId: initialBusinessId });
+    const { data } = await scoped.from("businesses").select(BUSINESS_THEME_COLS).eq("id", initialBusinessId).maybeSingle();
+    if (data) return toTheme(data as unknown as Record<string, unknown>);
+  }
+
+  // 1. Environment variable — legacy per-Vercel-deployment lock (kept for back-compat)
   const envBusinessId = process.env.NEXT_PUBLIC_BUSINESS_ID || "";
   if (envBusinessId) {
     const scoped = createBusinessResolverSupabase({ businessId: envBusinessId });
@@ -139,12 +152,12 @@ async function resolveBusiness(): Promise<ThemeData> {
   return defaults;
 }
 
-export default function ThemeProvider({ children }: { children: React.ReactNode }) {
+export default function ThemeProvider({ children, initialBusinessId }: { children: React.ReactNode; initialBusinessId?: string | null }) {
   const [theme, setTheme] = useState<ThemeData>(defaults);
 
   useEffect(() => {
     (async () => {
-      const resolved = await resolveBusiness();
+      const resolved = await resolveBusiness(initialBusinessId);
       if (resolved) {
         setTheme(resolved);
       }

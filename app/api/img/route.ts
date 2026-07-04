@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
   }
 
-  if (!ALLOWED_HOSTS.some(h => parsed.hostname.endsWith(h))) {
+  if (!ALLOWED_HOSTS.some(h => parsed.hostname === h || parsed.hostname.endsWith("." + h))) {
     return NextResponse.json({ error: "Host not allowed" }, { status: 403 });
   }
 
