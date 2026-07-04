@@ -13,6 +13,7 @@ import BookingCard from "./BookingCard";
 import ProfileTab from "./ProfileTab";
 import EditGuestsModal from "./modals/EditGuestsModal";
 import ContactModal from "./modals/ContactModal";
+import ContactUsModal from "./modals/ContactUsModal";
 import SpecialRequestModal from "./modals/SpecialRequestModal";
 import CancelModal from "./modals/CancelModal";
 import VoucherCheckerModal from "./modals/VoucherCheckerModal";
@@ -96,6 +97,8 @@ export default function MyBookings() {
   const [guestPromoCode, setGuestPromoCode] = useState("");
   const [guestPromoApplied, setGuestPromoApplied] = useState<{ id: string; code: string; discount_type: string; discount_value: number } | null>(null);
   const [guestPromoError, setGuestPromoError] = useState("");
+  const [guestPaymentUrl, setGuestPaymentUrl] = useState("");
+  const [guestPaymentAmount, setGuestPaymentAmount] = useState(0);
 
   // Contact details modal
   const [contactBooking, setContactBooking] = useState<Booking | null>(null);
@@ -106,6 +109,9 @@ export default function MyBookings() {
   // Special request modal
   const [requestBooking, setRequestBooking] = useState<Booking | null>(null);
   const [specialRequest, setSpecialRequest] = useState("");
+
+  // Contact Us modal
+  const [contactUsOpen, setContactUsOpen] = useState(false);
 
   // Cancel modal
   const [cancelTarget, setCancelTarget] = useState<Booking | null>(null);
@@ -243,7 +249,13 @@ export default function MyBookings() {
 
   /* ───── Edge function caller ───── */
   async function callRebook(body: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const resp = await supabase.functions.invoke("rebook-booking", { body });
+    // rebook-booking requires proof of ownership: the OTP-issued customer
+    // session token (magic-link users are covered by their Supabase Auth JWT,
+    // which functions.invoke attaches automatically).
+    let customerSession: string | null = null;
+    try { customerSession = localStorage.getItem("mb_customer_session"); } catch { /* private mode */ }
+    const payload = customerSession ? { customer_session: customerSession, ...body } : body;
+    const resp = await supabase.functions.invoke("rebook-booking", { body: payload });
     if (resp.error) {
       let msg = "Something went wrong. Please try again.";
       try {
@@ -561,6 +573,7 @@ export default function MyBookings() {
     setGuestExcessAction("VOUCHER");
     setGuestVoucherCode(""); setGuestVoucherApplied(null); setGuestVoucherError("");
     setGuestPromoCode(""); setGuestPromoApplied(null); setGuestPromoError("");
+    setGuestPaymentUrl(""); setGuestPaymentAmount(0);
   }
 
   async function applyGuestVoucher() {
@@ -601,12 +614,17 @@ export default function MyBookings() {
       if (guestQty > b.qty) {
         const result = await callRebook({ booking_id: b.id, action: "ADD_GUESTS", new_qty: guestQty });
         if (result.payment_url) {
-          showToast((guestQty - b.qty) + " guest(s) added! Pay R" + result.diff + " to confirm.");
-          window.open(result.payment_url as string, "_blank");
+          // Render the pay link in the modal (a direct-click anchor). window.open
+          // after an await is blocked by popup blockers, which is why the link
+          // never appeared before. Keep the modal open so the customer can pay.
+          setGuestPaymentUrl(result.payment_url as string);
+          setGuestPaymentAmount(Number(result.diff) || 0);
           startPaymentPolling(b.id);
-        } else {
-          showToast("Guests added!");
+          setActionLoading(null);
+          return;
         }
+        // A price increase always needs payment; no link means checkout failed.
+        throw new Error("Couldn't create a payment link for the extra guest(s). Please try again.");
       } else {
         const result2 = await callRebook({ booking_id: b.id, action: "REMOVE_GUESTS", new_qty: guestQty, excess_action: guestExcessAction });
         if (result2.voucher_code) {
@@ -766,6 +784,7 @@ export default function MyBookings() {
     onReschedule: startReschedule, onEditGuests: openEditGuests,
     onContactDetails: openContactDetails, onSpecialRequest: openSpecialRequest,
     onCancel: setCancelTarget, onAdminReview: requestAdminReview,
+    onContactUs: () => setContactUsOpen(true),
     onClaimCredit: handleClaimCredit,
   };
 
@@ -786,9 +805,16 @@ export default function MyBookings() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {authSession && (
+              <button onClick={() => setActiveTab("profile")} title="Settings" aria-label="Settings"
+                className="w-10 h-10 shrink-0 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors border border-slate-100">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              </button>
+            )}
             <button onClick={async () => { if (authSession) { await supabase.auth.signOut(); setAuthSession(false); } setLoggedIn(false); setBookings([]); setEmail(""); setDialCode("+27"); setPhoneDigits(""); setLoginError(""); setToast(null); setAutoLoginAttempted(false); setSessionChecked(true); sessionStorage.removeItem("mb_loggedIn"); sessionStorage.removeItem("mb_email"); sessionStorage.removeItem("mb_dialCode"); sessionStorage.removeItem("mb_phone"); try { localStorage.removeItem("mb_customer_session"); localStorage.removeItem("mb_customer_email"); localStorage.removeItem("mb_customer_session_exp"); } catch { /* */ } }}
+              title="Log out" aria-label="Log out"
               className="w-10 h-10 shrink-0 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors border border-slate-100">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
             </button>
           </div>
         </div>
@@ -901,13 +927,13 @@ export default function MyBookings() {
 
            {/* Right Column */}
            <div className="lg:col-span-7">
-              {/* Notifications / Bookings list */}
+              {/* Bookings list */}
               <div>
                  <div className="flex justify-between items-center mb-4 px-1">
-                    <h2 className="text-sm font-bold text-slate-800">Notifications</h2>
+                    <h2 className="text-sm font-bold text-slate-800">Your bookings</h2>
                  </div>
-                 
-                 <div className="space-y-4">
+
+                 <div className="space-y-6">
                     {bookings.length === 0 ? (
                        <div className="bg-orange-50 rounded-[1.5rem] p-6 shadow-sm border border-orange-100/50 flex flex-col items-center">
                           <p className="text-[14px] text-orange-800 font-semibold mb-1">No upcoming trips yet.</p>
@@ -916,9 +942,24 @@ export default function MyBookings() {
                        </div>
                     ) : (
                        <>
-                         {upcoming.length > 0 && upcoming.map(b => <BookingCard key={b.id} b={b} {...cardProps} refundCalc={refundCalcs[b.id] || null} />)}
-                         {past.length > 0 && past.map(b => <BookingCard key={b.id} b={b} {...cardProps} />)}
-                         {cancelled.length > 0 && cancelled.map(b => <BookingCard key={b.id} b={b} {...cardProps} />)}
+                         {upcoming.length > 0 && (
+                            <div className="space-y-4">
+                               <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 ml-1">Upcoming</h3>
+                               {upcoming.map(b => <BookingCard key={b.id} b={b} {...cardProps} refundCalc={refundCalcs[b.id] || null} />)}
+                            </div>
+                         )}
+                         {past.length > 0 && (
+                            <div className="space-y-4">
+                               <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 ml-1">Past trips</h3>
+                               {past.map(b => <BookingCard key={b.id} b={b} {...cardProps} />)}
+                            </div>
+                         )}
+                         {cancelled.length > 0 && (
+                            <div className="space-y-4">
+                               <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 ml-1">Cancelled</h3>
+                               {cancelled.map(b => <BookingCard key={b.id} b={b} {...cardProps} />)}
+                            </div>
+                         )}
                        </>
                     )}
                  </div>
@@ -933,7 +974,8 @@ export default function MyBookings() {
       <EditGuestsModal
         booking={editGuestsBooking} guestQty={guestQty} setGuestQty={setGuestQty}
         guestExcessAction={guestExcessAction} setGuestExcessAction={setGuestExcessAction}
-        actionLoading={actionLoading} onClose={() => setEditGuestsBooking(null)} onSubmit={submitEditGuests}
+        actionLoading={actionLoading} onClose={() => { setEditGuestsBooking(null); setGuestPaymentUrl(""); setGuestPaymentAmount(0); }} onSubmit={submitEditGuests}
+        paymentUrl={guestPaymentUrl} paymentAmount={guestPaymentAmount}
         voucherCode={guestVoucherCode} setVoucherCode={setGuestVoucherCode}
         voucherApplied={guestVoucherApplied} voucherError={guestVoucherError}
         onApplyVoucher={applyGuestVoucher} onRemoveVoucher={() => setGuestVoucherApplied(null)}
@@ -955,6 +997,11 @@ export default function MyBookings() {
         booking={cancelTarget} actionLoading={actionLoading}
         onClose={() => setCancelTarget(null)} onCancelRefund={submitCancelRefund} onCancelVoucher={submitCancelVoucher}
         refundCalc={cancelTarget ? refundCalcs[cancelTarget.id] || null : null}
+      />
+      <ContactUsModal
+        open={contactUsOpen} businessName={theme.business_name || ""}
+        email={theme.public_email} phone={theme.public_phone} whatsapp={theme.public_whatsapp}
+        onClose={() => setContactUsOpen(false)}
       />
     </div>
   );

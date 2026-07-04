@@ -28,8 +28,10 @@ function WaiverContent() {
   const [acceptRisk, setAcceptRisk] = useState(false);
   const [guardianConsent, setGuardianConsent] = useState(false);
 
-  // Minor/guardian fields
+  // Per-participant fields
   const [participantDobs, setParticipantDobs] = useState<string[]>([]);
+  const [participantNames, setParticipantNames] = useState<string[]>([]);
+  const [participantLiability, setParticipantLiability] = useState<boolean[]>([]);
   const [guardianName, setGuardianName] = useState("");
   const [guardianIdNumber, setGuardianIdNumber] = useState("");
   const [guardianSignature, setGuardianSignature] = useState("");
@@ -81,7 +83,10 @@ function WaiverContent() {
 
       setBooking(b as unknown as NonNullable<typeof booking>);
       setSignerName(b.customer_name || "");
-      setParticipantDobs(Array(b.qty || 1).fill(""));
+      const n = b.qty || 1;
+      setParticipantDobs(Array(n).fill(""));
+      setParticipantNames(Array.from({ length: n }, (_, i) => (i === 0 ? (b.customer_name || "") : "")));
+      setParticipantLiability(Array(n).fill(false));
 
       if (b.business_id) {
         const tenantSupabase = createTenantSupabase(b.business_id);
@@ -98,6 +103,8 @@ function WaiverContent() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!signerName.trim()) { setError("Please enter your full name."); return; }
+    if (participantNames.some(n => !n.trim())) { setError("Please enter a name for each guest."); return; }
+    if (!participantLiability.every(Boolean)) { setError("Each guest must individually accept the liability terms."); return; }
     if (!acceptRisk) { setError("Please accept all required confirmations."); return; }
     if (hasMinor && !guardianConsent) { setError("A minor is listed — please confirm you are the parent/legal guardian."); return; }
     if (hasMinor && (!guardianName.trim() || !guardianIdNumber.trim() || !guardianSignature.trim())) {
@@ -119,6 +126,13 @@ function WaiverContent() {
         guardian_consent: hasMinor ? guardianConsent : null,
         user_agent: navigator.userAgent || null,
         participant_dobs: participantDobs.filter(d => d) || null,
+        // Per-guest individual acceptance — name + explicit tick + the shared
+        // signed-at timestamp/IP recorded by sign_waiver = individual assent on record.
+        participants: participantNames.map((name, i) => ({
+          name: name.trim(),
+          dob: participantDobs[i] || null,
+          accepts_liability: !!participantLiability[i],
+        })),
         ...(hasMinor ? {
           guardian_name: guardianName.trim(),
           guardian_id_number: guardianIdNumber.trim(),
@@ -307,10 +321,10 @@ function WaiverContent() {
                   className="w-full rounded-2xl border border-[color:var(--border)] px-4 py-3 text-base bg-[color:var(--card)] outline-none resize-y focus:ring-2 focus:ring-[color:var(--accent)]" />
               </div>
 
-              {/* Participant Date of Birth */}
+              {/* Participants — name, individual liability acceptance, optional DOB */}
               <div>
-                <label className="block text-sm font-semibold mb-2">Date of Birth for each participant</label>
-                <p className="text-xs text-[color:var(--textMuted)] mb-3">Required to verify if any participant is a minor. If under 18, a parent/guardian countersignature is required below.</p>
+                <label className="block text-sm font-semibold mb-2">Participants</label>
+                <p className="text-xs text-[color:var(--textMuted)] mb-3">Enter each guest&apos;s name and confirm they accept the terms individually. A date of birth is only needed for anyone under 18 (so we can capture the required parent/guardian consent) — adults can leave it blank.</p>
                 <div className="space-y-3">
                   {participantDobs.map((dob, i) => {
                     const parts = dob ? dob.split("-") : ["", "", ""];
@@ -322,12 +336,19 @@ function WaiverContent() {
                       updated[i] = (year || "") + "-" + (month ? month.padStart(2, "0") : "") + "-" + (day ? day.padStart(2, "0") : "");
                       setParticipantDobs(updated);
                     };
+                    const updateName = (val: string) => { const u = [...participantNames]; u[i] = val; setParticipantNames(u); };
+                    const updateLiability = (val: boolean) => { const u = [...participantLiability]; u[i] = val; setParticipantLiability(u); };
                     const curYear = new Date().getFullYear();
                     const selectCls = "rounded-xl border border-[color:var(--border)] px-2 py-2.5 text-sm bg-[color:var(--card)] outline-none focus:ring-2 focus:ring-[color:var(--accent)] appearance-none";
+                    const nm = (participantNames[i] || "").trim();
                     return (
-                      <div key={i}>
+                      <div key={i} className="rounded-2xl border border-[color:var(--border)] p-3 space-y-2.5">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm text-[color:var(--textMuted)] w-16 shrink-0">Guest {i + 1}</span>
+                          <span className="text-sm font-medium text-[color:var(--textMuted)] w-16 shrink-0">Guest {i + 1}</span>
+                          <input type="text" aria-label={"Name for guest " + (i + 1)} value={participantNames[i] || ""} onChange={e => updateName(e.target.value)} placeholder="Full name"
+                            className="flex-1 min-w-[140px] rounded-xl border border-[color:var(--border)] px-3 py-2.5 text-sm bg-[color:var(--card)] outline-none focus:ring-2 focus:ring-[color:var(--accent)]" />
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap sm:pl-[72px]">
                           <select aria-label={"Day for guest " + (i + 1)} value={d} onChange={e => updateDob(e.target.value, m, y)} className={selectCls + " w-[72px]"}>
                             <option value="">Day</option>
                             {Array.from({ length: 31 }, (_, j) => j + 1).map(v => <option key={v} value={String(v)}>{v}</option>)}
@@ -344,6 +365,12 @@ function WaiverContent() {
                             <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-lg">Minor ({calcAge(dob)}y)</span>
                           )}
                         </div>
+                        <label className="flex gap-2.5 items-start cursor-pointer sm:pl-[72px]">
+                          <input type="checkbox" checked={!!participantLiability[i]} onChange={e => updateLiability(e.target.checked)} className="mt-0.5 w-4 h-4 shrink-0" />
+                          <span className="text-xs text-[color:var(--textMuted)] leading-relaxed">
+                            <strong className="text-[color:var(--text)]">{nm || ("Guest " + (i + 1))}</strong> has read and individually accepts the assumption of risk &amp; release of liability above.
+                          </span>
+                        </label>
                       </div>
                     );
                   })}

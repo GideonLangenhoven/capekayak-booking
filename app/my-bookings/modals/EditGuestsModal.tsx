@@ -12,6 +12,8 @@ interface EditGuestsModalProps {
   actionLoading: string | null;
   onClose: () => void;
   onSubmit: () => void;
+  paymentUrl?: string;
+  paymentAmount?: number;
   voucherCode: string;
   setVoucherCode: (v: string) => void;
   voucherApplied: { code: string; balance: number } | null;
@@ -28,7 +30,7 @@ interface EditGuestsModalProps {
 
 export default function EditGuestsModal({
   booking, guestQty, setGuestQty, guestExcessAction, setGuestExcessAction,
-  actionLoading, onClose, onSubmit,
+  actionLoading, onClose, onSubmit, paymentUrl, paymentAmount,
   voucherCode, setVoucherCode, voucherApplied, voucherError, onApplyVoucher, onRemoveVoucher,
   promoCode, setPromoCode, promoApplied, promoError, onApplyPromo, onRemovePromo,
 }: EditGuestsModalProps) {
@@ -155,9 +157,21 @@ export default function EditGuestsModal({
 
         {!canRemove && guestQty <= b.qty && <p className="text-xs text-amber-600 mb-4">Cannot remove guests within 24 hours of trip.</p>}
 
-        <Button onClick={onSubmit} disabled={guestQty === b.qty || actionLoading === "guests"} fullWidth className="py-3">
-          {actionLoading === "guests" ? "Processing..." : guestDiff === 0 ? "No changes" : guestDiff > 0 ? (finalCost > 0 ? "Add & Pay R" + finalCost : "Add Guests (Covered)") : "Confirm Removal"}
-        </Button>
+        {paymentUrl ? (
+          <div className="space-y-2">
+            <a href={paymentUrl} target="_blank" rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white transition hover:opacity-90"
+              style={{ backgroundColor: "var(--accent, #14b8a6)" }}>
+              Pay R{paymentAmount ?? finalCost} now
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+            </a>
+            <p className="text-xs text-center text-[color:var(--textMuted)]">Your extra guest{guestDiff > 1 ? "s are" : " is"} held for 15 minutes. The booking updates automatically once payment completes — you can close this after paying.</p>
+          </div>
+        ) : (
+          <Button onClick={onSubmit} disabled={guestQty === b.qty || actionLoading === "guests"} fullWidth className="py-3">
+            {actionLoading === "guests" ? "Processing..." : guestDiff === 0 ? "No changes" : guestDiff > 0 ? (finalCost > 0 ? "Add & Pay R" + finalCost : "Add Guests (Covered)") : "Confirm Removal"}
+          </Button>
+        )}
       </div>
     </Modal>
   );
