@@ -104,6 +104,7 @@ function WaiverContent() {
     e.preventDefault();
     if (!signerName.trim()) { setError("Please enter your full name."); return; }
     if (participantNames.some(n => !n.trim())) { setError("Please enter a name for each guest."); return; }
+    if (participantDobs.some(d => !isCompleteDob(d))) { setError("Please enter a date of birth for every guest."); return; }
     if (!participantLiability.every(Boolean)) { setError("Each guest must individually accept the liability terms."); return; }
     if (!acceptRisk) { setError("Please accept all required confirmations."); return; }
     if (hasMinor && !guardianConsent) { setError("A minor is listed — please confirm you are the parent/legal guardian."); return; }
@@ -324,7 +325,7 @@ function WaiverContent() {
               {/* Participants — name, individual liability acceptance, optional DOB */}
               <div>
                 <label className="block text-sm font-semibold mb-2">Participants</label>
-                <p className="text-xs text-[color:var(--textMuted)] mb-3">Enter each guest&apos;s name and confirm they accept the terms individually. A date of birth is only needed for anyone under 18 (so we can capture the required parent/guardian consent) — adults can leave it blank.</p>
+                <p className="text-xs text-[color:var(--textMuted)] mb-3">Enter each guest&apos;s full name and date of birth, and confirm they accept the terms individually. A date of birth is <strong className="text-[color:var(--text)]">required for every participant</strong>.</p>
                 <div className="space-y-3">
                   {participantDobs.map((dob, i) => {
                     const parts = dob ? dob.split("-") : ["", "", ""];
