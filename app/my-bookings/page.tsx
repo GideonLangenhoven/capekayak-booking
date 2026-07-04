@@ -774,9 +774,18 @@ export default function MyBookings() {
   /* ═══════════════════════════════════════════════════════
      BOOKINGS LIST
      ═══════════════════════════════════════════════════════ */
+  // A trip the OPERATOR cancelled (e.g. weather) where the customer still has to
+  // choose reschedule / voucher / refund. These must be impossible to miss, so
+  // they're pulled out of the buried "Cancelled" group and surfaced at the top.
+  const needsAction = (b: Booking) =>
+    b.status === "CANCELLED"
+    && (b.refund_status === "ACTION_REQUIRED" || b.refund_status === "CREDIT_PENDING")
+    && Number(b.refund_amount || 0) > 0
+    && !b.converted_to_voucher_id;
+  const actionNeeded = bookings.filter(needsAction);
   const upcoming = bookings.filter(b => ["PAID", "CONFIRMED", "HELD", "PENDING"].includes(b.status) && getTimeTier(b) !== "PAST");
   const past = bookings.filter(b => b.status === "COMPLETED" || b.status === "EXPIRED" || (["PAID", "CONFIRMED"].includes(b.status) && getTimeTier(b) === "PAST"));
-  const cancelled = bookings.filter(b => b.status === "CANCELLED");
+  const cancelled = bookings.filter(b => b.status === "CANCELLED" && !needsAction(b));
 
   const cardProps = {
     countdownTick, paymentPending, actionLoading, tripPhotos, bookingLogs,
@@ -858,6 +867,27 @@ export default function MyBookings() {
           );
           return null;
         })()}
+
+        {/* Action needed — operator/weather cancellations awaiting a customer choice.
+            Surfaced above everything so a cancelled trip is impossible to miss. */}
+        {actionNeeded.length > 0 && (
+          <div className="mb-6 rounded-[1.75rem] border-2 p-5 sm:p-6 shadow-sm" style={{ borderColor: "#fdba74", background: "linear-gradient(135deg, #fff7ed 0%, #ffffff 55%)" }}>
+            <div className="flex items-start gap-3.5 mb-4">
+              <div className="w-11 h-11 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 19v2m4-2v2m4-2v2" /></svg>
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-[17px] font-extrabold text-slate-900 leading-tight">Action needed</h2>
+                <p className="text-[13px] text-slate-600 mt-0.5">
+                  {actionNeeded.length === 1 ? "A trip was cancelled by the operator" : actionNeeded.length + " trips were cancelled by the operator"} — pick a new date, take a voucher, or request a refund below.
+                </p>
+              </div>
+            </div>
+            <div className="space-y-3">
+              {actionNeeded.map(b => <BookingCard key={b.id} b={b} {...cardProps} refundCalc={refundCalcs[b.id] || null} />)}
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-x-8 gap-y-6 items-start">
            {/* Left Column */}
