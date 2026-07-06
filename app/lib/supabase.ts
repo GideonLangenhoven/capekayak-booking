@@ -11,8 +11,15 @@ const resolvedSupabaseKey = supabaseKey
 export const supabase = createClient(resolvedSupabaseUrl, resolvedSupabaseKey)
 
 export function createScopedSupabase(headers: Record<string, string>) {
+  // Storefront reads are anon + tenant-header scoped (RLS `*_anon_select` policies
+  // are granted to the `anon` role only). Never load the persisted auth session:
+  // if a visitor has an `authenticated` session (e.g. from /my-bookings OTP login),
+  // supabase-js would send their user JWT instead of the anon key, the anon policies
+  // would no longer apply, and every public read (theme, tours, slots) would return
+  // zero rows — leaving the site stuck on loading skeletons.
   return createClient(resolvedSupabaseUrl, resolvedSupabaseKey, {
     global: { headers },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   })
 }
 
