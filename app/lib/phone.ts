@@ -57,8 +57,15 @@ export const DIAL_CODES = [
 // before the outbound API call — keeping this fix isolated to what gets
 // persisted in `bookings.phone` / `customers.phone`.
 export function normalizePhone(dialCode: string, digits: string): string {
-  const clean = digits.replace(/\D/g, "").replace(/^0+/, "");
+  let clean = digits.replace(/\D/g, "").replace(/^0+/, "");
   const cc = dialCode.replace(/\D/g, "");
+  // Customer typed the country code into the number field ("+27 82 123 4567")
+  // — don't prepend it twice. Only strip when the remainder is a plausible
+  // full national number, so short local numbers starting with the same
+  // digits (e.g. 027x landlines, 9 digits after the 0-strip) are untouched.
+  if (cc && clean.startsWith(cc) && clean.length >= cc.length + 8 && clean.length <= cc.length + 11) {
+    clean = clean.slice(cc.length);
+  }
   if (!clean) return "";
   return cc ? "+" + cc + clean : clean;
 }
