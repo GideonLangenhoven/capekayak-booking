@@ -3,6 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
 import { useTheme } from "./ThemeProvider";
+import { BrandMark } from "./BrandLogo";
 
 export default function Header() {
   const theme = useTheme();
@@ -20,7 +21,7 @@ export default function Header() {
           {logoUrl ? (
             <Image src={logoUrl} alt={name} width={120} height={36} className="h-9 w-auto object-contain" />
           ) : (
-            <span className="text-2xl" aria-hidden>🛶</span>
+            <BrandMark size={34} className="shrink-0" />
           )}
           <div>
             <h1 className="text-base font-semibold leading-tight text-[color:var(--text)] sm:text-lg">{name}</h1>

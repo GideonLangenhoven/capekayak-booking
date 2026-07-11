@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
 import { supabase } from "../lib/supabase";
+import Button from "../components/ui/Button";
+import { Input } from "../components/ui/Input";
 
 type Props = {
   customer: any;
@@ -8,6 +10,9 @@ type Props = {
   onUpdate: (next: any) => void;
   onSignOut: () => void;
 };
+
+const cardCls = "rounded-2xl border p-5";
+const cardStyle = { background: "var(--surface)", borderColor: "var(--border)", boxShadow: "var(--shadow-sm)" } as const;
 
 export default function ProfileTab({ customer, user, onUpdate, onSignOut }: Props) {
   const [name, setName] = useState(customer?.name ?? "");
@@ -68,87 +73,79 @@ export default function ProfileTab({ customer, user, onUpdate, onSignOut }: Prop
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-          <p className="text-xs font-semibold text-slate-500">Trips</p>
-          <p className="text-3xl font-extrabold text-slate-900 mt-1">{customer?.total_bookings ?? 0}</p>
+        <div className={cardCls} style={cardStyle}>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--textMuted)]">Trips</p>
+          <p className="font-display mt-2 text-[32px] font-semibold leading-none text-[color:var(--text)]">{customer?.total_bookings ?? 0}</p>
         </div>
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-          <p className="text-xs font-semibold text-slate-500">Member since</p>
-          <p className="text-lg font-bold text-slate-900 mt-2">
+        <div className={cardCls} style={cardStyle}>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--textMuted)]">Member since</p>
+          <p className="font-display mt-2 text-[22px] font-semibold leading-none text-[color:var(--text)]">
             {customer?.created_at
               ? new Date(customer.created_at).toLocaleDateString("en-ZA", { month: "short", year: "numeric" })
-              : "\u2014"}
+              : "—"}
           </p>
         </div>
       </div>
 
       {/* Details form */}
-      <form onSubmit={saveProfile} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-4">
-        <h2 className="text-sm font-bold text-slate-800">Your details</h2>
+      <form onSubmit={saveProfile} className={cardCls + " space-y-4"} style={cardStyle}>
+        <h2 className="text-[14px] font-semibold text-[color:var(--text)]">Your details</h2>
 
         <label className="block">
-          <span className="block text-xs font-medium text-slate-500 mb-1">Name</span>
-          <input value={name} onChange={e => setName(e.target.value)}
-            className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-teal-500 transition-colors bg-white" />
+          <span className="mb-1.5 block text-xs font-semibold text-[color:var(--textMuted)]">Name</span>
+          <Input value={name} onChange={e => setName(e.target.value)} autoComplete="name" className="py-2.5" />
         </label>
 
         <label className="block">
-          <span className="block text-xs font-medium text-slate-500 mb-1">Phone</span>
-          <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="27821234567"
-            className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-teal-500 transition-colors bg-white" />
+          <span className="mb-1.5 block text-xs font-semibold text-[color:var(--textMuted)]">Phone</span>
+          <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="27821234567" autoComplete="tel" className="py-2.5" />
         </label>
 
         <label className="block">
-          <span className="block text-xs font-medium text-slate-500 mb-1">Date of birth</span>
-          <input type="date" value={dob || ""} onChange={e => setDob(e.target.value)}
-            className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-teal-500 transition-colors bg-white" />
+          <span className="mb-1.5 block text-xs font-semibold text-[color:var(--textMuted)]">Date of birth</span>
+          <Input type="date" value={dob || ""} onChange={e => setDob(e.target.value)} className="py-2.5" />
         </label>
 
-        <label className="flex items-center gap-2.5 cursor-pointer pt-1">
+        <label className="flex cursor-pointer items-center gap-2.5 pt-1">
           <input type="checkbox" checked={marketingConsent} onChange={e => setMarketingConsent(e.target.checked)}
-            className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500" />
-          <span className="text-sm text-slate-700">Send me booking updates and promotions</span>
+            className="h-4 w-4 rounded" style={{ accentColor: "var(--accent)" }} />
+          <span className="text-sm text-[color:var(--text)]">Send me booking updates and promotions</span>
         </label>
 
         <div className="flex items-center gap-3 pt-1">
-          <button type="submit" disabled={saving}
-            className="px-5 py-2.5 rounded-xl text-white text-sm font-bold shadow-sm transition-colors disabled:opacity-50"
-            style={{ backgroundColor: "var(--cta, #14b8a6)" }}>
-            {saving ? "Saving\u2026" : "Save changes"}
-          </button>
-          {savedAt && <span className="text-xs text-emerald-600 font-medium">Saved</span>}
-          {error && <span className="text-xs text-red-600 font-medium">{error}</span>}
+          <Button type="submit" disabled={saving} className="!text-[13px]">
+            {saving ? "Saving…" : "Save changes"}
+          </Button>
+          {savedAt && <span className="text-xs font-semibold" style={{ color: "var(--success)" }}>Saved</span>}
+          {error && <span role="alert" className="text-xs font-semibold" style={{ color: "var(--danger)" }}>{error}</span>}
         </div>
       </form>
 
       {/* Email */}
-      <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-3">
-        <h2 className="text-sm font-bold text-slate-800">Email</h2>
-        <p className="text-xs text-slate-500">
-          We email you confirmations and magic-link sign-ins. The new address must confirm before it takes effect.
+      <div className={cardCls + " space-y-3"} style={cardStyle}>
+        <h2 className="text-[14px] font-semibold text-[color:var(--text)]">Email</h2>
+        <p className="text-xs leading-relaxed text-[color:var(--textMuted)]">
+          We email you confirmations and sign-in links. The new address must confirm before it takes effect.
         </p>
-        <input type="email" value={emailDraft} onChange={e => setEmailDraft(e.target.value)}
-          className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-teal-500 transition-colors bg-white" />
-        <button onClick={changeEmail}
-          className="px-5 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-bold shadow-sm hover:bg-amber-600 transition-colors">
+        <Input type="email" value={emailDraft} onChange={e => setEmailDraft(e.target.value)} autoComplete="email" className="py-2.5" />
+        <Button onClick={changeEmail} variant="secondary" className="!text-[13px]">
           Send confirmation
-        </button>
-        {emailMsg && <p className="text-xs text-emerald-600 font-medium">{emailMsg}</p>}
+        </Button>
+        {emailMsg && <p className="text-xs font-semibold" style={{ color: "var(--success)" }}>{emailMsg}</p>}
       </div>
 
       {/* Security */}
-      <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-3">
-        <h2 className="text-sm font-bold text-slate-800">Security</h2>
-        <p className="text-xs text-slate-500">
-          Sign out of every device where you're currently signed in. Useful if you've used a shared or public device.
+      <div className={cardCls + " space-y-3"} style={cardStyle}>
+        <h2 className="text-[14px] font-semibold text-[color:var(--text)]">Security</h2>
+        <p className="text-xs leading-relaxed text-[color:var(--textMuted)]">
+          Sign out of every device where you&apos;re currently signed in. Useful if you&apos;ve used a shared or public device.
         </p>
-        <button onClick={signOutEverywhere}
-          className="px-5 py-2.5 rounded-xl bg-slate-800 text-white text-sm font-bold shadow-sm hover:bg-slate-900 transition-colors">
+        <Button onClick={signOutEverywhere} variant="destructive" className="!text-[13px]">
           Sign out everywhere
-        </button>
+        </Button>
       </div>
     </div>
   );

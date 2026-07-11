@@ -376,7 +376,12 @@ export default function ComboBookingPage() {
 
       {/* Combo Header */}
       <div className="flex items-center gap-4 mb-8 p-4 bg-gray-50 rounded-xl">
-        <div className="w-12 h-12 bg-purple-600 text-white rounded-xl flex items-center justify-center text-xl">&#x1F3AF;</div>
+        <div className="w-12 h-12 bg-[#0F2B1F] text-[#F4F1E8] rounded-xl flex items-center justify-center">
+          <svg viewBox="0 0 256 256" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="16" aria-hidden="true">
+            <circle cx="98" cy="128" r="58" />
+            <circle cx="158" cy="128" r="58" />
+          </svg>
+        </div>
         <div className="flex-1">
           <h3 className="font-semibold text-lg">{combo.name}</h3>
           <p className="text-gray-500 text-sm">{tourA?.name} + {tourB?.name}</p>
@@ -536,7 +541,7 @@ export default function ComboBookingPage() {
                   className="w-full mt-5 bg-gray-900 text-white py-3.5 rounded-xl text-sm font-semibold hover:bg-gray-800 disabled:opacity-40 shadow-md">
                   {submitting ? "Processing..." : "Pay R" + comboTotal}
                 </button>
-                <p className="text-xs text-gray-400 text-center mt-3">Secure payment via Paysafe</p>
+                <p className="text-xs text-gray-400 text-center mt-3">Secure payment via Paysafe, a PCI DSS compliant provider — card details never touch our servers</p>
               </div>
             </div>
           </div>
@@ -580,13 +585,13 @@ export default function ComboBookingPage() {
                 </div>
               </div>
 
-              <div className="bg-purple-50 border border-purple-200 rounded-2xl p-5 text-left mb-8">
+              <div className="bg-[#F7E8D8] border border-[#EAD3B8] rounded-2xl p-5 text-left mb-8">
                 <div className="flex justify-between text-sm">
-                  <span className="text-purple-700 font-semibold">Combo Total Paid</span>
-                  <span className="font-bold text-purple-900">R{comboTotal}</span>
+                  <span className="text-[#8F4E13] font-semibold">Combo Total Paid</span>
+                  <span className="font-bold text-[#6E3C0D]">R{comboTotal}</span>
                 </div>
                 {savings > 0 && (
-                  <p className="text-xs text-purple-600 mt-1">You saved R{savings * qty} with this combo!</p>
+                  <p className="text-xs text-[#B4641C] mt-1">You saved R{savings * qty} with this combo!</p>
                 )}
               </div>
 

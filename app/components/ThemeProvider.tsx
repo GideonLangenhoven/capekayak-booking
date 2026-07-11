@@ -33,6 +33,10 @@ type ThemeData = {
   public_email: string | null;
   public_phone: string | null;
   public_whatsapp: string | null;
+  // Canonical per-operator booking site origin (e.g. https://aonyx.booking.bookingtours.co.za).
+  // The embed widget uses it to deep-link out to the operator's own /book flow
+  // regardless of which origin is serving the iframe.
+  booking_site_url: string | null;
 };
 
 const defaults: ThemeData = {
@@ -46,6 +50,7 @@ const defaults: ThemeData = {
   footer_line_one: null, footer_line_two: null,
   subscription_status: null, refund_policy_text: null,
   public_email: null, public_phone: null, public_whatsapp: null,
+  booking_site_url: null,
 };
 
 // AN3 P1: explicit column list mirrors the ThemeData keys above so anon reads

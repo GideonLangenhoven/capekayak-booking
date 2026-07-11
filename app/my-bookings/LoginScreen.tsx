@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import Button from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { DIAL_CODES } from "../lib/phone";
+import { useTheme } from "../components/ThemeProvider";
 
 interface LoginScreenProps {
   email: string;
@@ -32,6 +33,74 @@ interface LoginScreenProps {
   onBackToEmail: () => void;
 }
 
+function MailBadge() {
+  return (
+    <div className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium" style={{ background: "var(--accentSoft)", color: "var(--accent)" }}>
+      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+      Check your email
+    </div>
+  );
+}
+
+function OrDivider() {
+  return (
+    <div className="my-5 flex items-center gap-3">
+      <div className="flex-1 border-t" style={{ borderColor: "var(--border)" }} />
+      <span className="text-xs text-[color:var(--textMuted)]">or</span>
+      <div className="flex-1 border-t" style={{ borderColor: "var(--border)" }} />
+    </div>
+  );
+}
+
+/* Segmented one-time-code input: a real (invisible) input drives six rendered
+   boxes, so paste + iOS code autofill keep working. */
+function OtpBoxes({ value, inputRef, onChange, onEnter }: {
+  value: string;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onChange: (v: string) => void;
+  onEnter: () => void;
+}) {
+  const [focused, setFocused] = useState(false);
+  const activeIdx = Math.min(value.length, 5);
+  return (
+    <div className="relative" onClick={() => inputRef.current?.focus()}>
+      <input
+        ref={inputRef}
+        type="text"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        maxLength={6}
+        value={value}
+        onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 6))}
+        onKeyDown={(e) => e.key === "Enter" && value.length === 6 && onEnter()}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        aria-label="6-digit verification code"
+        className="absolute inset-0 z-10 h-full w-full cursor-text opacity-0"
+      />
+      <div className="flex justify-center gap-2" aria-hidden>
+        {Array.from({ length: 6 }).map((_, i) => {
+          const isActive = focused && i === activeIdx;
+          return (
+            <div
+              key={i}
+              className="flex h-13 w-10 items-center justify-center rounded-xl border-[1.5px] text-[22px] font-semibold tabular-nums text-[color:var(--text)] transition-colors sm:w-11"
+              style={{
+                height: "3.25rem",
+                background: "var(--surface)",
+                borderColor: isActive ? "var(--focusRing)" : "var(--border)",
+                boxShadow: isActive ? "0 0 0 4px color-mix(in srgb, var(--focusRing), transparent 82%)" : undefined,
+              }}
+            >
+              {value[i] ?? ""}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function LoginScreen({
   email, setEmail, dialCode, setDialCode, phoneDigits, setPhoneDigits,
   emailError, setEmailError, phoneError, setPhoneError,
@@ -40,6 +109,7 @@ export default function LoginScreen({
   otpSending, otpVerifying, resendCountdown,
   onSendOtp, onVerifyOtp, onResendOtp, onBackToEmail,
 }: LoginScreenProps) {
+  const theme = useTheme();
   const otpInputRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<"magic" | "otp">("magic");
   const [magicSent, setMagicSent] = useState(false);
@@ -99,174 +169,156 @@ export default function LoginScreen({
   }
 
   const subtitle = mode === "magic"
-    ? (magicSent ? "If we found your account, a sign-in link is on its way. Check your inbox and spam folder." : "Enter your email to receive a sign-in link.")
-    : (otpStep ? "If your email + phone match a booking, we've emailed a 6-digit code. Check inbox and spam." : "Enter the details you used when booking.");
+    ? (magicSent
+      ? "If we found your account, a sign-in link is on its way."
+      : "Get a sign-in link by email — no password needed.")
+    : (otpStep
+      ? "Enter the 6-digit code we emailed you."
+      : "Use the email and phone number from your booking.");
 
   return (
-    <div className="app-container max-w-sm py-16 px-4">
-      <div className="text-center mb-8">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[color:var(--accentSoft)]">
-          <svg className="w-7 h-7 text-[color:var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+    <div className="app-container max-w-[420px] px-4 py-10 sm:py-16">
+      {/* Brand moment */}
+      <div className="mb-7 text-center">
+        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: "var(--accentSoft)", color: "var(--accent)" }}>
+          {/* dotted trail — echoes the brand mark */}
+          <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M4 19c4.5-1.5 5-6 8-8.5 2.2-1.8 5-2 7-4.5" strokeWidth={1.9} strokeLinecap="round" strokeDasharray="0.2 3.4" />
+            <circle cx="19.5" cy="5.5" r="1.9" strokeWidth={1.6} />
+            <circle cx="4" cy="19" r="1.3" fill="currentColor" stroke="none" />
+          </svg>
         </div>
-        <h2 className="text-xl font-bold text-[color:var(--text)]">My Bookings</h2>
-        <p className="mt-2 text-sm text-[color:var(--textMuted)]">{subtitle}</p>
+        <h1 className="font-display text-[27px] font-semibold tracking-[-0.02em] text-[color:var(--text)]">Your trips</h1>
+        <p className="mx-auto mt-2 max-w-[300px] text-sm text-[color:var(--textMuted)]">{subtitle}</p>
       </div>
 
-      {mode === "magic" ? (
-        magicSent ? (
-          /* ── Magic link sent ── */
-          <>
-            <div className="text-center mb-6">
-              <div className="inline-flex items-center gap-2 bg-[color:var(--accentSoft)] text-[color:var(--accent)] text-sm font-medium px-4 py-2 rounded-full mb-4">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                Check your email
-              </div>
-              <p className="text-sm text-[color:var(--textMuted)] mt-3">
-                If a booking exists with this email, a sign-in link is on its way to {maskEmail(email)}.<br />Don't forget the spam folder. You can close this page after clicking the link.
+      <div className="rounded-2xl border p-5 sm:p-7" style={{ background: "var(--surface)", borderColor: "var(--border)", boxShadow: "var(--shadow-sm)" }}>
+        {mode === "magic" ? (
+          magicSent ? (
+            /* ── Magic link sent ── */
+            <div className="text-center">
+              <MailBadge />
+              <p className="mt-4 text-sm leading-relaxed text-[color:var(--textMuted)]">
+                If a booking exists with this email, a sign-in link is on its way to{" "}
+                <span className="font-semibold text-[color:var(--text)]">{maskEmail(email)}</span>.
+                Don&apos;t forget the spam folder — you can close this page after clicking the link.
               </p>
-            </div>
-            <div className="mt-6 flex flex-col items-center gap-3">
-              <button onClick={() => { setMagicSent(false); }} className="text-sm text-[color:var(--accent)] hover:underline">
+              <button onClick={() => { setMagicSent(false); }} className="mt-5 py-2 text-sm font-semibold text-[color:var(--accent)] hover:underline">
                 Resend link
               </button>
-              <div className="flex items-center gap-3 w-full">
-                <div className="flex-1 border-t border-[color:var(--border)]" />
-                <span className="text-xs text-[color:var(--textMuted)]">or</span>
-                <div className="flex-1 border-t border-[color:var(--border)]" />
-              </div>
-              <button onClick={switchToOtp} className="text-sm text-[color:var(--textMuted)] hover:text-[color:var(--text)] transition-colors">
+              <OrDivider />
+              <button onClick={switchToOtp} className="w-full py-2 text-sm text-[color:var(--textMuted)] transition-colors hover:text-[color:var(--text)]">
                 Sign in with a 6-digit code instead
               </button>
             </div>
+          ) : (
+            /* ── Magic link input ── */
+            <>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-[color:var(--textMuted)]">Email</label>
+                <Input type="email" value={email} autoComplete="email"
+                  onChange={(e) => { setEmail(e.target.value); setEmailError(""); setMagicError(""); setLoginError(""); }}
+                  onKeyDown={(e) => e.key === "Enter" && sendMagicLink()} placeholder="your@email.com" className="py-3" />
+                {emailError && <p role="alert" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>{emailError}</p>}
+              </div>
+
+              {(magicError || loginError) && <p role="alert" className="mt-3 text-center text-sm" style={{ color: "var(--danger)" }}>{magicError || loginError}</p>}
+
+              <Button onClick={sendMagicLink} disabled={magicSending || loading || !email.trim()} fullWidth className="mt-5 py-3.5">
+                {magicSending ? "Sending link…" : "Email me a sign-in link"}
+              </Button>
+
+              <OrDivider />
+
+              <button onClick={switchToOtp} className="w-full py-2 text-center text-sm text-[color:var(--textMuted)] transition-colors hover:text-[color:var(--text)]">
+                Use phone verification instead
+              </button>
+            </>
+          )
+        ) : !otpStep ? (
+          /* ── OTP Step 1: Email + Phone ── */
+          <>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-[color:var(--textMuted)]">Email</label>
+                <Input type="email" value={email} autoComplete="email"
+                  onChange={(e) => { setEmail(e.target.value); setEmailError(""); setLoginError(""); }}
+                  onKeyDown={(e) => e.key === "Enter" && onSendOtp()} placeholder="your@email.com" className="py-3" />
+                {emailError && <p role="alert" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>{emailError}</p>}
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-[color:var(--textMuted)]">Phone</label>
+                <div className="flex gap-2">
+                  <select value={dialCode} onChange={(e) => setDialCode(e.target.value)} aria-label="Country dial code"
+                    className="field !w-auto shrink-0 cursor-pointer !px-2.5 py-3 text-[16px] sm:text-sm"
+                    style={{ minWidth: "96px" }}>
+                    {DIAL_CODES.map((d, i) => <option key={d.country + i} value={d.code}>{d.flag} {d.code}</option>)}
+                  </select>
+                  <Input type="tel" value={phoneDigits} autoComplete="tel-national"
+                    onChange={(e) => { setPhoneDigits(e.target.value); setPhoneError(""); setLoginError(""); }}
+                    onKeyDown={(e) => e.key === "Enter" && onSendOtp()}
+                    placeholder="81 234 5678" className="min-w-0 flex-1 py-3" />
+                </div>
+                {phoneError && <p role="alert" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>{phoneError}</p>}
+              </div>
+            </div>
+
+            {loginError && <p role="alert" className="mt-3 text-center text-sm" style={{ color: "var(--danger)" }}>{loginError}</p>}
+
+            <Button onClick={onSendOtp} disabled={otpSending || loading || !email.trim() || !phoneDigits.trim()} fullWidth className="mt-5 py-3.5">
+              {otpSending ? "Sending code…" : "Find my bookings"}
+            </Button>
+
+            <OrDivider />
+
+            <button onClick={switchToMagic} className="w-full py-2 text-center text-sm text-[color:var(--textMuted)] transition-colors hover:text-[color:var(--text)]">
+              Use a sign-in link instead
+            </button>
           </>
         ) : (
-          /* ── Magic link input ── */
+          /* ── OTP Step 2: Verification ── */
           <>
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-medium text-[color:var(--textMuted)] block mb-1.5">Email</label>
-                <Input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setEmailError(""); setMagicError(""); setLoginError(""); }}
-                  onKeyDown={(e) => e.key === "Enter" && sendMagicLink()} placeholder="your@email.com" className="py-3" />
-                {emailError && <p className="mt-1 text-xs text-red-600">{emailError}</p>}
-              </div>
+            <div className="mb-6 text-center">
+              <MailBadge />
+              <p className="mt-3 text-xs leading-relaxed text-[color:var(--textMuted)]">
+                If your email + phone match a booking, a 6-digit code is on its way to{" "}
+                <span className="font-semibold text-[color:var(--text)]">{maskEmail(email)}</span>. Check inbox + spam.
+              </p>
             </div>
 
-            {(magicError || loginError) && <p className="mt-3 text-sm text-red-600 text-center">{magicError || loginError}</p>}
+            <OtpBoxes value={otpCode} inputRef={otpInputRef} onChange={setOtpCode} onEnter={onVerifyOtp} />
 
-            <Button onClick={sendMagicLink} disabled={magicSending || loading || !email.trim()} fullWidth className="mt-5 py-3.5">
-              {magicSending ? "Sending link..." : "Send sign-in link"}
+            {otpError && <p role="alert" className="mt-3 text-center text-sm" style={{ color: "var(--danger)" }}>{otpError}</p>}
+
+            <Button onClick={onVerifyOtp} disabled={otpVerifying || otpCode.length !== 6} fullWidth className="mt-5 py-3.5">
+              {otpVerifying ? "Verifying…" : "Verify"}
             </Button>
 
-            <div className="mt-5 flex items-center gap-3">
-              <div className="flex-1 border-t border-[color:var(--border)]" />
-              <span className="text-xs text-[color:var(--textMuted)]">or</span>
-              <div className="flex-1 border-t border-[color:var(--border)]" />
+            <div className="mt-6 flex flex-col items-center gap-2">
+              <p className="text-xs text-[color:var(--textMuted)]">Code expires in 15 minutes</p>
+              <button
+                onClick={onResendOtp}
+                disabled={otpSending || resendCountdown > 0}
+                className="py-1.5 text-sm font-semibold text-[color:var(--accent)] hover:underline disabled:opacity-50"
+              >
+                {otpSending ? "Sending…" : resendCountdown > 0 ? `Resend code in ${resendCountdown}s` : "Resend code"}
+              </button>
+              <button
+                onClick={onBackToEmail}
+                className="flex items-center gap-1 py-1.5 text-sm text-[color:var(--textMuted)] transition-colors hover:text-[color:var(--text)]"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                Use a different email
+              </button>
             </div>
-
-            <button onClick={switchToOtp} className="mt-4 w-full text-center text-sm text-[color:var(--textMuted)] hover:text-[color:var(--text)] transition-colors">
-              Use phone verification instead
-            </button>
           </>
-        )
-      ) : !otpStep ? (
-        /* ── OTP Step 1: Email + Phone ── */
-        <>
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs font-medium text-[color:var(--textMuted)] block mb-1.5">Email</label>
-              <Input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setEmailError(""); setLoginError(""); }}
-                onKeyDown={(e) => e.key === "Enter" && onSendOtp()} placeholder="your@email.com" className="py-3" />
-              {emailError && <p className="mt-1 text-xs text-red-600">{emailError}</p>}
-            </div>
-            <div>
-              <label className="text-xs font-medium text-[color:var(--textMuted)] block mb-1.5">Phone</label>
-              <div className="flex gap-2">
-                <select value={dialCode} onChange={(e) => setDialCode(e.target.value)}
-                  className="shrink-0 border-2 border-[color:var(--border)] rounded-xl px-2 py-3 text-sm bg-[color:var(--surface)] text-[color:var(--text)] focus:outline-none focus:border-[color:var(--accent)] cursor-pointer"
-                  style={{ minWidth: "100px" }}>
-                  {DIAL_CODES.map((d, i) => <option key={d.country + i} value={d.code}>{d.flag} {d.code}</option>)}
-                </select>
-                <Input type="tel" value={phoneDigits}
-                  onChange={(e) => { setPhoneDigits(e.target.value); setPhoneError(""); setLoginError(""); }}
-                  onKeyDown={(e) => e.key === "Enter" && onSendOtp()}
-                  placeholder="81 234 5678" className="flex-1 py-3" />
-              </div>
-              {phoneError && <p className="mt-1 text-xs text-red-600">{phoneError}</p>}
-            </div>
-          </div>
+        )}
+      </div>
 
-          {loginError && <p className="mt-3 text-sm text-red-600 text-center">{loginError}</p>}
-
-          <Button onClick={onSendOtp} disabled={otpSending || loading || !email.trim() || !phoneDigits.trim()} fullWidth className="mt-5 py-3.5">
-            {otpSending ? "Sending code..." : "Find My Bookings"}
-          </Button>
-
-          <div className="mt-5 flex items-center gap-3">
-            <div className="flex-1 border-t border-[color:var(--border)]" />
-            <span className="text-xs text-[color:var(--textMuted)]">or</span>
-            <div className="flex-1 border-t border-[color:var(--border)]" />
-          </div>
-
-          <button onClick={switchToMagic} className="mt-4 w-full text-center text-sm text-[color:var(--textMuted)] hover:text-[color:var(--text)] transition-colors">
-            Use magic link instead
-          </button>
-        </>
-      ) : (
-        /* ── OTP Step 2: Verification ── */
-        <>
-          <div className="text-center mb-6">
-            <div className="inline-flex items-center gap-2 bg-[color:var(--accentSoft)] text-[color:var(--accent)] text-sm font-medium px-4 py-2 rounded-full mb-4">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-              Check your email
-            </div>
-            <p className="text-xs text-[color:var(--textMuted)]">
-              If your email + phone match a booking, a 6-digit code is on its way to {maskEmail(email)}. Check inbox + spam.
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs font-medium text-[color:var(--textMuted)] block mb-2 text-center">6-digit verification code</label>
-              <input
-                ref={otpInputRef}
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={6}
-                value={otpCode}
-                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                onKeyDown={(e) => e.key === "Enter" && otpCode.length === 6 && onVerifyOtp()}
-                className="w-full text-center text-3xl font-mono tracking-[0.4em] py-4 border-2 border-[color:var(--border)] rounded-xl bg-[color:var(--surface)] text-[color:var(--text)] focus:outline-none focus:border-[color:var(--accent)] transition-colors placeholder:text-[color:var(--textMuted)] placeholder:text-xl placeholder:tracking-[0.3em]"
-                placeholder="000000"
-              />
-            </div>
-
-            {otpError && <p className="text-sm text-red-600 text-center">{otpError}</p>}
-
-            <Button onClick={onVerifyOtp} disabled={otpVerifying || otpCode.length !== 6} fullWidth className="py-3.5">
-              {otpVerifying ? "Verifying..." : "Verify"}
-            </Button>
-          </div>
-
-          <div className="mt-6 flex flex-col items-center gap-2">
-            <p className="text-xs text-[color:var(--textMuted)]">Code expires in 15 minutes</p>
-            <button
-              onClick={onResendOtp}
-              disabled={otpSending || resendCountdown > 0}
-              className="text-sm text-[color:var(--accent)] hover:underline disabled:opacity-50"
-            >
-              {otpSending ? "Sending..." : resendCountdown > 0 ? `Resend code in ${resendCountdown}s` : "Resend code"}
-            </button>
-            <button
-              onClick={onBackToEmail}
-              className="text-sm text-[color:var(--textMuted)] hover:text-[color:var(--text)] transition-colors flex items-center gap-1"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-              Use a different email
-            </button>
-          </div>
-        </>
-      )}
+      <p className="mt-5 flex items-center justify-center gap-1.5 text-center text-xs text-[color:var(--textMuted)]">
+        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+        Secure one-time sign-in for {theme.business_name || "your"} bookings — no passwords.
+      </p>
     </div>
   );
 }

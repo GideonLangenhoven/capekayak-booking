@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createScopedSupabase, createTenantSupabase, supabase } from "../lib/supabase";
 import { useTheme } from "../components/ThemeProvider";
 import ConfirmationSkeleton from "../components/skeletons/ConfirmationSkeleton";
+import { CheckCircleGlyph, CalendarGlyph, GiftGlyph, ImagePlaceholderGlyph } from "../components/ui/Glyphs";
 import { fmtFull, fmtTime, gCalFmt } from "../lib/format";
 import type { Booking } from "../lib/types";
 import { clearDraft as clearLocalDraft } from "../lib/booking-draft";
@@ -61,7 +62,7 @@ function SuccessContent() {
 
   if (!booking) return (
     <div className="app-container max-w-md py-16 text-center">
-      <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-[color:var(--accentSoft)]"><span className="text-4xl">✅</span></div>
+      <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-[color:var(--accentSoft)] text-[color:var(--accent)]"><CheckCircleGlyph size={40} /></div>
       <h2 className="headline-lg mb-3">Booking Confirmed</h2>
       <p className="mb-8">Your payment was successful. Check your email for your booking details.</p>
       <Link href="/" className="btn btn-primary px-8 py-3">Back to Tours</Link>
@@ -70,20 +71,35 @@ function SuccessContent() {
 
   const startDate = booking.slots?.start_time ? new Date(booking.slots.start_time) : null;
   const endDate = startDate ? new Date(startDate.getTime() + (booking.tours?.duration_minutes || 90) * 60 * 1000) : null;
-  const meetingLocation = theme.directions || "See confirmation email for meeting point";
-  const gCalUrl = startDate && endDate ? "https://www.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(booking.tours?.name || "Kayak Tour") + "&dates=" + gCalFmt(startDate) + "/" + gCalFmt(endDate) + "&location=" + encodeURIComponent(meetingLocation) + "&details=" + encodeURIComponent("Ref: " + booking.id.substring(0, 8).toUpperCase() + ". Arrive 15 min early.") : null;
+  // Operators paste HTML (<br>, &nbsp;) into directions — render it as plain text.
+  const directionsText = (theme.directions || "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .trim();
+  const meetingLocation = directionsText || "See confirmation email for meeting point";
+  // ctz pins Google's add-event UI to the tour's timezone — without it,
+  // viewers whose Google account timezone differs see a shifted time.
+  const gCalUrl = startDate && endDate ? "https://www.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(booking.tours?.name || "Kayak Tour") + "&dates=" + gCalFmt(startDate) + "/" + gCalFmt(endDate) + "&ctz=" + encodeURIComponent(theme.timezone || "Africa/Johannesburg") + "&location=" + encodeURIComponent(meetingLocation) + "&details=" + encodeURIComponent("Ref: " + booking.id.substring(0, 8).toUpperCase() + ". Arrive 15 min early.") : null;
+  const icsUrl = startDate && endDate ? "/api/ics?" + new URLSearchParams({
+    title: booking.tours?.name || "Tour",
+    start: startDate.toISOString(),
+    end: endDate.toISOString(),
+    loc: meetingLocation,
+    ref: booking.id.substring(0, 8).toUpperCase(),
+  }).toString() : null;
 
-  const shareText = encodeURIComponent("I just booked a " + (booking.tours?.name || "kayak tour") + " with " + (theme.business_name || "us") + "! Join me?");
+  const shareText = encodeURIComponent("I just booked a " + (booking.tours?.name || "tour") + " with " + (theme.business_name || "us") + "! Join me?");
 
   return (
     <div className="app-container max-w-md page-wrap">
       <div className="mb-8 text-center">
-        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-[color:var(--accentSoft)]"><span className="text-4xl">🎉</span></div>
         <h2 className="headline-lg mb-2">You&apos;re Confirmed</h2>
-        <p>Your kayak session is booked and ready.</p>
+        <p>Your adventure is booked and ready.</p>
       </div>
 
-      <div className="surface mb-6 overflow-hidden">
+      <div className="mb-6 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
         <div className="bg-[color:var(--accent)] p-4 text-white">
           <p className="text-xs uppercase tracking-wider !text-white/75">Booking Confirmation</p>
           <p className="mt-1 text-lg font-bold !text-white">{booking.tours?.name}</p>
@@ -91,60 +107,60 @@ function SuccessContent() {
         <div className="space-y-4 p-5">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs uppercase tracking-wider">Date &amp; Time</p>
-              <p className="mt-0.5 font-semibold text-[color:var(--text)]">{startDate ? fmtFull(booking.slots!.start_time) : "—"}</p>
-              <p>{startDate ? fmtTime(booking.slots!.start_time) : ""}</p>
+              <p className="text-xs uppercase tracking-wider !text-neutral-500">Date &amp; Time</p>
+              <p className="mt-0.5 font-semibold !text-neutral-900">{startDate ? fmtFull(booking.slots!.start_time) : "—"}</p>
+              <p className="!text-neutral-700">{startDate ? fmtTime(booking.slots!.start_time) : ""}</p>
             </div>
             <div className="text-right">
-              <p className="text-xs uppercase tracking-wider">Duration</p>
-              <p className="mt-0.5 font-semibold text-[color:var(--text)]">{booking.tours?.duration_minutes} min</p>
+              <p className="text-xs uppercase tracking-wider !text-neutral-500">Duration</p>
+              <p className="mt-0.5 font-semibold !text-neutral-900">{booking.tours?.duration_minutes} min</p>
             </div>
           </div>
-          <div className="flex justify-between border-t border-[color:var(--border)] pt-4">
+          <div className="flex justify-between border-t border-neutral-200 pt-4">
             <div>
-              <p className="text-xs uppercase tracking-wider">Guest</p>
-              <p className="mt-0.5 font-semibold text-[color:var(--text)]">{booking.customer_name}</p>
-              <p className="text-sm">{booking.email}</p>
+              <p className="text-xs uppercase tracking-wider !text-neutral-500">Guest</p>
+              <p className="mt-0.5 font-semibold !text-neutral-900">{booking.customer_name}</p>
+              <p className="text-sm !text-neutral-700">{booking.email}</p>
             </div>
             <div className="text-right">
-              <p className="text-xs uppercase tracking-wider">People</p>
-              <p className="mt-0.5 font-semibold text-[color:var(--text)]">{booking.qty}</p>
+              <p className="text-xs uppercase tracking-wider !text-neutral-500">People</p>
+              <p className="mt-0.5 font-semibold !text-neutral-900">{booking.qty}</p>
             </div>
           </div>
-          <div className="flex items-center justify-between border-t border-[color:var(--border)] pt-4">
+          <div className="flex items-center justify-between border-t border-neutral-200 pt-4">
             <div>
-              <p className="text-xs uppercase tracking-wider">Total Paid</p>
-              <p className="mt-0.5 text-2xl font-bold text-[color:var(--text)]">R{booking.total_amount}</p>
+              <p className="text-xs uppercase tracking-wider !text-neutral-500">Total Paid</p>
+              <p className="mt-0.5 text-2xl font-bold !text-neutral-900">R{booking.total_amount}</p>
             </div>
             <span className="status-pill status-success">Confirmed</span>
           </div>
-          <div className="border-t border-[color:var(--border)] pt-4">
-            <p className="text-xs uppercase tracking-wider">Reference</p>
-            <p className="mt-0.5 font-mono font-semibold text-[color:var(--text)]">{booking.id.substring(0, 8).toUpperCase()}</p>
+          <div className="border-t border-neutral-200 pt-4">
+            <p className="text-xs uppercase tracking-wider !text-neutral-500">Reference</p>
+            <p className="mt-0.5 font-mono font-semibold !text-neutral-900">{booking.id.substring(0, 8).toUpperCase()}</p>
           </div>
         </div>
       </div>
 
-      <div className="surface-muted mb-6 p-4 toast-enter">
-        <p className="text-sm font-medium text-[color:var(--text)]">📧 Confirmation emailed to {booking.email}</p>
-        <p className="mt-1 text-xs">Please check your inbox (and spam folder) for your receipt and details.</p>
+      <div className="mb-6 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm toast-enter">
+        <p className="text-sm font-medium !text-neutral-900">📧 Confirmation emailed to {booking.email}</p>
+        <p className="mt-1 text-xs !text-neutral-600">Please check your inbox (and spam folder) for your receipt and details.</p>
       </div>
 
       {/* Waiver CTA — sign it now while still in-tab; otherwise it shows up as
           a green completed badge once signed. */}
       {booking.waiver_status === "SIGNED" ? (
-        <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 flex items-center gap-3">
+        <div className="mb-6 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm flex items-center gap-3" style={{ borderLeft: "4px solid #059669" }}>
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600 text-white text-base">✓</span>
           <div>
-            <p className="text-sm font-semibold text-emerald-900">Waiver completed</p>
-            <p className="text-xs text-emerald-800">Thanks — you're all set. See you on the water!</p>
+            <p className="text-sm font-semibold !text-neutral-900">Waiver completed</p>
+            <p className="text-xs !text-neutral-600">Thanks — you're all set. See you on the water!</p>
           </div>
         </div>
       ) : (
         (booking as any).waiver_token && (
-          <div className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-4">
-            <p className="text-sm font-semibold text-amber-900 mb-1">📝 Sign your waiver</p>
-            <p className="text-xs text-amber-800 mb-3">
+          <div className="mb-6 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm" style={{ borderLeft: "4px solid #d97706" }}>
+            <p className="text-sm font-semibold !text-neutral-900 mb-1">📝 Sign your waiver</p>
+            <p className="text-xs !text-neutral-600 mb-3">
               All participants need to complete a quick digital waiver before launch. Save time on the day — sign now.
             </p>
             <Link
@@ -157,33 +173,33 @@ function SuccessContent() {
         )
       )}
 
-      {theme.directions && (
-        <div className="surface-muted mb-6 p-4">
-          <p className="mb-2 text-sm font-semibold text-[color:var(--text)]">📍 Meeting Point</p>
-          <p className="text-sm whitespace-pre-line">{theme.directions}</p>
+      {directionsText && (
+        <div className="mb-6 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+          <p className="mb-2 text-sm font-semibold !text-neutral-900">📍 Meeting Point</p>
+          <p className="text-sm whitespace-pre-line !text-neutral-700">{directionsText}</p>
         </div>
       )}
 
       {theme.what_to_bring && (
-        <div className="surface-muted mb-6 p-4">
-          <p className="mb-2 text-sm font-semibold text-[color:var(--text)]">🎒 What to Bring</p>
-          <p className="text-sm">{theme.what_to_bring}</p>
+        <div className="mb-6 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+          <p className="mb-2 text-sm font-semibold !text-neutral-900">🎒 What to Bring</p>
+          <p className="text-sm !text-neutral-700">{theme.what_to_bring}</p>
         </div>
       )}
 
       <div className="space-y-3 mb-8">
-        {gCalUrl && (
+        {gCalUrl && icsUrl && (
           <div className="flex gap-2">
-            <a href={gCalUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary flex-1 py-3 text-center">📅 Google Calendar</a>
-            <a href={"data:text/calendar;charset=utf-8," + encodeURIComponent("BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:" + (booking.tours?.name || "Kayak Tour") + "\nDTSTART:" + gCalFmt(startDate!) + "\nDTEND:" + gCalFmt(endDate!) + "\nLOCATION:" + meetingLocation + "\nDESCRIPTION:Ref " + booking.id.substring(0, 8).toUpperCase() + ". Arrive 15 min early.\nEND:VEVENT\nEND:VCALENDAR")} download="kayak-booking.ics" className="btn btn-secondary flex-1 py-3 text-center">📅 Apple Calendar</a>
+            <a href={gCalUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary flex-1 py-3 text-center"><CalendarGlyph size={16} className="shrink-0" /> Google Calendar</a>
+            <a href={icsUrl} className="btn btn-secondary flex-1 py-3 text-center"><CalendarGlyph size={16} className="shrink-0" /> Apple Calendar</a>
           </div>
         )}
         <Link href="/my-bookings" className="btn btn-primary w-full py-3 text-center">View My Bookings</Link>
       </div>
 
       {/* Share with friends */}
-      <div className="surface-muted mb-8 p-5 text-center">
-        <p className="text-sm font-semibold text-[color:var(--text)] mb-3">Bring your friends along!</p>
+      <div className="mb-8 rounded-xl border border-neutral-200 bg-white p-5 text-center shadow-sm">
+        <p className="text-sm font-semibold !text-neutral-900 mb-3">Bring your friends along!</p>
         <div className="flex gap-2 justify-center">
           <a href={"https://wa.me/?text=" + shareText + "%20" + encodeURIComponent(typeof window !== "undefined" ? window.location.origin : "")} target="_blank" rel="noopener noreferrer"
             className="btn btn-secondary px-4 py-2 text-xs">Share on WhatsApp</a>
@@ -198,17 +214,17 @@ function SuccessContent() {
           <p className="text-sm font-semibold text-[color:var(--text)] mb-4 text-center">Explore more adventures</p>
           <div className="grid gap-3">
             {otherTours.map((t) => (
-              <Link key={t.id} href={"/book?tour=" + t.id} className="surface flex items-center gap-4 p-3 rounded-xl hover:shadow-md transition-shadow">
+              <Link key={t.id} href={"/book?tour=" + t.id} className="flex items-center gap-4 p-3 rounded-xl border border-neutral-200 bg-white shadow-sm hover:shadow-md transition-shadow">
                 <div className="w-16 h-16 relative rounded-lg overflow-hidden shrink-0">
                   {t.image_url ? (
                     <img src={t.image_url} alt={t.name} className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full bg-[color:var(--accentSoft)] flex items-center justify-center text-2xl">🛶</div>
+                    <div className="w-full h-full bg-[color:var(--accentSoft)] flex items-center justify-center text-[color:var(--accent)]"><ImagePlaceholderGlyph size={28} /></div>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-[color:var(--text)] truncate">{t.name}</p>
-                  <p className="text-xs text-[color:var(--textMuted)]">R{t.base_price_per_person}/pp • {t.duration_minutes} min</p>
+                  <p className="font-semibold text-sm !text-neutral-900 truncate">{t.name}</p>
+                  <p className="text-xs !text-neutral-600">R{t.base_price_per_person}/pp • {t.duration_minutes} min</p>
                 </div>
                 <span className="text-xs font-semibold px-3 py-1.5 rounded-full text-white shrink-0" style={{ backgroundColor: 'var(--cta)' }}>Book</span>
               </Link>
@@ -218,10 +234,10 @@ function SuccessContent() {
       )}
 
       {/* Gift voucher CTA */}
-      <div className="surface mb-6 p-5 text-center rounded-xl" style={{ borderLeft: '4px solid var(--accent)' }}>
-        <p className="text-sm font-semibold text-[color:var(--text)] mb-1">Know someone who&apos;d love this?</p>
-        <p className="text-xs text-[color:var(--textMuted)] mb-3">Send them a gift voucher they can use anytime.</p>
-        <Link href="/voucher" className="btn btn-primary px-6 py-2 text-sm">🎁 Send a Gift Voucher</Link>
+      <div className="mb-6 p-5 text-center rounded-xl border border-neutral-200 bg-white shadow-sm" style={{ borderLeft: '4px solid var(--accent)' }}>
+        <p className="text-sm font-semibold !text-neutral-900 mb-1">Know someone who&apos;d love this?</p>
+        <p className="text-xs !text-neutral-600 mb-3">Send them a gift voucher they can use anytime.</p>
+        <Link href="/voucher" className="btn btn-primary px-6 py-2 text-sm"><GiftGlyph size={16} className="shrink-0" /> Send a Gift Voucher</Link>
       </div>
 
       <Link href="/" className="btn btn-ghost w-full text-center">Back to Tours</Link>

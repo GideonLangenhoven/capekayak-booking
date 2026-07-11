@@ -8,12 +8,14 @@ import Card from "../components/ui/Card";
 import VoucherSkeleton from "../components/skeletons/VoucherSkeleton";
 import Toast from "../components/ui/Toast";
 import { useToast } from "../hooks/useToast";
+import { GiftGlyph, CreditCardGlyph } from "../components/ui/Glyphs";
 
 export default function VoucherPage() {
   const theme = useTheme();
   const tenantSupabase = useMemo(() => createTenantSupabase(theme.id), [theme.id]);
   const [amount, setAmount] = useState("");
   const [recipientName, setRecipientName] = useState("");
+  const [recipientEmail, setRecipientEmail] = useState("");
   const [giftMessage, setGiftMessage] = useState("");
   const [buyerName, setBuyerName] = useState("");
   const [buyerEmail, setBuyerEmail] = useState("");
@@ -40,7 +42,8 @@ export default function VoucherPage() {
       business_id: theme.id, code: vcode, status: "PENDING", type: "MONETARY",
       value: parsedAmount, purchase_amount: parsedAmount,
       current_balance: parsedAmount,
-      recipient_name: recipientName, gift_message: giftMessage || null,
+      recipient_name: recipientName, recipient_email: recipientEmail.trim().toLowerCase() || null,
+      gift_message: giftMessage || null,
       buyer_name: buyerName, buyer_email: buyerEmail.toLowerCase(),
       expires_at: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000).toISOString(),
     }).select().single();
@@ -58,7 +61,7 @@ export default function VoucherPage() {
   return (
     <div className="app-container page-wrap max-w-lg">
       <div className="mb-8 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[color:var(--accentSoft)]"><span className="text-3xl">🎁</span></div>
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[color:var(--accentSoft)] text-[color:var(--accent)]"><GiftGlyph size={30} /></div>
         <h2 className="headline-lg">Give the Gift of Adventure</h2>
         <p className="mt-2">Purchase a gift voucher valid for any {theme.business_name || ""} adventure. Valid for 3 years.</p>
       </div>
@@ -100,6 +103,11 @@ export default function VoucherPage() {
             <Input id="voucher-recipient" type="text" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} placeholder="Recipient's name" />
           </div>
           <div>
+            <label htmlFor="voucher-recipient-email" className="field-label">Recipient's Email (optional)</label>
+            <Input id="voucher-recipient-email" type="email" value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} placeholder="Send the gift straight to them" />
+            <p className="mt-1 text-xs" style={{ color: "var(--textMuted)" }}>Leave blank to receive the voucher yourself and share it with {recipientName || "them"}.</p>
+          </div>
+          <div>
             <label htmlFor="voucher-message" className="field-label">Personal Message (optional)</label>
             <Textarea id="voucher-message" value={giftMessage} onChange={(e) => setGiftMessage(e.target.value)} rows={3} placeholder="Happy Birthday! Enjoy the adventure..." className="resize-none" />
           </div>
@@ -123,12 +131,17 @@ export default function VoucherPage() {
 
       {step === "pay" && (
         <div className="panel-enter py-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[color:var(--accentSoft)]"><span className="text-3xl">💳</span></div>
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[color:var(--accentSoft)] text-[color:var(--accent)]"><CreditCardGlyph size={30} /></div>
           <h3 className="headline-md mb-2">Complete Secure Payment</h3>
-          <p className="mb-6">After payment, the voucher will be emailed to {buyerEmail}.</p>
+          <p className="mb-6">
+            {recipientEmail.trim()
+              ? `After payment, the gift will be emailed straight to ${recipientName || "the recipient"} at ${recipientEmail}, with a copy of your receipt sent to ${buyerEmail}.`
+              : `After payment, the voucher will be emailed to ${buyerEmail} so you can share it with ${recipientName || "the recipient"}.`}
+          </p>
           <a href={paymentUrl} className="btn btn-primary px-10 py-4">
             Pay R{parsedAmount}
           </a>
+          <p className="mt-3 text-xs text-[color:var(--textMuted)]">Secure payment via Yoco, a PCI DSS compliant provider — card details never touch our servers</p>
         </div>
       )}
       {toast && <Toast message={toast.message} type={toast.type} onDismiss={dismissToast} />}

@@ -36,6 +36,9 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [isCompany, setIsCompany] = useState(false);
+  const [companyName, setCompanyName] = useState("");
+  const [vatNumber, setVatNumber] = useState("");
   const [voucherCode, setVoucherCode] = useState("");
   const [vouchers, setVouchers] = useState<VoucherCredit[]>([]);
   const [voucherTotal, setVoucherTotal] = useState(0);
@@ -392,9 +395,12 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
       business_id: selectedTour!.business_id, tour_id: selectedTour!.id, slot_id: selectedSlot!.id,
       customer_name: name, phone: phone ? normalizePhone("+27", phone) : "", email: email.toLowerCase(),
       qty, unit_price: effectiveUnitPrice, total_amount: finalTotal, original_total: grandTotal,
+      voucher_amount_paid: effectiveVoucherCredit,
       status: "PENDING", source: embed ? "WIDGET" : "WEB",
       marketing_opt_in: marketingOptIn || null,
       terms_accepted_at: new Date().toISOString(),
+      customer_company_name: isCompany && companyName.trim() ? companyName.trim() : null,
+      customer_vat_number: isCompany && vatNumber.trim() ? vatNumber.trim() : null,
       ...promoInsertFields,
     };
     let booking: any; let error: any;
@@ -511,8 +517,11 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     }
     await supabase.from("bookings").update({ status: "HELD" }).eq("id", booking.id);
 
+    // skip_notifications: the customer is being redirected to the payment page
+    // right now — emailing/WhatsApping them the same link is noise. If they
+    // abandon, the hold-expiry sweep sends the follow-up instead.
     const yocoRes = await supabase.functions.invoke("create-checkout", {
-      body: { booking_id: booking.id, amount: finalTotal, customer_name: name, qty, voucher_codes: vouchers.map(v => v.code), voucher_ids: vouchers.map(v => v.id) },
+      body: { booking_id: booking.id, amount: finalTotal, customer_name: name, qty, voucher_codes: vouchers.map(v => v.code), voucher_ids: vouchers.map(v => v.id), skip_notifications: true },
     });
     if (yocoRes.data?.redirectUrl) { clearLocalDraft(); setPaymentUrl(yocoRes.data.redirectUrl); setStep("payment"); }
     else showToast("Payment link unavailable. Please try again.", "error");
@@ -796,6 +805,27 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                        className="w-full pl-14 pr-5 py-3.5 bg-slate-50 border-transparent rounded-2xl text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:bg-white transition-all placeholder:text-slate-400" />
                    </div>
                  </div>
+                 <div className="pt-1">
+                   <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                     <input type="checkbox" checked={isCompany} onChange={e => setIsCompany(e.target.checked)}
+                       className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500/30" />
+                     <span className="text-[13px] font-bold text-slate-600">Booking on behalf of a company? Add invoice details</span>
+                   </label>
+                 </div>
+                 {isCompany && (
+                   <>
+                     <div>
+                       <label htmlFor="book-company" className="block text-[13px] font-bold text-slate-600 mb-2 ml-1">Company Name</label>
+                       <input id="book-company" type="text" value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Acme (Pty) Ltd"
+                         className="w-full px-5 py-3.5 bg-slate-50 border-transparent rounded-2xl text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:bg-white transition-all placeholder:text-slate-400" />
+                     </div>
+                     <div>
+                       <label htmlFor="book-vat" className="block text-[13px] font-bold text-slate-600 mb-2 ml-1">VAT Number</label>
+                       <input id="book-vat" type="text" value={vatNumber} onChange={e => setVatNumber(e.target.value)} placeholder="4XXXXXXXXX"
+                         className="w-full px-5 py-3.5 bg-slate-50 border-transparent rounded-2xl text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:bg-white transition-all placeholder:text-slate-400" />
+                     </div>
+                   </>
+                 )}
               </div>
 
               {availableAddOns.length > 0 && (
@@ -982,6 +1012,10 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                   <div className="flex items-center gap-2">
                     <svg className="w-3.5 h-3.5 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                     <span>Card details handled directly by Yoco — never touch our servers</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <svg className="w-3.5 h-3.5 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                    <span>Processed by a PCI DSS compliant provider over encrypted TLS</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <svg className="w-3.5 h-3.5 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>

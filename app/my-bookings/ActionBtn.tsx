@@ -1,8 +1,34 @@
-export default function ActionBtn({ label, onClick, disabled, variant = "default" }: { label: string; onClick: () => void; disabled?: boolean; variant?: "default" | "primary" | "danger" | "muted" }) {
-  let cls = "px-3.5 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-40 ";
-  if (variant === "primary") cls += "bg-[color:var(--accent)] text-white hover:opacity-90";
-  else if (variant === "danger") cls += "text-red-600 border border-red-200 hover:bg-red-50";
-  else if (variant === "muted") cls += "text-[color:var(--textMuted)] border border-[color:var(--border)] hover:bg-[color:var(--surface2)]";
-  else cls += "text-[color:var(--text)] border border-[color:var(--border)] hover:bg-[color:var(--surface2)] hover:border-[color:var(--accent)]";
-  return <button onClick={onClick} disabled={disabled} className={cls}>{label}</button>;
+import type { CSSProperties } from "react";
+
+type Variant = "default" | "primary" | "danger" | "muted";
+
+const VARIANTS: Record<Variant, { cls: string; style?: CSSProperties }> = {
+  default: {
+    cls: "border bg-[color:var(--surface)] text-[color:var(--text)] hover:border-[color:var(--accent)] hover:text-[color:var(--accent)]",
+    style: { borderColor: "var(--border)" },
+  },
+  primary: {
+    cls: "text-white bg-[color:var(--cta)] hover:bg-[color:var(--ctaHover)]",
+  },
+  danger: {
+    cls: "border text-[color:var(--danger)] hover:bg-[color:var(--surface2)]",
+    style: { borderColor: "color-mix(in srgb, var(--danger) 32%, transparent)" },
+  },
+  muted: {
+    cls: "border border-transparent text-[color:var(--textMuted)] hover:bg-[color:var(--surface2)] hover:text-[color:var(--text)]",
+  },
+};
+
+export default function ActionBtn({ label, onClick, disabled, variant = "default", className }: { label: string; onClick: () => void; disabled?: boolean; variant?: Variant; className?: string }) {
+  const v = VARIANTS[variant];
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={"inline-flex h-11 items-center justify-center rounded-[10px] px-3.5 text-[13px] font-semibold transition-colors disabled:pointer-events-none disabled:opacity-40 sm:h-9 " + v.cls + (className ? " " + className : "")}
+      style={v.style}
+    >
+      {label}
+    </button>
+  );
 }

@@ -4,6 +4,22 @@ import { useSearchParams } from "next/navigation";
 import { createScopedSupabase, createTenantSupabase } from "../lib/supabase";
 import { fmtDateTime } from "../lib/format";
 
+// Legal/liability content must always be readable, regardless of the tenant's
+// page theme (color_bg/color_nav/color_secondary can otherwise make this
+// blend into the page or render illegibly — e.g. white text on a themed
+// yellow background). This shadows every CSS variable the waiver container's
+// subtree reads (--bg/--card/--border/--text/--textMuted), so every nested
+// element inherits a fixed light theme without each one needing its own fix.
+const WAIVER_FIXED_THEME: React.CSSProperties = {
+  ["--bg" as string]: "#f8f9fa",
+  ["--card" as string]: "#ffffff",
+  ["--border" as string]: "#e2e2e2",
+  ["--text" as string]: "#1a1a1a",
+  ["--textMuted" as string]: "#6b7280",
+  backgroundColor: "#ffffff",
+  color: "#1a1a1a",
+};
+
 function WaiverContent() {
   const params = useSearchParams();
   const bookingId = params.get("booking") || "";
@@ -206,7 +222,7 @@ function WaiverContent() {
     return (
       <div className="app-container py-12">
         <div className="max-w-2xl mx-auto">
-          <div className="rounded-3xl border border-[color:var(--border)] bg-[color:var(--card)] overflow-hidden shadow-lg">
+          <div className="rounded-3xl border border-[color:var(--border)] bg-[color:var(--card)] overflow-hidden shadow-lg" style={WAIVER_FIXED_THEME}>
             <div className="bg-gradient-to-br from-[#0f172a] to-[#134e4a] text-white p-8">
               <h1 className="text-3xl font-bold mb-2 !text-white">Waiver signed</h1>
               <p className="!text-white/80">Thank you — your waiver has been recorded and attached to your booking.</p>
@@ -245,7 +261,7 @@ function WaiverContent() {
   return (
     <div className="app-container py-12">
       <div className="max-w-2xl mx-auto">
-        <div className="rounded-3xl border border-[color:var(--border)] bg-[color:var(--card)] overflow-hidden shadow-lg">
+        <div className="rounded-3xl border border-[color:var(--border)] bg-[color:var(--card)] overflow-hidden shadow-lg" style={WAIVER_FIXED_THEME}>
           <div className="bg-[color:var(--bg)] border-b border-[color:var(--border)] p-8">
             <h1 className="text-3xl font-bold mb-2 text-[color:var(--text)]">Complete your waiver</h1>
             <p className="text-[color:var(--textMuted)]">{brandName} needs a signed waiver before the trip starts. This form covers the booking contact and the guests attached to this reservation.</p>

@@ -102,7 +102,7 @@ export default function EditGuestsModal({
                   <div className="flex gap-2">
                     <input type="text" value={voucherCode} onChange={e => setVoucherCode(e.target.value.toUpperCase())}
                       placeholder="e.g. ABCD1234" maxLength={8}
-                      className="flex-1 px-3 py-2 border border-[color:var(--border)] rounded-lg text-sm font-mono uppercase tracking-wider bg-[color:var(--card)] outline-none focus:border-[color:var(--accent)]"
+                      className="min-w-0 flex-1 px-3 py-2.5 sm:py-2 border border-[color:var(--border)] rounded-lg text-[16px] sm:text-sm font-mono uppercase tracking-wider bg-[color:var(--card)] outline-none focus:border-[color:var(--accent)]"
                       onKeyDown={e => e.key === "Enter" && onApplyVoucher()} />
                     <button onClick={onApplyVoucher} className="px-4 py-2 bg-[color:var(--surface2)] text-sm font-semibold rounded-lg hover:bg-[color:var(--border)] transition-colors">Apply</button>
                   </div>
@@ -124,7 +124,7 @@ export default function EditGuestsModal({
                   <div className="flex gap-2">
                     <input type="text" value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())}
                       placeholder="e.g. SUMMER20"
-                      className="flex-1 px-3 py-2 border border-[color:var(--border)] rounded-lg text-sm font-mono uppercase tracking-wider bg-[color:var(--card)] outline-none focus:border-[color:var(--accent)]"
+                      className="min-w-0 flex-1 px-3 py-2.5 sm:py-2 border border-[color:var(--border)] rounded-lg text-[16px] sm:text-sm font-mono uppercase tracking-wider bg-[color:var(--card)] outline-none focus:border-[color:var(--accent)]"
                       onKeyDown={e => e.key === "Enter" && onApplyPromo()} />
                     <button onClick={onApplyPromo} className="px-4 py-2 bg-[color:var(--surface2)] text-sm font-semibold rounded-lg hover:bg-[color:var(--border)] transition-colors">Apply</button>
                   </div>

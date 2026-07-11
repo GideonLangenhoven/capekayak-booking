@@ -164,13 +164,13 @@ export default function Home() {
                 )}
               </div>
               <div className="px-3 pt-2.5 pb-4">
-                <div className="font-semibold text-[15px] text-[#393c45] leading-tight line-clamp-1">
+                <div className="font-semibold text-[15px] text-[color:var(--text)] leading-tight line-clamp-1">
                   {tour.name}
                 </div>
-                <div className="font-bold text-[19px] text-[#393c45] mt-1">
+                <div className="font-bold text-[19px] text-[color:var(--text)] mt-1">
                   R{tour.base_price_per_person}
                 </div>
-                <div className="text-[10px] text-[#b1b1b3] -mt-0.5">per person</div>
+                <div className="text-[10px] text-[color:var(--textMuted)] -mt-0.5">per person</div>
                 {rv && (
                   <div className="text-[10px] text-amber-500 font-semibold mt-1">
                     ★ {rv.avg.toFixed(1)} · {rv.count} review{rv.count !== 1 ? "s" : ""}
@@ -211,15 +211,15 @@ export default function Home() {
 
                 {/* Stats — description always visible on mobile, hover on desktop */}
                 <div className="absolute top-[65%] left-0 w-full h-[65%] bg-white px-5 pt-4 pb-5 transition-all duration-300 group-hover:top-[35%] text-left">
-                  <div className="text-[30px] text-[#393c45] font-semibold tracking-tight leading-tight line-clamp-2">
+                  <div className="text-[30px] text-[color:var(--text)] font-semibold tracking-tight leading-tight line-clamp-2">
                     {tour.name}
                   </div>
 
                   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 mt-1 transition-all duration-300 group-hover:mt-2">
-                    <div className="font-semibold text-[16px] text-[#393c45]">
-                      R{tour.base_price_per_person}<span className="text-[11px] font-normal text-[#b1b1b3] ml-0.5"> per person</span>
+                    <div className="font-semibold text-[16px] text-[color:var(--text)]">
+                      R{tour.base_price_per_person}<span className="text-[11px] font-normal text-[color:var(--textMuted)] ml-0.5"> per person</span>
                     </div>
-                    <div className="text-xs text-[#b1b1b3]">
+                    <div className="text-xs text-[color:var(--textMuted)]">
                       • {tour.duration_minutes} min
                     </div>
                     {rv && (
@@ -245,7 +245,7 @@ export default function Home() {
                         Book Now
                       </span>
                     </div>
-                    <div className="text-xs text-[#969699] line-clamp-3 leading-relaxed">
+                    <div className="text-xs text-[color:var(--textMuted)] line-clamp-3 leading-relaxed">
                       {tour.description || "An incredible kayaking experience along the stunning coastline."}
                     </div>
                   </div>

@@ -11,22 +11,23 @@
 :root {
   color-scheme: light;
 
-  /* Option A (active): Calm Premium */
-  --bg: #f5f5f5;
+  /* Default theme: BookingTours brand — warm paper + deep pine + sunset amber.
+     Every var below is tenant-overridable at runtime via ThemeProvider. */
+  --bg: #f7f5f0;
   --surface: #ffffff;
-  --surface2: #f0f0f0;
-  --border: #d9d9d9;
-  --text: #121212;
-  --textMuted: #5e5e5e;
-  --accent: #000000;
-  --accentHover: #1a1a1a;
-  --accentSoft: #e9e9e9;
-  --cta: #14b8a6;
-  --ctaHover: #0d9488;
-  --success: #222222;
+  --surface2: #f1eee6;
+  --border: #ddd8ca;
+  --text: #161b17;
+  --textMuted: #5d635c;
+  --accent: #125e40;
+  --accentHover: #0e4831;
+  --accentSoft: #dcefe4;
+  --cta: #b4641c;
+  --ctaHover: #9a5417;
+  --success: #177a4e;
   --warning: #b87a16;
   --danger: #bf4540;
-  --focusRing: #2b2b2b;
+  --focusRing: #125e40;
 
   /* Option B (reference): Bold Personality */
   --b-bg: #f7f1e8;
@@ -253,14 +254,16 @@
 
   body {
     background:
-      radial-gradient(circle at 8% -4%, rgba(0, 0, 0, 0.09), transparent 42%),
-      radial-gradient(circle at 92% -8%, rgba(0, 0, 0, 0.06), transparent 36%),
+      radial-gradient(circle at 8% -4%, rgba(15, 43, 31, 0.07), transparent 42%),
+      radial-gradient(circle at 92% -8%, rgba(15, 43, 31, 0.05), transparent 36%),
       var(--bg);
     color: var(--text);
     font-family: "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     line-height: 1.55;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
+    font-feature-settings: "cv11", "ss01", "ss03", "cv02", "calt";
+    -webkit-tap-highlight-color: transparent;
   }
 
   h1,
@@ -270,6 +273,7 @@
     color: var(--text);
     letter-spacing: -0.02em;
     font-weight: var(--h-font-weight);
+    font-family: var(--font-display), Georgia, "Times New Roman", serif;
   }
 
   h1 {
@@ -315,6 +319,13 @@
 @layer components {
   .app-container {
     @apply mx-auto w-full max-w-5xl px-4;
+  }
+
+  /* Display face — Fraunces. Headings get this via base layer; use this class
+     for standalone display text (brand wordmark, hero numbers). */
+  .font-display {
+    font-family: var(--font-display), Georgia, "Times New Roman", serif;
+    letter-spacing: -0.02em;
   }
 
   .page-wrap {
@@ -363,7 +374,8 @@
   }
 
   .btn {
-    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-semibold no-underline;
+    /* py-3 below sm: ≥44px touch target on phones; desktop keeps the compact 2.5 */
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-5 py-3 text-sm font-semibold no-underline sm:py-2.5;
     transition:
       background-color var(--dur-fast) var(--ease-soft),
       color var(--dur-fast) var(--ease-soft),
@@ -380,7 +392,7 @@
     background: var(--cta);
     border: 1px solid var(--cta);
     color: #fff;
-    box-shadow: 0 8px 18px rgba(15, 118, 110, 0.24);
+    box-shadow: 0 8px 18px color-mix(in srgb, var(--cta) 26%, transparent);
   }
 
   .btn-primary:hover {
@@ -427,7 +439,8 @@
     background: var(--surface);
     border: 1.5px solid var(--border);
     color: var(--text);
-    @apply w-full rounded-xl px-4 py-3 text-sm;
+    /* 16px below sm — anything smaller makes iOS Safari zoom the page on focus */
+    @apply w-full rounded-xl px-4 py-3 text-base sm:text-sm;
   }
 
   .field::placeholder {

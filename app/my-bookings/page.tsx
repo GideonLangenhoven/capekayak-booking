@@ -16,23 +16,39 @@ import ContactModal from "./modals/ContactModal";
 import ContactUsModal from "./modals/ContactUsModal";
 import SpecialRequestModal from "./modals/SpecialRequestModal";
 import CancelModal from "./modals/CancelModal";
-import VoucherCheckerModal from "./modals/VoucherCheckerModal";
 
 /* ═══════════════════════════════════════════════════════
-   TOAST BANNER (kept inline — 12 lines, specific positioning)
+   TOAST — floating, token-themed, never shifts layout
    ═══════════════════════════════════════════════════════ */
 function Toast({ message, type, onDismiss }: { message: string; type: "success" | "error"; onDismiss: () => void }) {
   if (!message) return null;
-  const bg = type === "success" ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-red-50 border-red-200 text-red-800";
+  const tone = type === "success" ? "var(--success)" : "var(--danger)";
   return (
-    <div className={"mb-4 p-4 rounded-xl border text-sm " + bg + " flex items-start gap-3"}>
-      <span className="shrink-0 mt-0.5">{type === "success" ? "\u2705" : "\u274C"}</span>
-      <p className="flex-1 font-medium">{message}</p>
-      <button onClick={onDismiss} className="shrink-0 opacity-60 hover:opacity-100 transition-opacity">
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-      </button>
+    <div className="toast-enter fixed inset-x-4 top-4 z-[70] mx-auto max-w-md" role={type === "error" ? "alert" : "status"}>
+      <div
+        className="flex items-start gap-3 rounded-xl border px-4 py-3.5"
+        style={{
+          background: `color-mix(in srgb, ${tone} 8%, var(--surface))`,
+          borderColor: `color-mix(in srgb, ${tone} 30%, transparent)`,
+          boxShadow: "var(--shadow-md)",
+        }}
+      >
+        <svg className="mt-0.5 h-4 w-4 shrink-0" style={{ color: tone }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          {type === "success"
+            ? <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            : <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0 3.75h.008v.008H12v-.008zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" />}
+        </svg>
+        <p className="flex-1 text-[13.5px] font-medium text-[color:var(--text)]">{message}</p>
+        <button onClick={onDismiss} aria-label="Dismiss" className="shrink-0 text-[color:var(--textMuted)] transition-colors hover:text-[color:var(--text)]">
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      </div>
     </div>
   );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--textMuted)]">{children}</h2>;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -81,6 +97,7 @@ export default function MyBookings() {
   // Reschedule
   const [rescheduling, setRescheduling] = useState<Booking | null>(null);
   const [rescheduleSlots, setRescheduleSlots] = useState<Slot[]>([]);
+  const [rescheduleQty, setRescheduleQty] = useState(1);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [rebookConfirmSlot, setRebookConfirmSlot] = useState<Slot | null>(null);
   const [excessAction, setExcessAction] = useState("VOUCHER");
@@ -179,8 +196,17 @@ export default function MyBookings() {
         return;
       }
       try {
+        // Send the phone tail proven at OTP time: the server's booking filter
+        // drops phone-bearing bookings when the tail is missing, which made a
+        // reload after an OTP login show "No bookings found".
+        const storedTail = localStorage.getItem("mb_customer_phone_tail") || "";
         const resp = await supabase.functions.invoke("my-bookings-lookup", {
-          body: { customer_session: token, email: storedEmail, business_id: theme.id },
+          body: {
+            customer_session: token,
+            email: storedEmail,
+            business_id: theme.id,
+            ...(storedTail ? { phone_tail: storedTail } : {}),
+          },
         });
         if (cancelled) return;
         const respData = (resp.data || {}) as Record<string, unknown>;
@@ -379,6 +405,10 @@ export default function MyBookings() {
         if (typeof respData.customer_session_expires_at === "number") {
           localStorage.setItem("mb_customer_session_exp", String(respData.customer_session_expires_at));
         }
+        // Keep the OTP-verified phone tail with the token — the resume call
+        // needs it or phone-bearing bookings are filtered out server-side.
+        const tail = normalizePhone(dialCode, phoneDigits).replace(/\D/g, "").slice(-9);
+        if (tail) localStorage.setItem("mb_customer_phone_tail", tail);
       } catch { /* localStorage may be disabled in some browsers */ }
     }
     return true;
@@ -437,20 +467,41 @@ export default function MyBookings() {
     }
   }
 
+  // ponytail: full reload after every completed action — the soft refresh
+  // kept missing derived state (banners/badges), so reflect server truth the
+  // blunt way. Session resumes from mb_customer_session, so login survives.
+  // 1.5s delay lets the success toast register before the page swaps.
+  function reloadAfterAction() {
+    setTimeout(() => window.location.reload(), 1500);
+  }
+
   /* ───── Lookup bookings (called after OTP verified or auth session) ───── */
   const lookupBookings = useCallback(async function (emailOnly?: boolean) {
     setLoading(true);
-    const resp = await supabase.functions.invoke("my-bookings-lookup", {
-      body: {
-        token: otpToken || undefined,
-        code: otpCode.trim() || undefined,
-        email: email.toLowerCase(),
-        phone_tail: normalizePhone(dialCode, phoneDigits).replace(/\D/g, "").slice(-9),
-        emailOnly: Boolean(emailOnly),
-        business_id: theme.id,
-      },
-    });
-    const respData = (resp.data || {}) as Record<string, unknown>;
+    // Post-login refreshes (after cancel/voucher/reschedule actions) must use
+    // the customer session — the OTP is single-use and already consumed, so
+    // re-sending it made every refresh fail and the page look stale.
+    let customerSession: string | null = null;
+    try { customerSession = localStorage.getItem("mb_customer_session"); } catch { /* private mode */ }
+    const baseBody = {
+      email: email.toLowerCase(),
+      phone_tail: normalizePhone(dialCode, phoneDigits).replace(/\D/g, "").slice(-9),
+      emailOnly: Boolean(emailOnly),
+      business_id: theme.id,
+    };
+    const invoke = (auth: Record<string, string | undefined>) =>
+      supabase.functions.invoke("my-bookings-lookup", { body: { ...auth, ...baseBody } });
+
+    let resp = await invoke(customerSession
+      ? { customer_session: customerSession }
+      : { token: otpToken || undefined, code: otpCode.trim() || undefined });
+    let respData = (resp.data || {}) as Record<string, unknown>;
+    if ((resp.error || !respData.success) && customerSession && otpToken && otpCode.trim()) {
+      // Stale stored session shadowing a fresh OTP login — drop it and retry.
+      try { localStorage.removeItem("mb_customer_session"); localStorage.removeItem("mb_customer_session_exp"); } catch { /* ignore */ }
+      resp = await invoke({ token: otpToken, code: otpCode.trim() });
+      respData = (resp.data || {}) as Record<string, unknown>;
+    }
     if (resp.error || !respData.success) {
       setLoginError(String(respData.error || "Please verify your email again."));
       setLoggedIn(false);
@@ -501,39 +552,54 @@ export default function MyBookings() {
         if (paymentPollRef.current) clearInterval(paymentPollRef.current);
         setPaymentPending(null);
         showToast("Payment confirmed! Your booking is updated.");
-        lookupBookings();
+        reloadAfterAction();
       }
     }, 10000);
   }
 
   /* ───── Admin review (locked bookings) ───── */
   async function requestAdminReview(b: Booking, action: string) {
-    if (!confirm("Your trip is within 12 hours. Send a request to our team?")) return;
+    if (!confirm("Send a change request to our team? They'll get back to you shortly.")) return;
     setActionLoading(b.id);
-    const hrs = getHrsBefore(b);
-    await tenantSupabase.from("chat_messages").insert({
-      business_id: b.business_id,
-      phone: b.phone,
-      direction: "IN",
-      body: "[URGENT] Request to " + action.toUpperCase() + " booking " + b.id.substring(0, 8).toUpperCase() + " (Trip in " + Math.round(hrs) + "h). Customer: " + b.customer_name,
-      sender: b.customer_name,
-    });
-    showToast("Request sent! Our team will get back to you shortly.");
+    // Was a direct anon-key chat_messages insert, which RLS silently rejected
+    // (no anon INSERT policy) while still showing "Request sent!" — so nothing
+    // ever reached the operator. Route through rebook-booking (service role),
+    // which lands it in the inbox, flips the conversation to HUMAN for the
+    // sidebar badge, and emails the operator. Only claim success on real success.
+    try {
+      const res = await callRebook({ booking_id: b.id, action: "REQUEST_CHANGE", requested_action: action });
+      if (res?.email_queued) {
+        showToast("Request sent — our team has been notified by email and in their dashboard.");
+      } else {
+        showToast("Request sent! Our team will see it in their dashboard shortly.");
+      }
+      reloadAfterAction();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "We couldn't send your request. Please contact us directly.", "error");
+    }
     setActionLoading(null);
   }
 
   /* ───── Reschedule ───── */
   async function startReschedule(b: Booking) {
+    // Remediation reschedule (operator-cancelled booking): any tour qualifies
+    // and the party size may shrink, so only require 1 open spot here — the
+    // backend re-validates capacity for the chosen qty.
+    const isRemediation = b.status === "CANCELLED";
     setRescheduling(b);
+    setRescheduleQty(b.qty);
     setLoadingSlots(true);
     const now = new Date();
     const cutoff = new Date(Date.now() + 60 * 60 * 1000);
     const later = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
-    const { data } = await tenantSupabase.from("slots").select("*, tours(name, base_price_per_person)")
-      .eq("status", "OPEN").eq("tour_id", b.tour_id)
+    let query = tenantSupabase.from("slots").select("*, tours(name, base_price_per_person)")
+      .eq("status", "OPEN")
       .gt("start_time", cutoff.toISOString()).lt("start_time", later.toISOString())
       .order("start_time", { ascending: true });
-    setRescheduleSlots(((data || []) as unknown as Slot[]).filter((s) => s.capacity_total - s.booked - (s.held || 0) >= b.qty && s.id !== b.slot_id));
+    if (!isRemediation) query = query.eq("tour_id", b.tour_id);
+    const { data } = await query;
+    const minSpots = isRemediation ? 1 : b.qty;
+    setRescheduleSlots(((data || []) as unknown as Slot[]).filter((s) => s.capacity_total - s.booked - (s.held || 0) >= minSpots && s.id !== b.slot_id));
     setLoadingSlots(false);
   }
 
@@ -546,6 +612,7 @@ export default function MyBookings() {
         action: "RESCHEDULE",
         new_slot_id: rebookConfirmSlot.id,
         excess_action: excessAction,
+        ...(rescheduling.status === "CANCELLED" && rescheduleQty !== rescheduling.qty ? { new_qty: rescheduleQty } : {}),
       });
       if ((result.diff as number) > 0 && result.payment_url) {
         setReschedulePaymentUrl(result.payment_url as string);
@@ -559,7 +626,7 @@ export default function MyBookings() {
         showToast("Booking rescheduled successfully!");
       }
       setRescheduling(null); setRebookConfirmSlot(null); setRescheduleSlots([]);
-      lookupBookings();
+      reloadAfterAction();
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Something went wrong", "error");
     }
@@ -636,7 +703,7 @@ export default function MyBookings() {
         }
       }
       setEditGuestsBooking(null);
-      lookupBookings();
+      reloadAfterAction();
     } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Something went wrong", "error"); }
     setActionLoading(null);
   }
@@ -652,7 +719,7 @@ export default function MyBookings() {
       await callRebook({ booking_id: contactBooking.id, action: "UPDATE_CONTACT", contact_name: contactName, contact_email: contactEmail, contact_phone: normalizePhone(dialCode, contactPhone) });
       showToast("Contact details updated!");
       setContactBooking(null);
-      lookupBookings();
+      reloadAfterAction();
     } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Something went wrong", "error"); }
     setActionLoading(null);
   }
@@ -668,7 +735,7 @@ export default function MyBookings() {
       await callRebook({ booking_id: requestBooking.id, action: "SPECIAL_REQUEST", special_requests: specialRequest });
       showToast("Special request saved!");
       setRequestBooking(null);
-      lookupBookings();
+      reloadAfterAction();
     } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Something went wrong", "error"); }
     setActionLoading(null);
   }
@@ -689,7 +756,7 @@ export default function MyBookings() {
         showToast("Your booking has been cancelled.");
       }
       setCancelTarget(null);
-      lookupBookings();
+      reloadAfterAction();
     } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Something went wrong", "error"); }
     setActionLoading(null);
   }
@@ -702,7 +769,7 @@ export default function MyBookings() {
       const result = await callRebook({ booking_id: cancelTarget.id, action: "CANCEL_VOUCHER" });
       showToast("Converted to voucher! Code: " + result.voucher_code + " (R" + result.voucher_amount + ")");
       setCancelTarget(null);
-      lookupBookings();
+      reloadAfterAction();
     } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Something went wrong", "error"); }
     setActionLoading(null);
   }
@@ -714,10 +781,14 @@ export default function MyBookings() {
       const res = await callRebook({ booking_id: b.id, action: "CLAIM_CREDIT", credit_action: creditAction });
       if (creditAction === "VOUCHER") {
         showToast("Voucher issued! Code: " + (res.voucher_code || "Check your email") + " for R" + Number(b.refund_amount).toFixed(2));
+      } else if (res.voucher_code) {
+        // Voucher-paid booking — cash refunds aren't possible, the backend
+        // issued a credit voucher instead.
+        showToast("Your booking was paid with a voucher, so we've issued a new voucher instead: " + res.voucher_code + " (R" + Number(res.voucher_amount ?? b.refund_amount).toFixed(2) + ")");
       } else {
-        showToast("Refund of R" + (res.refund_amount ? Number(res.refund_amount).toFixed(2) : (Number(b.refund_amount) * 0.95).toFixed(2)) + " requested. Please allow 5-10 business days.");
+        showToast("Refund of R" + Number(res.refund_amount ?? b.refund_amount).toFixed(2) + " requested. Please allow 5-10 business days.");
       }
-      lookupBookings();
+      reloadAfterAction();
     } catch (e: unknown) { showToast((e instanceof Error ? e.message : null) || "Failed to claim credit", "error"); }
     setActionLoading(null);
   }
@@ -733,6 +804,8 @@ export default function MyBookings() {
         setRebookConfirmSlot={setRebookConfirmSlot}
         rescheduleSlots={rescheduleSlots}
         loadingSlots={loadingSlots}
+        rescheduleQty={rescheduleQty}
+        setRescheduleQty={setRescheduleQty}
         excessAction={excessAction}
         setExcessAction={setExcessAction}
         actionLoading={actionLoading}
@@ -787,6 +860,19 @@ export default function MyBookings() {
   const past = bookings.filter(b => b.status === "COMPLETED" || b.status === "EXPIRED" || (["PAID", "CONFIRMED"].includes(b.status) && getTimeTier(b) === "PAST"));
   const cancelled = bookings.filter(b => b.status === "CANCELLED" && !needsAction(b));
 
+  // Presentation ordering: the soonest upcoming trip is the hero; past trips
+  // read most-recent-first.
+  const FAR_FUTURE = 8.64e15;
+  const upcomingSorted = [...upcoming].sort((a, z) =>
+    new Date(a.slots?.start_time || FAR_FUTURE).getTime() - new Date(z.slots?.start_time || FAR_FUTURE).getTime());
+  const nextTrip = upcomingSorted[0] || null;
+  const laterUpcoming = upcomingSorted.slice(1);
+  const pastSorted = [...past].sort((a, z) =>
+    new Date(z.slots?.start_time || 0).getTime() - new Date(a.slots?.start_time || 0).getTime());
+  const paidTrips = bookings.filter(b => ["PAID", "CONFIRMED", "COMPLETED"].includes(b.status));
+  const tripCount = paidTrips.length;
+  const firstName = ((paidTrips[0]?.customer_name || bookings[0]?.customer_name || email.split("@")[0] || "").split(" ")[0]) || "";
+
   const cardProps = {
     countdownTick, paymentPending, actionLoading, tripPhotos, bookingLogs,
     expandedTimeline, setExpandedTimeline, expandedWhatToBring, setExpandedWhatToBring,
@@ -797,44 +883,51 @@ export default function MyBookings() {
     onClaimCredit: handleClaimCredit,
   };
 
+  const iconBtn = "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border bg-[color:var(--surface)] text-[color:var(--textMuted)] transition-colors hover:border-[color:var(--accent)] hover:text-[color:var(--accent)] sm:h-10 sm:w-10";
+
   return (
-    <div className="min-h-screen bg-slate-50 pb-12">
-      <div className="app-container max-w-5xl px-4 pt-6 lg:pt-10">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8 lg:mb-10">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center font-bold text-xl shrink-0">
-              {email.charAt(0).toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-slate-500 font-semibold">CapeKayak Family</p>
-              <h1 className="text-2xl font-extrabold text-slate-900 leading-tight truncate tracking-tight">
-                Hi, {email.split('@')[0]}!
-              </h1>
-            </div>
+    <div className="min-h-screen pb-16">
+      {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
+
+      <div className="app-container max-w-3xl px-4 pt-8 sm:pt-12">
+        {/* Greeting */}
+        <header className="mb-8 flex flex-wrap items-end justify-between gap-x-4 gap-y-5">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--accent)]">
+              {theme.business_name || "My bookings"}
+            </p>
+            <h1 className="font-display mt-1.5 text-[28px] font-semibold leading-[1.08] tracking-[-0.02em] text-[color:var(--text)] sm:text-[34px] sm:leading-none">
+              Welcome back{firstName ? ", " + firstName : ""}
+            </h1>
+            {tripCount >= 2 && (
+              <p className="mt-2 text-[13px] text-[color:var(--textMuted)]">
+                {tripCount} trips together{tripCount >= 5 ? " — thanks for sticking with us" : ""}
+              </p>
+            )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <Link href="/" className="btn btn-primary flex-1 !px-4 !py-2.5 !text-[13.5px] sm:flex-none sm:!py-2 sm:!text-[13px]">Book a trip</Link>
             {authSession && (
-              <button onClick={() => setActiveTab("profile")} title="Settings" aria-label="Settings"
-                className="w-10 h-10 shrink-0 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors border border-slate-100">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              <button onClick={() => setActiveTab("profile")} title="Profile & settings" aria-label="Profile & settings"
+                className={iconBtn} style={{ borderColor: "var(--border)" }}>
+                <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
               </button>
             )}
-            <button onClick={async () => { if (authSession) { await supabase.auth.signOut(); setAuthSession(false); } setLoggedIn(false); setBookings([]); setEmail(""); setDialCode("+27"); setPhoneDigits(""); setLoginError(""); setToast(null); setAutoLoginAttempted(false); setSessionChecked(true); sessionStorage.removeItem("mb_loggedIn"); sessionStorage.removeItem("mb_email"); sessionStorage.removeItem("mb_dialCode"); sessionStorage.removeItem("mb_phone"); try { localStorage.removeItem("mb_customer_session"); localStorage.removeItem("mb_customer_email"); localStorage.removeItem("mb_customer_session_exp"); } catch { /* */ } }}
-              title="Log out" aria-label="Log out"
-              className="w-10 h-10 shrink-0 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors border border-slate-100">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            <button onClick={async () => { if (authSession) { await supabase.auth.signOut(); setAuthSession(false); } setLoggedIn(false); setBookings([]); setEmail(""); setDialCode("+27"); setPhoneDigits(""); setLoginError(""); setToast(null); setAutoLoginAttempted(false); setSessionChecked(true); sessionStorage.removeItem("mb_loggedIn"); sessionStorage.removeItem("mb_email"); sessionStorage.removeItem("mb_dialCode"); sessionStorage.removeItem("mb_phone"); try { localStorage.removeItem("mb_customer_session"); localStorage.removeItem("mb_customer_email"); localStorage.removeItem("mb_customer_session_exp"); localStorage.removeItem("mb_customer_phone_tail"); } catch { /* */ } }}
+              title="Sign out" aria-label="Sign out"
+              className={iconBtn} style={{ borderColor: "var(--border)" }}>
+              <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
             </button>
           </div>
-        </div>
+        </header>
 
         {/* Tab strip (auth-session users only) */}
         {authSession && (
-          <div className="flex gap-1 mb-6 border-b border-slate-200">
+          <div className="mb-7 flex w-full rounded-xl border bg-[color:var(--surface)] p-1 sm:inline-flex sm:w-auto" style={{ borderColor: "var(--border)" }} role="tablist">
             {(["trips", "profile"] as const).map(t => (
-              <button key={t} onClick={() => setActiveTab(t)}
-                className={"px-4 py-2.5 text-sm font-bold -mb-px transition-colors " + (activeTab === t ? "border-b-2 text-teal-700" : "border-b-2 border-transparent text-slate-400 hover:text-slate-600")}
-                style={activeTab === t ? { borderColor: "var(--cta, #14b8a6)" } : undefined}>
+              <button key={t} onClick={() => setActiveTab(t)} role="tab" aria-selected={activeTab === t}
+                className={"flex-1 rounded-lg px-4 py-2.5 text-[13px] font-semibold transition-colors sm:flex-none sm:py-1.5 " +
+                  (activeTab === t ? "bg-[color:var(--accent)] text-white" : "text-[color:var(--textMuted)] hover:text-[color:var(--text)]")}>
                 {t === "trips" ? "Your trips" : "Profile"}
               </button>
             ))}
@@ -845,157 +938,139 @@ export default function MyBookings() {
           <ProfileTab customer={customer} user={authUser} onUpdate={setCustomer} onSignOut={() => { window.location.href = "/"; }} />
         ) : (<>
 
-        {(() => {
-          const paidTrips = bookings.filter(function (b) { return ["PAID", "CONFIRMED", "COMPLETED"].includes(b.status); });
-          const tripCount = paidTrips.length;
-          const firstName = (paidTrips[0]?.customer_name || email.split("@")[0] || "").split(" ")[0];
-          if (tripCount >= 2) return (
-            <div className="mb-6 p-4 rounded-2xl border flex items-center gap-4" style={{ background: "color-mix(in srgb, var(--cta, #14b8a6) 8%, white)", borderColor: "color-mix(in srgb, var(--cta, #14b8a6) 25%, white)" }}>
-              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-lg" style={{ background: "color-mix(in srgb, var(--cta, #14b8a6) 15%, white)" }}>
-                {tripCount >= 5 ? "\u2B50" : "\uD83D\uDC4B"}
-              </div>
-              <div>
-                <p className="font-semibold text-sm" style={{ color: "var(--textPrimary, #0f172a)" }}>
-                  Welcome back{firstName ? ", " + firstName : ""}!
-                </p>
-                <p className="text-xs mt-0.5" style={{ color: "var(--textSecondary, #64748b)" }}>
-                  {tripCount === 2 ? "Your second trip with us \u2014 welcome back."
-                    : "You\u2019ve booked " + tripCount + " trips with us. Thanks for sticking with us!"}
-                </p>
-              </div>
-            </div>
-          );
-          return null;
-        })()}
-
         {/* Action needed — operator/weather cancellations awaiting a customer choice.
             Surfaced above everything so a cancelled trip is impossible to miss. */}
         {actionNeeded.length > 0 && (
-          <div className="mb-6 rounded-[1.75rem] border-2 p-5 sm:p-6 shadow-sm" style={{ borderColor: "#fdba74", background: "linear-gradient(135deg, #fff7ed 0%, #ffffff 55%)" }}>
-            <div className="flex items-start gap-3.5 mb-4">
-              <div className="w-11 h-11 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 19v2m4-2v2m4-2v2" /></svg>
-              </div>
-              <div className="min-w-0">
-                <h2 className="text-[17px] font-extrabold text-slate-900 leading-tight">Action needed</h2>
-                <p className="text-[13px] text-slate-600 mt-0.5">
-                  {actionNeeded.length === 1 ? "A trip was cancelled by the operator" : actionNeeded.length + " trips were cancelled by the operator"} — pick a new date, take a voucher, or request a refund below.
-                </p>
-              </div>
+          <section className="mb-9">
+            <div className="mb-3 flex items-center gap-2">
+              <svg className="h-4 w-4" style={{ color: "var(--danger)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+              <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--danger)" }}>Needs your attention</h2>
             </div>
             <div className="space-y-3">
-              {actionNeeded.map(b => <BookingCard key={b.id} b={b} {...cardProps} refundCalc={refundCalcs[b.id] || null} />)}
+              {actionNeeded.map(b => <BookingCard key={b.id} b={b} variant="card" {...cardProps} refundCalc={refundCalcs[b.id] || null} />)}
             </div>
-          </div>
+          </section>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-x-8 gap-y-6 items-start">
-           {/* Left Column */}
-           <div className="lg:col-span-5 space-y-6">
-              {/* Quick Actions / Steps */}
-              <div>
-                <h2 className="text-sm font-bold text-slate-800 mb-3 ml-1">Get started with these simple steps</h2>
-                <div className="flex gap-3 overflow-x-auto pb-2 px-1 snap-x hide-scrollbar">
-                   <Link href="/" className="snap-start shrink-0 w-[110px] bg-white rounded-3xl p-4 shadow-sm border border-slate-100 flex flex-col items-center text-center gap-3 hover:shadow-md transition-shadow">
-                      <div className="w-12 h-12 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
-                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      </div>
-                      <span className="text-[13px] font-bold text-slate-700 leading-tight">Book Trips</span>
-                   </Link>
-                   <Link href="/contact" className="snap-start shrink-0 w-[110px] bg-white rounded-3xl p-4 shadow-sm border border-slate-100 flex flex-col items-center text-center gap-3 hover:shadow-md transition-shadow">
-                      <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center shrink-0">
-                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      </div>
-                      <span className="text-[13px] font-bold text-slate-700 leading-tight">Contact Team</span>
-                   </Link>
-                </div>
-              </div>
+        {bookings.length === 0 ? (
+          <div className="rounded-2xl border border-dashed px-6 py-14 text-center" style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--surface) 60%, transparent)" }}>
+            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: "var(--accentSoft)", color: "var(--accent)" }}>
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15.5 8.5l-2 5-5 2 2-5 5-2z" /></svg>
+            </span>
+            <h3 className="font-display mt-4 text-[20px] font-semibold text-[color:var(--text)]">No trips yet</h3>
+            <p className="mx-auto mt-1.5 max-w-xs text-[13.5px] text-[color:var(--textMuted)]">When you book, everything lives here — tickets, waivers, changes and photos.</p>
+            <Link href="/" className="btn btn-primary mt-6">Browse tours</Link>
+          </div>
+        ) : (
+          <>
+            {nextTrip && (
+              <section className="mb-9">
+                <BookingCard b={nextTrip} variant="hero" {...cardProps} refundCalc={refundCalcs[nextTrip.id] || null} />
+              </section>
+            )}
 
-              {/* Toast */}
-              {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
-
-              {/* Wallet / Vouchers styled */}
-              <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100">
-                <p className="text-[13px] font-bold text-slate-500 mb-1">Your Wallet</p>
-                <div className="flex items-end justify-between mb-4">
-                   <h3 className="text-3xl font-extrabold text-slate-900 leading-none">
-                       {voucherResult ? `R${voucherResult.current_balance}` : 'R0.00'}
-                   </h3>
-                   <div className="flex items-center gap-2">
-                      {voucherResult ? (
-                         <button onClick={() => { setVoucherResult(null); setVoucherCode(""); }} className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-sm hover:bg-slate-200 transition-colors">
-                           Clear
-                         </button>
-                      ) : (
-                         <button onClick={checkVoucherBalance} disabled={voucherLoading || !voucherCode.trim()} className="px-4 py-2 bg-teal-800 text-white font-bold rounded-xl text-sm shadow-sm hover:bg-teal-900 transition-colors disabled:opacity-50">
-                           Check
-                         </button>
-                      )}
-                   </div>
+            {laterUpcoming.length > 0 && (
+              <section className="mb-9">
+                <SectionLabel>Coming up</SectionLabel>
+                <div className="space-y-3">
+                  {laterUpcoming.map(b => <BookingCard key={b.id} b={b} variant="card" {...cardProps} refundCalc={refundCalcs[b.id] || null} />)}
                 </div>
-                
+              </section>
+            )}
+
+            {/* Utilities */}
+            <section className="mb-9 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border bg-[color:var(--surface)] p-5" style={{ borderColor: "var(--border)", boxShadow: "var(--shadow-sm)" }}>
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "var(--accentSoft)", color: "var(--accent)" }}>
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" /></svg>
+                  </span>
+                  <h3 className="text-[14px] font-semibold text-[color:var(--text)]">Voucher balance</h3>
+                </div>
                 {!voucherResult ? (
-                   <div className="flex items-center gap-3">
-                       <input 
-                         type="text" 
-                         value={voucherCode} 
-                         onChange={e => { setVoucherCode(e.target.value.toUpperCase()); setVoucherError(""); }} 
-                         onKeyDown={e => e.key === "Enter" && checkVoucherBalance()}
-                         placeholder="Enter voucher code" 
-                         className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium tracking-wider outline-none focus:border-teal-500 transition-colors uppercase"
-                       />
-                   </div>
+                  <>
+                    <p className="mt-2.5 text-[12.5px] text-[color:var(--textMuted)]">Have a gift voucher? Check what&apos;s left on it.</p>
+                    <div className="mt-3 flex gap-2">
+                      <input
+                        type="text"
+                        value={voucherCode}
+                        onChange={e => { setVoucherCode(e.target.value.toUpperCase()); setVoucherError(""); }}
+                        onKeyDown={e => e.key === "Enter" && checkVoucherBalance()}
+                        placeholder="CODE"
+                        aria-label="Voucher code"
+                        className="field !py-2.5 min-w-0 flex-1 font-mono !text-[16px] uppercase tracking-widest sm:!py-2 sm:!text-[13px]"
+                      />
+                      <button onClick={checkVoucherBalance} disabled={voucherLoading || !voucherCode.trim()}
+                        className="inline-flex shrink-0 items-center self-stretch rounded-[10px] bg-[color:var(--accent)] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[color:var(--accentHover)] disabled:opacity-40"
+                      >
+                        {voucherLoading ? "…" : "Check"}
+                      </button>
+                    </div>
+                    {voucherError && <p role="alert" className="mt-2 text-[12px]" style={{ color: "var(--danger)" }}>{voucherError}</p>}
+                  </>
                 ) : (
-                   <div className="flex items-center justify-between text-sm py-2 px-3 bg-teal-50 text-teal-800 rounded-lg">
-                      <span className="font-medium">Active Voucher Code:</span>
-                      <span className="font-mono font-bold">{voucherResult.code}</span>
-                   </div>
+                  <div className="mt-3 flex items-end justify-between gap-3">
+                    <div>
+                      <p className="font-display text-[30px] font-semibold leading-none text-[color:var(--text)]">R{voucherResult.current_balance}</p>
+                      <p className="mt-2 text-[12px] text-[color:var(--textMuted)]">
+                        <span className="font-mono font-semibold text-[color:var(--text)]">{voucherResult.code}</span>
+                        {voucherResult.expires_at && <> · until {new Date(voucherResult.expires_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}</>}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5">
+                      <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                        style={voucherResult.status === "ACTIVE"
+                          ? { color: "var(--success)", background: "color-mix(in srgb, var(--success) 10%, transparent)" }
+                          : { color: "var(--textMuted)", background: "var(--surface2)" }}>
+                        <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                        {voucherResult.status === "ACTIVE" ? "Active" : voucherResult.status === "REDEEMED" ? "Fully used" : voucherResult.status}
+                      </span>
+                      <button onClick={() => { setVoucherResult(null); setVoucherCode(""); }} className="text-[12px] font-semibold text-[color:var(--accent)] hover:underline">
+                        Check another
+                      </button>
+                    </div>
+                  </div>
                 )}
-                {voucherError && <p className="text-xs text-red-500 mt-2 ml-1 font-medium">{voucherError}</p>}
               </div>
-           </div>
 
-           {/* Right Column */}
-           <div className="lg:col-span-7">
-              {/* Bookings list */}
-              <div>
-                 <div className="flex justify-between items-center mb-4 px-1">
-                    <h2 className="text-sm font-bold text-slate-800">Your bookings</h2>
-                 </div>
+              <button onClick={() => setContactUsOpen(true)}
+                className="group rounded-2xl border bg-[color:var(--surface)] p-5 text-left transition-colors hover:border-[color:var(--accent)]"
+                style={{ borderColor: "var(--border)", boxShadow: "var(--shadow-sm)" }}>
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "var(--accentSoft)", color: "var(--accent)" }}>
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                  </span>
+                  <h3 className="text-[14px] font-semibold text-[color:var(--text)]">Need a hand?</h3>
+                </div>
+                <p className="mt-2.5 text-[12.5px] text-[color:var(--textMuted)]">
+                  Questions about a booking? WhatsApp, call or email {theme.business_name || "our team"} directly.
+                </p>
+                <span className="mt-3 inline-flex items-center gap-1 text-[13px] font-semibold text-[color:var(--accent)]">
+                  Contact us
+                  <svg className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+                </span>
+              </button>
+            </section>
 
-                 <div className="space-y-6">
-                    {bookings.length === 0 ? (
-                       <div className="bg-orange-50 rounded-[1.5rem] p-6 shadow-sm border border-orange-100/50 flex flex-col items-center">
-                          <p className="text-[14px] text-orange-800 font-semibold mb-1">No upcoming trips yet.</p>
-                          <p className="text-[13px] text-orange-700/80 mb-4">Time to plan your next adventure!</p>
-                          <Link href="/" className="inline-block px-5 py-2.5 bg-orange-100 text-orange-800 font-bold rounded-xl text-[13px] hover:bg-orange-200 transition-colors shadow-sm">Explore Tours</Link>
-                       </div>
-                    ) : (
-                       <>
-                         {upcoming.length > 0 && (
-                            <div className="space-y-4">
-                               <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 ml-1">Upcoming</h3>
-                               {upcoming.map(b => <BookingCard key={b.id} b={b} {...cardProps} refundCalc={refundCalcs[b.id] || null} />)}
-                            </div>
-                         )}
-                         {past.length > 0 && (
-                            <div className="space-y-4">
-                               <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 ml-1">Past trips</h3>
-                               {past.map(b => <BookingCard key={b.id} b={b} {...cardProps} />)}
-                            </div>
-                         )}
-                         {cancelled.length > 0 && (
-                            <div className="space-y-4">
-                               <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 ml-1">Cancelled</h3>
-                               {cancelled.map(b => <BookingCard key={b.id} b={b} {...cardProps} />)}
-                            </div>
-                         )}
-                       </>
-                    )}
-                 </div>
-              </div>
-           </div>
-        </div>
+            {pastSorted.length > 0 && (
+              <section className="mb-9">
+                <SectionLabel>Past trips</SectionLabel>
+                <div className="space-y-2">
+                  {pastSorted.map(b => <BookingCard key={b.id} b={b} variant="row" {...cardProps} />)}
+                </div>
+              </section>
+            )}
+
+            {cancelled.length > 0 && (
+              <section className="mb-9">
+                <SectionLabel>Cancelled</SectionLabel>
+                <div className="space-y-2">
+                  {cancelled.map(b => <BookingCard key={b.id} b={b} variant="row" {...cardProps} />)}
+                </div>
+              </section>
+            )}
+          </>
+        )}
 
       </>)}
       </div>
