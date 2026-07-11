@@ -7,6 +7,7 @@ import { useTheme } from "../components/ThemeProvider";
 import ConfirmationSkeleton from "../components/skeletons/ConfirmationSkeleton";
 import { CheckCircleGlyph, CalendarGlyph, GiftGlyph, ImagePlaceholderGlyph } from "../components/ui/Glyphs";
 import { fmtFull, fmtTime, gCalFmt } from "../lib/format";
+import { formatDuration, isMultiDay, tourEndDate } from "../lib/duration";
 import type { Booking } from "../lib/types";
 import { clearDraft as clearLocalDraft } from "../lib/booking-draft";
 
@@ -70,7 +71,12 @@ function SuccessContent() {
   );
 
   const startDate = booking.slots?.start_time ? new Date(booking.slots.start_time) : null;
-  const endDate = startDate ? new Date(startDate.getTime() + (booking.tours?.duration_minutes || 90) * 60 * 1000) : null;
+  // Multi-day tours: calendar event ends on the last day, not days×24h after departure.
+  const endDate = startDate
+    ? (isMultiDay(booking.tours?.duration_minutes)
+        ? tourEndDate(booking.slots!.start_time, booking.tours?.duration_minutes)
+        : new Date(startDate.getTime() + (booking.tours?.duration_minutes || 90) * 60 * 1000))
+    : null;
   // Operators paste HTML (<br>, &nbsp;) into directions — render it as plain text.
   const directionsText = (theme.directions || "")
     .replace(/<br\s*\/?>/gi, "\n")
@@ -109,11 +115,14 @@ function SuccessContent() {
             <div>
               <p className="text-xs uppercase tracking-wider !text-neutral-500">Date &amp; Time</p>
               <p className="mt-0.5 font-semibold !text-neutral-900">{startDate ? fmtFull(booking.slots!.start_time) : "—"}</p>
+              {startDate && isMultiDay(booking.tours?.duration_minutes) && (
+                <p className="mt-0.5 font-semibold !text-neutral-900">– {fmtFull(tourEndDate(booking.slots!.start_time, booking.tours?.duration_minutes)!.toISOString())}</p>
+              )}
               <p className="!text-neutral-700">{startDate ? fmtTime(booking.slots!.start_time) : ""}</p>
             </div>
             <div className="text-right">
               <p className="text-xs uppercase tracking-wider !text-neutral-500">Duration</p>
-              <p className="mt-0.5 font-semibold !text-neutral-900">{booking.tours?.duration_minutes} min</p>
+              <p className="mt-0.5 font-semibold !text-neutral-900">{formatDuration(booking.tours?.duration_minutes)}</p>
             </div>
           </div>
           <div className="flex justify-between border-t border-neutral-200 pt-4">
@@ -224,7 +233,7 @@ function SuccessContent() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm !text-neutral-900 truncate">{t.name}</p>
-                  <p className="text-xs !text-neutral-600">R{t.base_price_per_person}/pp • {t.duration_minutes} min</p>
+                  <p className="text-xs !text-neutral-600">R{t.base_price_per_person}/pp • {formatDuration(t.duration_minutes)}</p>
                 </div>
                 <span className="text-xs font-semibold px-3 py-1.5 rounded-full text-white shrink-0" style={{ backgroundColor: 'var(--cta)' }}>Book</span>
               </Link>

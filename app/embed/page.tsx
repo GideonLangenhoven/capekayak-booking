@@ -11,6 +11,7 @@ import { useSearchParams } from "next/navigation";
 import { createTenantSupabase } from "../lib/supabase";
 import { useTheme } from "../components/ThemeProvider";
 import type { Tour, Slot } from "../lib/types";
+import { formatDuration } from "../lib/duration";
 
 const DAY_COUNT = 5;
 
@@ -276,7 +277,7 @@ function WidgetQuick() {
                     <TourThumb tour={t} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[15px] font-semibold text-[#211d19]">{t.name}</span>
-                      <span className="block text-[12px] text-[#8a8478]">{t.duration_minutes} min</span>
+                      <span className="block text-[12px] text-[#8a8478]">{formatDuration(t.duration_minutes)}</span>
                     </span>
                     <span className="shrink-0 text-right">
                       <span className="block text-[14px] font-bold text-[#211d19]">R{t.base_price_per_person}</span>

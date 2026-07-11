@@ -5,6 +5,7 @@ import { createTenantSupabase } from "../../lib/supabase";
 import { useTheme } from "../../components/ThemeProvider";
 import { fmtDate, fmtTime, fmtMonth, dateKeyInTz, isSameDay, getDaysInMonth, getFirstDay } from "../../lib/format";
 import type { ComboOffer, Slot } from "../../lib/types";
+import { formatDuration } from "../../lib/duration";
 import { normalizePhone } from "../../lib/phone";
 
 const BOOKING_CUTOFF_MINUTES = 60;
@@ -413,7 +414,7 @@ export default function ComboBookingPage() {
             <div className="flex items-center gap-3 mb-4">
               <span className="w-7 h-7 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
               <h2 className="text-xl font-bold">{tourA?.name}</h2>
-              <span className="text-sm text-gray-400">{tourA?.duration_minutes} min</span>
+              <span className="text-sm text-gray-400">{formatDuration(tourA?.duration_minutes)}</span>
             </div>
             <div className="grid md:grid-cols-2 gap-6">
               <div>
@@ -433,7 +434,7 @@ export default function ComboBookingPage() {
             <div className="flex items-center gap-3 mb-4">
               <span className="w-7 h-7 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
               <h2 className="text-xl font-bold">{tourB?.name}</h2>
-              <span className="text-sm text-gray-400">{tourB?.duration_minutes} min</span>
+              <span className="text-sm text-gray-400">{formatDuration(tourB?.duration_minutes)}</span>
             </div>
             <div className="grid md:grid-cols-2 gap-6">
               <div>

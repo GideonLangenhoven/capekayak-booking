@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { createTenantSupabase } from "./lib/supabase";
+import { formatDuration } from "./lib/duration";
 import { useRouter } from "next/navigation";
 import SectionHeader from "./components/ui/SectionHeader";
 import Card from "./components/ui/Card";
@@ -220,7 +221,7 @@ export default function Home() {
                       R{tour.base_price_per_person}<span className="text-[11px] font-normal text-[color:var(--textMuted)] ml-0.5"> per person</span>
                     </div>
                     <div className="text-xs text-[color:var(--textMuted)]">
-                      • {tour.duration_minutes} min
+                      • {formatDuration(tour.duration_minutes)}
                     </div>
                     {rv && (
                       <div className="text-xs text-amber-500 font-semibold">
@@ -310,7 +311,7 @@ export default function Home() {
                         {savings > 0 && <span className="text-sm text-gray-400 line-through">R{combo.original_price}</span>}
                       </div>
                       <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
-                        <span>{tourA?.duration_minutes + (tourB?.duration_minutes || 0)} min total</span>
+                        <span>{formatDuration((tourA?.duration_minutes || 0) + (tourB?.duration_minutes || 0))} total</span>
                         <span>•</span>
                         <span>2 experiences</span>
                       </div>

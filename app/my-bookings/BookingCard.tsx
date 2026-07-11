@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { fmtDate, fmtTime } from "../lib/format";
+import { isMultiDay, tourEndDate } from "../lib/duration";
 import { STATUS_TONE, STATUS_LABEL, getTimeTier, getHrsBefore, getCountdownText, type StatusTone } from "./constants";
 import ActionBtn from "./ActionBtn";
 import type { Booking, BookingLog } from "../lib/types";
@@ -241,7 +242,8 @@ export default function BookingCard({
           </h3>
           {b.slots?.start_time && (
             <p className="mt-1.5 text-[15px] text-[#F7F5F0]/85">
-              {fmtDate(b.slots.start_time)} · {fmtTime(b.slots.start_time)}
+              {fmtDate(b.slots.start_time)}
+              {isMultiDay(b.tours?.duration_minutes) ? " – " + fmtDate(tourEndDate(b.slots.start_time, b.tours?.duration_minutes)!.toISOString()) : ""} · {fmtTime(b.slots.start_time)}
             </p>
           )}
 
@@ -391,7 +393,8 @@ export default function BookingCard({
           <h3 className="text-[16px] font-semibold leading-snug text-[color:var(--text)]">{b.tours?.name || "Booking"}</h3>
           {b.slots?.start_time && (
             <p className="mt-0.5 text-[13.5px] text-[color:var(--textMuted)]">
-              {fmtDate(b.slots.start_time)} · {fmtTime(b.slots.start_time)}
+              {fmtDate(b.slots.start_time)}
+              {isMultiDay(b.tours?.duration_minutes) ? " – " + fmtDate(tourEndDate(b.slots.start_time, b.tours?.duration_minutes)!.toISOString()) : ""} · {fmtTime(b.slots.start_time)}
             </p>
           )}
         </div>

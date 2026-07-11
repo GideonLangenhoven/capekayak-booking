@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef, Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { createTenantSupabase, createVoucherSupabase, supabase } from "../lib/supabase";
+import { formatDuration } from "../lib/duration";
 import { useTheme } from "../components/ThemeProvider";
 import BookingFlowSkeleton from "../components/skeletons/BookingFlowSkeleton";
 import Toast from "../components/ui/Toast";
@@ -190,23 +191,15 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   }, [tenantSupabase, tourId, theme.id]);
 
   useEffect(() => {
-    if (!selectedTour || !theme.id) return;
+    if (!theme.id) return;
     (async () => {
-      const { data: nativeRevs } = await tenantSupabase.from("reviews")
+      const { data } = await tenantSupabase.from("reviews")
         .select("id, rating, comment, reviewer_name, reviewer_avatar_url, source, submitted_at")
-        .eq("tour_id", selectedTour.id).eq("status", "APPROVED").not("rating", "is", null)
-        .order("submitted_at", { ascending: false }).limit(10);
-      const { data: googleRevs } = await tenantSupabase.from("reviews")
-        .select("id, rating, comment, reviewer_name, reviewer_avatar_url, source, submitted_at")
-        .eq("business_id", theme.id).eq("source", "GOOGLE").eq("status", "APPROVED").not("rating", "is", null)
-        .order("submitted_at", { ascending: false }).limit(10);
-      const combined = [...(nativeRevs || []), ...(googleRevs || [])];
-      const seen = new Set<string>();
-      const deduped = combined.filter(r => { if (seen.has(r.id)) return false; seen.add(r.id); return true; });
-      deduped.sort((a, b) => new Date(b.submitted_at || 0).getTime() - new Date(a.submitted_at || 0).getTime());
-      setReviews(deduped.slice(0, 20));
+        .eq("business_id", theme.id).eq("status", "APPROVED").not("rating", "is", null)
+        .order("submitted_at", { ascending: false }).limit(20);
+      setReviews(data || []);
     })();
-  }, [tenantSupabase, selectedTour, theme.id]);
+  }, [tenantSupabase, theme.id]);
 
   const BOOKING_CUTOFF_MINUTES = 60;
 
@@ -647,7 +640,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                <div className="text-left">
                  <h3 className="font-extrabold text-[16px] text-slate-800 leading-tight">{selectedTour?.name}</h3>
                  <p className="text-slate-500 text-[12px] font-bold mt-0.5">
-                   {selectedTour?.duration_minutes} min &middot; {selectedSlot
+                   {formatDuration(selectedTour?.duration_minutes)} &middot; {selectedSlot
                      ? <>R{effectiveUnitPrice} per person{isPeakPrice ? <span className="ml-1 inline-block rounded-full bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider">Peak</span> : null}</>
                      : <>From R{selectedTour?.base_price_per_person} per person</>}
                  </p>
