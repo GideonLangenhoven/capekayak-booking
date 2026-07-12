@@ -193,10 +193,13 @@ export function computeTheme(colors: Partial<OperatorColors>, heroAverage?: RGB 
   const accentTextOk = worst.every((b) => contrast(over(bg, card.alpha, b), main) >= 4.5);
   const accentText = accentTextOk ? main : ink;
 
-  // Backdrop scrim: light scheme washes imagery toward bg so dark ink works
-  // on capsules; dark scheme deepens toward secondary.
-  const scrimTop = scheme === "light" ? rgba(bg, 0.45) : rgba(secondary, 0.55);
-  const scrimBottom = scheme === "light" ? rgba(bg, 0.72) : rgba(secondary, 0.82);
+  // Backdrop scrim: just enough tint that the backdrop reads as the
+  // operator's world, but weak enough that imagery/mesh stays vivid — the
+  // glass effect is only visible when there's real contrast to blur.
+  // (AA is unaffected: ink is solved against pure white/black extremes,
+  // strictly worse than anything a weak scrim lets through.)
+  const scrimTop = scheme === "light" ? rgba(bg, 0.14) : rgba(secondary, 0.25);
+  const scrimBottom = scheme === "light" ? rgba(bg, 0.42) : rgba(secondary, 0.55);
 
   const glassBorder = scheme === "dark" ? "rgba(255, 255, 255, 0.28)" : rgba(secondary, 0.24);
 

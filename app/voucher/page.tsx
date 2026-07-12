@@ -60,6 +60,9 @@ export default function VoucherPage() {
 
   return (
     <div className="app-container page-wrap max-w-lg">
+      {/* One glass sheet wraps the whole voucher flow — copy and labels never
+          sit on raw backdrop imagery (§5 rule 4). */}
+      <div className="glass-sheet px-5 py-7 sm:px-8 sm:py-9">
       <div className="mb-8 text-center">
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[color:var(--accentSoft)] text-[color:var(--accent)]"><GiftGlyph size={30} /></div>
         <h2 className="headline-lg">Give the Gift of Adventure</h2>
@@ -144,6 +147,7 @@ export default function VoucherPage() {
           <p className="mt-3 text-xs text-[color:var(--textMuted)]">Secure payment via Yoco, a PCI DSS compliant provider — card details never touch our servers</p>
         </div>
       )}
+      </div>
       {toast && <Toast message={toast.message} type={toast.type} onDismiss={dismissToast} />}
     </div>
   );

@@ -67,27 +67,27 @@ export default function EditGuestsModal({
           <button onClick={() => setGuestQty(Math.max(canRemove ? 1 : b.qty, guestQty - 1))}
             disabled={guestQty <= (canRemove ? 1 : b.qty)}
             title={!canRemove ? "Cannot remove guests within 24 hours of trip" : undefined}
-            className="w-11 h-11 rounded-full border-2 border-[color:var(--border)] flex items-center justify-center text-xl font-bold hover:border-[color:var(--accent)] disabled:opacity-20 transition-colors select-none">
+            className="w-11 h-11 rounded-full border-2 flex items-center justify-center text-xl font-bold text-[color:var(--text)] hover:border-[color:var(--accent)] disabled:opacity-20 transition-colors select-none" style={{ background: "color-mix(in srgb, var(--glass-solid-card) 60%, transparent)", borderColor: "var(--glass-border)" }}>
             &minus;
           </button>
           <div className="text-center min-w-[60px]">
             <span className="text-3xl font-bold text-[color:var(--text)] tabular-nums">{guestQty}</span>
-            <p className="text-[10px] text-[color:var(--textMuted)] uppercase tracking-wider mt-0.5">{guestQty === 1 ? "guest" : "guests"}</p>
+            <p className="text-[12px] text-[color:var(--textMuted)] uppercase tracking-wider mt-0.5">{guestQty === 1 ? "guest" : "guests"}</p>
           </div>
           <button onClick={() => setGuestQty(Math.min(maxQty, guestQty + 1))}
             disabled={guestQty >= maxQty}
-            className="w-11 h-11 rounded-full border-2 border-[color:var(--border)] flex items-center justify-center text-xl font-bold hover:border-[color:var(--accent)] disabled:opacity-20 transition-colors select-none">
+            className="w-11 h-11 rounded-full border-2 flex items-center justify-center text-xl font-bold text-[color:var(--text)] hover:border-[color:var(--accent)] disabled:opacity-20 transition-colors select-none" style={{ background: "color-mix(in srgb, var(--glass-solid-card) 60%, transparent)", borderColor: "var(--glass-border)" }}>
             +
           </button>
         </div>
 
         {/* Price change summary */}
         {guestDiff > 0 && (
-          <div className="bg-[color:var(--surface2)] rounded-xl p-3 mb-4 text-sm">
+          <div className="surface-muted !rounded-xl p-3 mb-4 text-sm">
             <div className="flex justify-between"><span className="text-[color:var(--textMuted)]">Additional ({guestDiff} guest{guestDiff > 1 ? "s" : ""})</span><span>R{addCost}</span></div>
-            {promoDiscount > 0 && <div className="flex justify-between text-green-600 mt-1"><span>Promo ({promoApplied!.code})</span><span>-R{promoDiscount}</span></div>}
-            {voucherCredit > 0 && <div className="flex justify-between text-green-600 mt-1"><span>Voucher ({voucherApplied!.code})</span><span>-R{voucherCredit}</span></div>}
-            <div className="flex justify-between font-semibold mt-1 pt-1 border-t border-[color:var(--border)]"><span>To pay</span><span>R{finalCost}</span></div>
+            {promoDiscount > 0 && <div className="flex justify-between mt-1" style={{ color: "var(--success)" }}><span>Promo ({promoApplied!.code})</span><span>-R{promoDiscount}</span></div>}
+            {voucherCredit > 0 && <div className="flex justify-between mt-1" style={{ color: "var(--success)" }}><span>Voucher ({voucherApplied!.code})</span><span>-R{voucherCredit}</span></div>}
+            <div className="flex justify-between font-semibold mt-1 pt-1 border-t border-[color:var(--glass-border)]"><span>To pay</span><span>R{finalCost}</span></div>
           </div>
         )}
 
@@ -102,16 +102,16 @@ export default function EditGuestsModal({
                   <div className="flex gap-2">
                     <input type="text" value={voucherCode} onChange={e => setVoucherCode(e.target.value.toUpperCase())}
                       placeholder="e.g. ABCD1234" maxLength={8}
-                      className="min-w-0 flex-1 px-3 py-2.5 sm:py-2 border border-[color:var(--border)] rounded-lg text-[16px] sm:text-sm font-mono uppercase tracking-wider bg-[color:var(--card)] outline-none focus:border-[color:var(--accent)]"
+                      className="field min-w-0 flex-1 !px-3 !py-2.5 sm:!py-2 !rounded-lg font-mono uppercase tracking-wider"
                       onKeyDown={e => e.key === "Enter" && onApplyVoucher()} />
-                    <button onClick={onApplyVoucher} className="px-4 py-2 bg-[color:var(--surface2)] text-sm font-semibold rounded-lg hover:bg-[color:var(--border)] transition-colors">Apply</button>
+                    <button onClick={onApplyVoucher} className="min-h-11 shrink-0 rounded-lg border px-4 py-2 text-sm font-semibold text-[color:var(--text)] transition-colors hover:border-[color:var(--accent)] sm:min-h-0" style={{ background: "color-mix(in srgb, var(--glass-solid-card) 60%, transparent)", borderColor: "var(--glass-border)" }}>Apply</button>
                   </div>
-                  {voucherError && <p className="text-red-500 text-xs mt-1">{voucherError}</p>}
+                  {voucherError && <p className="text-xs mt-1" style={{ color: "var(--danger)" }}>{voucherError}</p>}
                 </>
               ) : (
-                <div className="flex items-center justify-between p-2 bg-green-50 border border-green-200 rounded-lg text-sm">
-                  <span className="font-mono font-semibold text-green-700">{voucherApplied.code} &middot; R{voucherApplied.balance}</span>
-                  <button onClick={onRemoveVoucher} className="text-red-400 text-xs hover:text-red-600">Remove</button>
+                <div className="flex items-center justify-between p-2 border rounded-lg text-sm" style={{ background: "color-mix(in srgb, var(--success) 10%, transparent)", borderColor: "color-mix(in srgb, var(--success) 30%, transparent)" }}>
+                  <span className="font-mono font-semibold" style={{ color: "var(--success)" }}>{voucherApplied.code} &middot; R{voucherApplied.balance}</span>
+                  <button onClick={onRemoveVoucher} className="min-h-11 px-2 text-xs sm:min-h-0" style={{ color: "var(--danger)" }}>Remove</button>
                 </div>
               )}
             </div>
@@ -124,16 +124,16 @@ export default function EditGuestsModal({
                   <div className="flex gap-2">
                     <input type="text" value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())}
                       placeholder="e.g. SUMMER20"
-                      className="min-w-0 flex-1 px-3 py-2.5 sm:py-2 border border-[color:var(--border)] rounded-lg text-[16px] sm:text-sm font-mono uppercase tracking-wider bg-[color:var(--card)] outline-none focus:border-[color:var(--accent)]"
+                      className="field min-w-0 flex-1 !px-3 !py-2.5 sm:!py-2 !rounded-lg font-mono uppercase tracking-wider"
                       onKeyDown={e => e.key === "Enter" && onApplyPromo()} />
-                    <button onClick={onApplyPromo} className="px-4 py-2 bg-[color:var(--surface2)] text-sm font-semibold rounded-lg hover:bg-[color:var(--border)] transition-colors">Apply</button>
+                    <button onClick={onApplyPromo} className="min-h-11 shrink-0 rounded-lg border px-4 py-2 text-sm font-semibold text-[color:var(--text)] transition-colors hover:border-[color:var(--accent)] sm:min-h-0" style={{ background: "color-mix(in srgb, var(--glass-solid-card) 60%, transparent)", borderColor: "var(--glass-border)" }}>Apply</button>
                   </div>
-                  {promoError && <p className="text-red-500 text-xs mt-1">{promoError}</p>}
+                  {promoError && <p className="text-xs mt-1" style={{ color: "var(--danger)" }}>{promoError}</p>}
                 </>
               ) : (
-                <div className="flex items-center justify-between p-2 bg-green-50 border border-green-200 rounded-lg text-sm">
-                  <span className="font-semibold text-green-700">{promoApplied.code} &mdash; {promoApplied.discount_type === "PERCENT" ? promoApplied.discount_value + "% off" : "R" + promoApplied.discount_value + " off"}</span>
-                  <button onClick={onRemovePromo} className="text-red-400 text-xs hover:text-red-600">Remove</button>
+                <div className="flex items-center justify-between p-2 border rounded-lg text-sm" style={{ background: "color-mix(in srgb, var(--success) 10%, transparent)", borderColor: "color-mix(in srgb, var(--success) 30%, transparent)" }}>
+                  <span className="font-semibold" style={{ color: "var(--success)" }}>{promoApplied.code} &mdash; {promoApplied.discount_type === "PERCENT" ? promoApplied.discount_value + "% off" : "R" + promoApplied.discount_value + " off"}</span>
+                  <button onClick={onRemovePromo} className="min-h-11 px-2 text-xs sm:min-h-0" style={{ color: "var(--danger)" }}>Remove</button>
                 </div>
               )}
             </div>
@@ -144,18 +144,18 @@ export default function EditGuestsModal({
         {guestDiff < 0 && (
           <div className="mb-5 space-y-2">
             <p className="text-sm font-medium text-[color:var(--text)]">R{Math.abs(guestDiff) * unitPrice} credit:</p>
-            <label className="flex items-center gap-3 p-3 border border-[color:var(--border)] rounded-xl cursor-pointer hover:border-[color:var(--accent)] transition-colors has-[:checked]:border-[color:var(--accent)] has-[:checked]:bg-[color:var(--accentSoft)] text-sm">
+            <label className="surface-muted !rounded-xl flex items-center gap-3 p-3 cursor-pointer hover:border-[color:var(--accent)] transition-colors has-[:checked]:border-[color:var(--accent)] has-[:checked]:bg-[color:var(--accentSoft)] text-sm">
               <input type="radio" value="VOUCHER" checked={guestExcessAction === "VOUCHER"} onChange={() => setGuestExcessAction("VOUCHER")} className="accent-[color:var(--accent)]" />
               <span><strong>Voucher</strong> &middot; R{Math.abs(guestDiff) * unitPrice}</span>
             </label>
-            <label className="flex items-center gap-3 p-3 border border-[color:var(--border)] rounded-xl cursor-pointer hover:border-[color:var(--accent)] transition-colors has-[:checked]:border-[color:var(--accent)] has-[:checked]:bg-[color:var(--accentSoft)] text-sm">
+            <label className="surface-muted !rounded-xl flex items-center gap-3 p-3 cursor-pointer hover:border-[color:var(--accent)] transition-colors has-[:checked]:border-[color:var(--accent)] has-[:checked]:bg-[color:var(--accentSoft)] text-sm">
               <input type="radio" value="REFUND" checked={guestExcessAction === "REFUND"} onChange={() => setGuestExcessAction("REFUND")} className="accent-[color:var(--accent)]" />
               <span><strong>Refund</strong> &middot; R{(Math.abs(guestDiff) * unitPrice * 0.95).toFixed(2)} (less 5%)</span>
             </label>
           </div>
         )}
 
-        {!canRemove && guestQty <= b.qty && <p className="text-xs text-amber-600 mb-4">Cannot remove guests within 24 hours of trip.</p>}
+        {!canRemove && guestQty <= b.qty && <p className="text-xs mb-4" style={{ color: "var(--warning)" }}>Cannot remove guests within 24 hours of trip.</p>}
 
         {paymentUrl ? (
           <div className="space-y-2">

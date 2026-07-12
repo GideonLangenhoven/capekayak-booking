@@ -33,7 +33,7 @@ export default function ContactModal({
         <div>
           <label className="text-xs font-medium text-[color:var(--textMuted)] block mb-1">Phone</label>
           <Input type="tel" value={contactPhone} onChange={e => setContactPhone(e.target.value)} placeholder="27812345678" className="py-2.5" />
-          <p className="text-[10px] text-[color:var(--textMuted)] mt-1">Full number with country code, no + or spaces</p>
+          <p className="text-[12px] text-[color:var(--textMuted)] mt-1">Full number with country code, no + or spaces</p>
         </div>
         <Button onClick={onSubmit} disabled={actionLoading === "contact"} fullWidth className="py-3 mt-2">
           {actionLoading === "contact" ? "Saving..." : "Save Changes"}

@@ -87,8 +87,8 @@ function OtpBoxes({ value, inputRef, onChange, onEnter }: {
               className="flex h-13 w-10 items-center justify-center rounded-xl border-[1.5px] text-[22px] font-semibold tabular-nums text-[color:var(--text)] transition-colors sm:w-11"
               style={{
                 height: "3.25rem",
-                background: "var(--surface)",
-                borderColor: isActive ? "var(--focusRing)" : "var(--border)",
+                background: "color-mix(in srgb, var(--glass-solid-card) 60%, transparent)",
+                borderColor: isActive ? "var(--focusRing)" : "var(--glass-border)",
                 boxShadow: isActive ? "0 0 0 4px color-mix(in srgb, var(--focusRing), transparent 82%)" : undefined,
               }}
             >
@@ -178,6 +178,9 @@ export default function LoginScreen({
 
   return (
     <div className="app-container max-w-[420px] px-4 py-10 sm:py-16">
+      {/* One glass sheet wraps brand + form: the heading never sits on raw
+          imagery, and the whole moment reads as a single frosted panel. */}
+      <div className="glass-sheet glass-sheet-enter p-6 sm:p-8">
       {/* Brand moment */}
       <div className="mb-7 text-center">
         <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: "var(--accentSoft)", color: "var(--accent)" }}>
@@ -192,7 +195,7 @@ export default function LoginScreen({
         <p className="mx-auto mt-2 max-w-[300px] text-sm text-[color:var(--textMuted)]">{subtitle}</p>
       </div>
 
-      <div className="rounded-2xl border p-5 sm:p-7" style={{ background: "var(--surface)", borderColor: "var(--border)", boxShadow: "var(--shadow-sm)" }}>
+      <div>
         {mode === "magic" ? (
           magicSent ? (
             /* ── Magic link sent ── */
@@ -314,8 +317,9 @@ export default function LoginScreen({
           </>
         )}
       </div>
+      </div>
 
-      <p className="mt-5 flex items-center justify-center gap-1.5 text-center text-xs text-[color:var(--textMuted)]">
+      <p className="glass-chip mx-auto mt-5 flex w-fit max-w-full items-center justify-center gap-1.5 px-4 py-2 text-center text-xs" style={{ color: "var(--ink)" }}>
         <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
         Secure one-time sign-in for {theme.business_name || "your"} bookings — no passwords.
       </p>

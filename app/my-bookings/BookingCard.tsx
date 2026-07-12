@@ -54,7 +54,7 @@ function StatusPill({ status, onDark = false }: { status: string; onDark?: boole
   const label = STATUS_LABEL[status] || status;
   if (onDark) {
     return (
-      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/12 px-2.5 py-1 text-[11px] font-semibold text-[#F7F5F0]">
+      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/12 px-2.5 py-1 text-[12px] font-semibold text-[#F7F5F0]">
         <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
         {label}
       </span>
@@ -63,7 +63,7 @@ function StatusPill({ status, onDark = false }: { status: string; onDark?: boole
   const v = TONE_VARS[tone];
   return (
     <span
-      className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
       style={{ color: v, background: `color-mix(in srgb, ${v} 10%, transparent)` }}
     >
       <span className="h-1.5 w-1.5 rounded-full bg-current" />
@@ -144,10 +144,10 @@ export default function BookingCard({
     const day = d ? d.toLocaleDateString("en-ZA", { day: "numeric", timeZone: "Africa/Johannesburg" }) : "—";
     const mon = d ? d.toLocaleDateString("en-ZA", { month: "short", timeZone: "Africa/Johannesburg" }) : "";
     return (
-      <article className="flex items-center gap-3.5 rounded-xl border bg-[color:var(--surface)] px-4 py-3" style={{ borderColor: "var(--border)" }}>
-        <div className={"w-11 shrink-0 rounded-lg py-1.5 text-center " + (isCancelled || isExpired ? "opacity-55" : "")} style={{ background: "var(--surface2)" }}>
+      <article className="glass !rounded-xl flex items-center gap-3.5 px-4 py-3">
+        <div className={"surface-muted !rounded-lg w-11 shrink-0 py-1.5 text-center " + (isCancelled || isExpired ? "opacity-55" : "")}>
           <span className="font-display block text-[17px] font-semibold leading-none text-[color:var(--text)]">{day}</span>
-          <span className="mt-0.5 block text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[color:var(--textMuted)]">{mon}</span>
+          <span className="mt-0.5 block text-[12px] font-semibold uppercase tracking-[0.04em] text-[color:var(--textMuted)]">{mon}</span>
         </div>
         <div className="min-w-0 flex-1">
           <p className={"truncate text-[14px] font-semibold " + (isCancelled || isExpired ? "text-[color:var(--textMuted)]" : "text-[color:var(--text)]")}>
@@ -222,13 +222,13 @@ export default function BookingCard({
 
         <div className="relative p-5 sm:p-7">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#F7F5F0]/60">Next trip</p>
+            <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#F7F5F0]/60">Next trip</p>
             {paymentPending === b.id ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/12 px-2.5 py-1 text-[11px] font-semibold">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/12 px-2.5 py-1 text-[12px] font-semibold">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" /> Payment pending
               </span>
             ) : countdown ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/12 px-2.5 py-1 text-[11px] font-semibold">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/12 px-2.5 py-1 text-[12px] font-semibold">
                 <IconClock className="h-3 w-3" /> {countdown}
               </span>
             ) : (
@@ -385,8 +385,7 @@ export default function BookingCard({
   /* ════════ CARD — standard upcoming / action-needed ════════ */
   return (
     <article
-      className={"rounded-2xl border bg-[color:var(--surface)] p-5 transition-shadow " + (isCancelled ? "" : "hover:shadow-[var(--shadow-md)]")}
-      style={{ borderColor: "var(--border)", boxShadow: "var(--shadow-sm)" }}
+      className={"glass p-5 transition-shadow " + (isCancelled ? "" : "hover:shadow-[var(--shadow-md)]")}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -399,7 +398,7 @@ export default function BookingCard({
           )}
         </div>
         {paymentPending === b.id ? (
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ color: "var(--warning)", background: "color-mix(in srgb, var(--warning) 10%, transparent)" }}>
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold" style={{ color: "var(--warning)", background: "color-mix(in srgb, var(--warning) 10%, transparent)" }}>
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" /> Payment pending
           </span>
         ) : (
@@ -455,7 +454,7 @@ export default function BookingCard({
                 <IconChevron open={bringOpen} className="h-3 w-3" /> What to bring
               </button>
               {bringOpen && (
-                <div className="mt-2 whitespace-pre-line rounded-xl p-3 text-[13px] leading-relaxed text-[color:var(--textMuted)]" style={{ background: "var(--surface2)" }}>
+                <div className="surface-muted !rounded-xl mt-2 whitespace-pre-line p-3 text-[13px] leading-relaxed text-[color:var(--textMuted)]">
                   {whatToBring}
                 </div>
               )}

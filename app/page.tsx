@@ -115,13 +115,15 @@ export default function Home() {
           </div>
         </div>
       )}
-      <SectionHeader
-        centered
-        eyebrow={theme.hero_eyebrow || "Premium Kayaking"}
-        title={theme.hero_title || "Find Your Perfect Paddle"}
-        subtitle={theme.hero_subtitle || "Explore the stunning coastline by kayak with our original guided team."}
-        className="max-w-3xl"
-      />
+      {/* Hero copy sits on glass — text never floats on raw imagery (§5 rule 4) */}
+      <div className="glass mx-auto mb-8 max-w-3xl px-6 py-6 sm:mb-10 sm:px-10 sm:py-8" style={{ borderRadius: 32 }}>
+        <SectionHeader
+          centered
+          eyebrow={theme.hero_eyebrow || "Premium Kayaking"}
+          title={theme.hero_title || "Find Your Perfect Paddle"}
+          subtitle={theme.hero_subtitle || "Explore the stunning coastline by kayak with our original guided team."}
+        />
+      </div>
 
 
 
@@ -195,13 +197,14 @@ export default function Home() {
       {/* Combo Packages */}
       {comboOffers.length > 0 && (
         <div className="mt-16">
-          <SectionHeader
-            centered
-            eyebrow="Save More"
-            title="Combo Packages"
-            subtitle="Bundle two adventures together and save."
-            className="max-w-3xl"
-          />
+          <div className="glass mx-auto mb-8 max-w-3xl px-6 py-6 sm:px-10" style={{ borderRadius: 32 }}>
+            <SectionHeader
+              centered
+              eyebrow="Save More"
+              title="Combo Packages"
+              subtitle="Bundle two adventures together and save."
+            />
+          </div>
           <div className="grid gap-8 justify-items-center" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
             {comboOffers.map((combo) => {
               const tourA = combo.tour_a;

@@ -4,8 +4,8 @@ type Variant = "default" | "primary" | "danger" | "muted";
 
 const VARIANTS: Record<Variant, { cls: string; style?: CSSProperties }> = {
   default: {
-    cls: "border bg-[color:var(--surface)] text-[color:var(--text)] hover:border-[color:var(--accent)] hover:text-[color:var(--accent)]",
-    style: { borderColor: "var(--border)" },
+    cls: "border text-[color:var(--text)] hover:border-[color:var(--accent)] hover:text-[color:var(--accent)]",
+    style: { background: "color-mix(in srgb, var(--glass-solid-card) 60%, transparent)", borderColor: "var(--glass-border)" },
   },
   primary: {
     cls: "text-white bg-[color:var(--cta)] hover:bg-[color:var(--ctaHover)]",

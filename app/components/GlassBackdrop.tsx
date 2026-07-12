@@ -6,7 +6,7 @@
 // Purely decorative: aria-hidden, never carries text, z-index -1.
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { createScopedSupabase } from "../lib/supabase";
+import { createTenantSupabase } from "../lib/supabase";
 import { useTheme } from "./ThemeProvider";
 
 export default function GlassBackdrop() {
@@ -22,7 +22,7 @@ export default function GlassBackdrop() {
     if (!theme.id || isEmbed) return;
     let cancelled = false;
     (async () => {
-      const supabase = createScopedSupabase({ businessId: theme.id! });
+      const supabase = createTenantSupabase(theme.id);
       const { data } = await supabase
         .from("tours")
         .select("image_url")

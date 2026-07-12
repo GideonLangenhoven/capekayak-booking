@@ -11,8 +11,7 @@ type Props = {
   onSignOut: () => void;
 };
 
-const cardCls = "rounded-2xl border p-5";
-const cardStyle = { background: "var(--surface)", borderColor: "var(--border)", boxShadow: "var(--shadow-sm)" } as const;
+const cardCls = "glass p-5";
 
 export default function ProfileTab({ customer, user, onUpdate, onSignOut }: Props) {
   const [name, setName] = useState(customer?.name ?? "");
@@ -76,12 +75,12 @@ export default function ProfileTab({ customer, user, onUpdate, onSignOut }: Prop
     <div className="space-y-4">
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3">
-        <div className={cardCls} style={cardStyle}>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--textMuted)]">Trips</p>
+        <div className={cardCls}>
+          <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-[color:var(--textMuted)]">Trips</p>
           <p className="font-display mt-2 text-[32px] font-semibold leading-none text-[color:var(--text)]">{customer?.total_bookings ?? 0}</p>
         </div>
-        <div className={cardCls} style={cardStyle}>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--textMuted)]">Member since</p>
+        <div className={cardCls}>
+          <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-[color:var(--textMuted)]">Member since</p>
           <p className="font-display mt-2 text-[22px] font-semibold leading-none text-[color:var(--text)]">
             {customer?.created_at
               ? new Date(customer.created_at).toLocaleDateString("en-ZA", { month: "short", year: "numeric" })
@@ -91,7 +90,7 @@ export default function ProfileTab({ customer, user, onUpdate, onSignOut }: Prop
       </div>
 
       {/* Details form */}
-      <form onSubmit={saveProfile} className={cardCls + " space-y-4"} style={cardStyle}>
+      <form onSubmit={saveProfile} className={cardCls + " space-y-4"}>
         <h2 className="text-[14px] font-semibold text-[color:var(--text)]">Your details</h2>
 
         <label className="block">
@@ -125,7 +124,7 @@ export default function ProfileTab({ customer, user, onUpdate, onSignOut }: Prop
       </form>
 
       {/* Email */}
-      <div className={cardCls + " space-y-3"} style={cardStyle}>
+      <div className={cardCls + " space-y-3"}>
         <h2 className="text-[14px] font-semibold text-[color:var(--text)]">Email</h2>
         <p className="text-xs leading-relaxed text-[color:var(--textMuted)]">
           We email you confirmations and sign-in links. The new address must confirm before it takes effect.
@@ -138,7 +137,7 @@ export default function ProfileTab({ customer, user, onUpdate, onSignOut }: Prop
       </div>
 
       {/* Security */}
-      <div className={cardCls + " space-y-3"} style={cardStyle}>
+      <div className={cardCls + " space-y-3"}>
         <h2 className="text-[14px] font-semibold text-[color:var(--text)]">Security</h2>
         <p className="text-xs leading-relaxed text-[color:var(--textMuted)]">
           Sign out of every device where you&apos;re currently signed in. Useful if you&apos;ve used a shared or public device.

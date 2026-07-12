@@ -26,12 +26,8 @@ function Toast({ message, type, onDismiss }: { message: string; type: "success" 
   return (
     <div className="toast-enter fixed inset-x-4 top-4 z-[70] mx-auto max-w-md" role={type === "error" ? "alert" : "status"}>
       <div
-        className="flex items-start gap-3 rounded-xl border px-4 py-3.5"
-        style={{
-          background: `color-mix(in srgb, ${tone} 8%, var(--surface))`,
-          borderColor: `color-mix(in srgb, ${tone} 30%, transparent)`,
-          boxShadow: "var(--shadow-md)",
-        }}
+        className="glass !rounded-xl flex items-start gap-3 px-4 py-3.5"
+        style={{ borderColor: `color-mix(in srgb, ${tone} 30%, transparent)` }}
       >
         <svg className="mt-0.5 h-4 w-4 shrink-0" style={{ color: tone }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           {type === "success"
@@ -39,7 +35,7 @@ function Toast({ message, type, onDismiss }: { message: string; type: "success" 
             : <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0 3.75h.008v.008H12v-.008zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" />}
         </svg>
         <p className="flex-1 text-[13.5px] font-medium text-[color:var(--text)]">{message}</p>
-        <button onClick={onDismiss} aria-label="Dismiss" className="shrink-0 text-[color:var(--textMuted)] transition-colors hover:text-[color:var(--text)]">
+        <button onClick={onDismiss} aria-label="Dismiss" className="-my-2 -mr-2 flex h-11 w-11 shrink-0 items-center justify-center text-[color:var(--textMuted)] transition-colors hover:text-[color:var(--text)]">
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
         </button>
       </div>
@@ -48,7 +44,7 @@ function Toast({ message, type, onDismiss }: { message: string; type: "success" 
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--textMuted)]">{children}</h2>;
+  return <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-[0.12em] text-[color:var(--textMuted)]">{children}</h2>;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -883,17 +879,18 @@ export default function MyBookings() {
     onClaimCredit: handleClaimCredit,
   };
 
-  const iconBtn = "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border bg-[color:var(--surface)] text-[color:var(--textMuted)] transition-colors hover:border-[color:var(--accent)] hover:text-[color:var(--accent)] sm:h-10 sm:w-10";
+  const iconBtn = "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border text-[color:var(--textMuted)] transition-colors hover:border-[color:var(--accent)] hover:text-[color:var(--accent)] sm:h-10 sm:w-10";
+  const iconBtnStyle = { background: "color-mix(in srgb, var(--glass-solid-card) 60%, transparent)", borderColor: "var(--glass-border)" } as const;
 
   return (
-    <div className="min-h-screen pb-16">
+    <div className="min-h-screen pb-28 lg:pb-16">
       {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
 
       <div className="app-container max-w-3xl px-4 pt-8 sm:pt-12">
         {/* Greeting */}
         <header className="mb-8 flex flex-wrap items-end justify-between gap-x-4 gap-y-5">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--accent)]">
+            <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[color:var(--accent)]">
               {theme.business_name || "My bookings"}
             </p>
             <h1 className="font-display mt-1.5 text-[28px] font-semibold leading-[1.08] tracking-[-0.02em] text-[color:var(--text)] sm:text-[34px] sm:leading-none">
@@ -909,13 +906,13 @@ export default function MyBookings() {
             <Link href="/" className="btn btn-primary flex-1 !px-4 !py-2.5 !text-[13.5px] sm:flex-none sm:!py-2 sm:!text-[13px]">Book a trip</Link>
             {authSession && (
               <button onClick={() => setActiveTab("profile")} title="Profile & settings" aria-label="Profile & settings"
-                className={iconBtn} style={{ borderColor: "var(--border)" }}>
+                className={iconBtn} style={iconBtnStyle}>
                 <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
               </button>
             )}
             <button onClick={async () => { if (authSession) { await supabase.auth.signOut(); setAuthSession(false); } setLoggedIn(false); setBookings([]); setEmail(""); setDialCode("+27"); setPhoneDigits(""); setLoginError(""); setToast(null); setAutoLoginAttempted(false); setSessionChecked(true); sessionStorage.removeItem("mb_loggedIn"); sessionStorage.removeItem("mb_email"); sessionStorage.removeItem("mb_dialCode"); sessionStorage.removeItem("mb_phone"); try { localStorage.removeItem("mb_customer_session"); localStorage.removeItem("mb_customer_email"); localStorage.removeItem("mb_customer_session_exp"); localStorage.removeItem("mb_customer_phone_tail"); } catch { /* */ } }}
               title="Sign out" aria-label="Sign out"
-              className={iconBtn} style={{ borderColor: "var(--border)" }}>
+              className={iconBtn} style={iconBtnStyle}>
               <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
             </button>
           </div>
@@ -923,10 +920,10 @@ export default function MyBookings() {
 
         {/* Tab strip (auth-session users only) */}
         {authSession && (
-          <div className="mb-7 flex w-full rounded-xl border bg-[color:var(--surface)] p-1 sm:inline-flex sm:w-auto" style={{ borderColor: "var(--border)" }} role="tablist">
+          <div className="glass !rounded-full mb-7 flex w-full p-1 sm:inline-flex sm:w-auto" role="tablist">
             {(["trips", "profile"] as const).map(t => (
               <button key={t} onClick={() => setActiveTab(t)} role="tab" aria-selected={activeTab === t}
-                className={"flex-1 rounded-lg px-4 py-2.5 text-[13px] font-semibold transition-colors sm:flex-none sm:py-1.5 " +
+                className={"min-h-11 flex-1 rounded-full px-4 py-2.5 text-[13px] font-semibold transition-colors sm:min-h-0 sm:flex-none sm:py-1.5 " +
                   (activeTab === t ? "bg-[color:var(--accent)] text-[color:var(--ink-on-main)]" : "text-[color:var(--textMuted)] hover:text-[color:var(--text)]")}>
                 {t === "trips" ? "Your trips" : "Profile"}
               </button>
@@ -944,7 +941,7 @@ export default function MyBookings() {
           <section className="mb-9">
             <div className="mb-3 flex items-center gap-2">
               <svg className="h-4 w-4" style={{ color: "var(--danger)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
-              <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--danger)" }}>Needs your attention</h2>
+              <h2 className="text-[12px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--danger)" }}>Needs your attention</h2>
             </div>
             <div className="space-y-3">
               {actionNeeded.map(b => <BookingCard key={b.id} b={b} variant="card" {...cardProps} refundCalc={refundCalcs[b.id] || null} />)}
@@ -953,7 +950,7 @@ export default function MyBookings() {
         )}
 
         {bookings.length === 0 ? (
-          <div className="rounded-2xl border border-dashed px-6 py-14 text-center" style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--surface) 60%, transparent)" }}>
+          <div className="glass !border-dashed px-6 py-14 text-center">
             <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: "var(--accentSoft)", color: "var(--accent)" }}>
               <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15.5 8.5l-2 5-5 2 2-5 5-2z" /></svg>
             </span>
@@ -980,7 +977,7 @@ export default function MyBookings() {
 
             {/* Utilities */}
             <section className="mb-9 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl border bg-[color:var(--surface)] p-5" style={{ borderColor: "var(--border)", boxShadow: "var(--shadow-sm)" }}>
+              <div className="glass p-5">
                 <div className="flex items-center gap-2.5">
                   <span className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "var(--accentSoft)", color: "var(--accent)" }}>
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" /></svg>
@@ -1001,7 +998,7 @@ export default function MyBookings() {
                         className="field !py-2.5 min-w-0 flex-1 font-mono !text-[16px] uppercase tracking-widest sm:!py-2 sm:!text-[13px]"
                       />
                       <button onClick={checkVoucherBalance} disabled={voucherLoading || !voucherCode.trim()}
-                        className="inline-flex shrink-0 items-center self-stretch rounded-[10px] bg-[color:var(--accent)] px-4 text-[13px] font-semibold text-[color:var(--ink-on-main)] transition-colors hover:bg-[color:var(--accentHover)] disabled:opacity-40"
+                        className="inline-flex min-h-11 shrink-0 items-center self-stretch rounded-[10px] bg-[color:var(--accent)] px-4 text-[13px] font-semibold text-[color:var(--ink-on-main)] transition-colors hover:bg-[color:var(--accentHover)] disabled:opacity-40 sm:min-h-0"
                       >
                         {voucherLoading ? "…" : "Check"}
                       </button>
@@ -1018,7 +1015,7 @@ export default function MyBookings() {
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-1.5">
-                      <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                      <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
                         style={voucherResult.status === "ACTIVE"
                           ? { color: "var(--success)", background: "color-mix(in srgb, var(--success) 10%, transparent)" }
                           : { color: "var(--textMuted)", background: "var(--surface2)" }}>
@@ -1034,8 +1031,7 @@ export default function MyBookings() {
               </div>
 
               <button onClick={() => setContactUsOpen(true)}
-                className="group rounded-2xl border bg-[color:var(--surface)] p-5 text-left transition-colors hover:border-[color:var(--accent)]"
-                style={{ borderColor: "var(--border)", boxShadow: "var(--shadow-sm)" }}>
+                className="glass group p-5 text-left transition-colors hover:border-[color:var(--accent)]">
                 <div className="flex items-center gap-2.5">
                   <span className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "var(--accentSoft)", color: "var(--accent)" }}>
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>

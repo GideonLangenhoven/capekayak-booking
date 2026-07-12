@@ -681,7 +681,7 @@
 
   --accent-text: #0b1220;
   --hover-overlay: rgba(72, 207, 173, 0.14);
-  --backdrop-scrim: linear-gradient(180deg, rgba(245, 245, 245, 0.45) 0%, rgba(245, 245, 245, 0.72) 100%);
+  --backdrop-scrim: linear-gradient(180deg, rgba(245, 245, 245, 0.14) 0%, rgba(245, 245, 245, 0.42) 100%);
   --scrim-photo: linear-gradient(180deg, rgba(0, 0, 0, 0) 30%, rgba(16, 24, 40, 0.72) 100%);
 
   --radius-pill: 9999px;
@@ -774,9 +774,10 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(90% 70% at 12% 8%, color-mix(in srgb, var(--cfg-main, var(--accent)) 42%, transparent), transparent 60%),
-    radial-gradient(80% 65% at 88% 18%, color-mix(in srgb, var(--cfg-hover, var(--accent)) 30%, transparent), transparent 62%),
-    radial-gradient(110% 80% at 50% 105%, color-mix(in srgb, var(--cfg-secondary, #101828) 55%, transparent), transparent 70%),
+    radial-gradient(90% 70% at 12% 8%, color-mix(in srgb, var(--cfg-main, var(--accent)) 75%, transparent), transparent 62%),
+    radial-gradient(80% 65% at 88% 18%, color-mix(in srgb, var(--cfg-hover, var(--accent)) 60%, transparent), transparent 64%),
+    radial-gradient(70% 55% at 78% 82%, color-mix(in srgb, var(--cfg-cta, var(--cta)) 45%, transparent), transparent 66%),
+    radial-gradient(110% 80% at 50% 108%, color-mix(in srgb, var(--cfg-secondary, #101828) 80%, transparent), transparent 72%),
     var(--cfg-bg, var(--bg));
 }
 .glass-backdrop-mesh::after {
