@@ -5,9 +5,7 @@ import { createTenantSupabase } from "./lib/supabase";
 import { formatDuration } from "./lib/duration";
 import { useRouter } from "next/navigation";
 import SectionHeader from "./components/ui/SectionHeader";
-import Card from "./components/ui/Card";
 import { useTheme } from "./components/ThemeProvider";
-import TourCardSkeleton from "./components/skeletons/TourCardSkeleton";
 import { readValidDraft, clearDraft, draftResumeUrl, type BookingDraft } from "@/app/lib/booking-draft";
 
 const TOUR_IMAGES: Record<string, string> = {
@@ -82,20 +80,11 @@ export default function Home() {
 
   if (loading) return (
     <div className="app-container page-wrap">
-      <div className="grid grid-cols-2 gap-3 md:hidden">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="bg-white rounded-[22px] overflow-hidden animate-pulse">
-            <div className="aspect-square bg-gray-200" />
-            <div className="px-3 pt-2.5 pb-4 space-y-2">
-              <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto" />
-              <div className="h-5 bg-gray-200 rounded w-1/2 mx-auto" />
-              <div className="h-3 bg-gray-200 rounded w-1/3 mx-auto" />
-            </div>
-          </div>
+      {/* Shimmering glass blocks matching the final card grid */}
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 xl:grid-cols-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className={`glass-skeleton overflow-hidden ${i > 1 ? "hidden md:block" : ""} ${i > 2 ? "md:hidden xl:block" : ""}`} style={{ borderRadius: 28, height: 420 }} />
         ))}
-      </div>
-      <div className="hidden md:grid gap-8 justify-items-center" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(275px, 1fr))" }}>
-        <TourCardSkeleton /><TourCardSkeleton /><TourCardSkeleton />
       </div>
     </div>
   );
@@ -103,24 +92,24 @@ export default function Home() {
   return (
     <div className="app-container page-wrap">
       {draft && (
-        <div className="mb-8 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4 animate-in fade-in duration-300">
+        <div className="glass mb-8 px-5 py-4 animate-in fade-in duration-300">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <div className="glass-chip flex h-10 w-10 shrink-0 items-center justify-center" style={{ color: "var(--accent-text)" }}>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-amber-900 text-[14px]">Pick up where you left off?</p>
-              <p className="text-[13px] text-amber-800 truncate">
+              <p className="text-[14px] font-semibold" style={{ color: "var(--ink)" }}>Pick up where you left off?</p>
+              <p className="truncate text-[13px]" style={{ color: "var(--ink-muted)" }}>
                 {draft.tourName || "Your tour"}
                 {draft.date && draft.slotTime && (
                   <> &middot; {new Date(draft.date + "T00:00:00").toLocaleDateString("en-ZA", { weekday: "short", day: "numeric", month: "short" })} at {draft.slotTime}</>
                 )}
               </p>
             </div>
-            <a href={draftResumeUrl(draft)} className="shrink-0 rounded-xl text-white text-[13px] font-semibold px-4 py-2.5 hover:opacity-90 transition-opacity" style={{ backgroundColor: "var(--cta)" }}>
+            <a href={draftResumeUrl(draft)} className="btn btn-primary shrink-0 px-4 py-2.5 text-[13px]">
               Resume
             </a>
-            <button onClick={() => { clearDraft(); setDraft(null); }} className="shrink-0 text-[12px] text-amber-700 underline hover:text-amber-900" aria-label="Dismiss resume banner">
+            <button onClick={() => { clearDraft(); setDraft(null); }} className="shrink-0 text-[12px] underline underline-offset-2" style={{ color: "var(--ink-muted)" }} aria-label="Dismiss resume banner">
               Dismiss
             </button>
           </div>
@@ -143,48 +132,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* Mobile tour cards — compact 2-column grid */}
-      <div className="grid grid-cols-2 gap-3 md:hidden">
-        {tours.map((tour, idx) => {
-          const rv = reviewStats[tour.id];
-          const spots = spotsThisWeek[tour.id];
-          const urgencyLabel = spots !== undefined && spots <= 6 && spots > 0
-            ? `${spots} left` : null;
-          return (
-            <button type="button" key={tour.id}
-              className="bg-white rounded-[22px] shadow-[0_2px_12px_rgba(0,0,0,0.06)] overflow-hidden text-center cursor-pointer active:scale-[0.97] transition-transform"
-              aria-label={"Book " + tour.name}
-              onClick={() => router.push("/book?tour=" + tour.id)}>
-              <div className="relative aspect-square">
-                <Image src={tour.image_url || TOUR_IMAGES[tour.name] || TOUR_IMAGES["Sea Kayak"]} alt={tour.name + " tour"}
-                  fill sizes="(max-width: 768px) 45vw, 285px" className="object-cover" priority={idx === 0} loading={idx === 0 ? "eager" : "lazy"} />
-                {urgencyLabel && (
-                  <div className="absolute top-2.5 right-2.5 bg-gray-900/85 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
-                    {urgencyLabel}
-                  </div>
-                )}
-              </div>
-              <div className="px-3 pt-2.5 pb-4">
-                <div className="font-semibold text-[15px] text-[color:var(--text)] leading-tight line-clamp-1">
-                  {tour.name}
-                </div>
-                <div className="font-bold text-[19px] text-[color:var(--text)] mt-1">
-                  R{tour.base_price_per_person}
-                </div>
-                <div className="text-[10px] text-[color:var(--textMuted)] -mt-0.5">per person</div>
-                {rv && (
-                  <div className="text-[10px] text-amber-500 font-semibold mt-1">
-                    ★ {rv.avg.toFixed(1)} · {rv.count} review{rv.count !== 1 ? "s" : ""}
-                  </div>
-                )}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Desktop tour cards — original hover layout */}
-      <div className="hidden md:grid gap-8 justify-items-center" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(275px, 1fr))" }}>
+      {/* Floating glass tour cards — one grid: 1 col mobile, 2 ≥768px, 3 ≥1280px */}
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 xl:grid-cols-3">
         {tours.map((tour, idx) => {
           const rv = reviewStats[tour.id];
           const spots = spotsThisWeek[tour.id];
@@ -192,66 +141,51 @@ export default function Home() {
             ? `Only ${spots} spot${spots === 1 ? "" : "s"} left this week`
             : null;
           return (
-            <button type="button" key={tour.id} className="relative w-[285px] h-[429px] mx-auto group cursor-pointer mb-4 text-left" aria-label={"Book " + tour.name}
+            <button type="button" key={tour.id}
+              className="glass glass-hover group cursor-pointer overflow-hidden text-left active:scale-[0.98]"
+              style={{ borderRadius: 28 }}
+              aria-label={"Book " + tour.name}
               onClick={() => router.push("/book?tour=" + tour.id)}>
-              <div className="absolute top-[7px] left-[7px] w-[285px] h-[429px] overflow-hidden bg-white shadow-sm rounded-2xl transition-all duration-300 group-hover:top-[3px] group-hover:left-[3px] group-hover:w-[293px] group-hover:h-[437px] group-hover:shadow-[0_13px_21px_-5px_rgba(0,0,0,0.3)]">
-
-                {/* Image */}
-                <div className="absolute top-0 left-0 w-full h-[65%]">
-                  <Image src={tour.image_url || TOUR_IMAGES[tour.name] || TOUR_IMAGES["Sea Kayak"]} alt={tour.name + " tour"}
-                    fill sizes="285px" className="object-cover" priority={idx === 0} loading={idx === 0 ? "eager" : "lazy"} />
-                  <div className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-70"
-                    style={{ backgroundColor: 'var(--hoverOverlay, #48cfad)' }} />
-                  {/* Urgency badge */}
-                  {urgencyLabel && (
-                    <div className="absolute top-3 left-3 bg-red-500 text-white text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full shadow-sm">
-                      {urgencyLabel}
-                    </div>
+              <div className="relative aspect-[4/3] overflow-hidden">
+                <Image src={tour.image_url || TOUR_IMAGES[tour.name] || TOUR_IMAGES["Sea Kayak"]} alt={tour.name + " tour"}
+                  fill sizes="(max-width: 767px) 92vw, (max-width: 1279px) 46vw, 30vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.04]" priority={idx === 0} loading={idx === 0 ? "eager" : "lazy"} />
+                {/* Text over imagery always sits on a scrim or a glass capsule */}
+                <div className="glass-photo-scrim" />
+                <span className="glass-chip absolute bottom-3 left-3 px-3.5 py-1.5 font-display text-[15px] font-bold">
+                  R{tour.base_price_per_person}
+                  <span className="ml-1 text-[11px] font-normal" style={{ color: "var(--ink-muted)" }}>pp</span>
+                </span>
+                <span className="glass-chip absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg>
+                </span>
+                {urgencyLabel && (
+                  <span className="absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide shadow-sm" style={{ background: "var(--danger)", color: "#fff" }}>
+                    {urgencyLabel}
+                  </span>
+                )}
+              </div>
+              <div className="px-5 pb-5 pt-4">
+                <h3 className="font-display text-xl font-semibold leading-tight" style={{ color: "var(--ink)", fontSize: "1.25rem" }}>
+                  {tour.name}
+                </h3>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="glass-chip inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+                    {formatDuration(tour.duration_minutes)}
+                  </span>
+                  {rv && (
+                    <span className="glass-chip inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                      {rv.avg.toFixed(1)} · {rv.count} review{rv.count !== 1 ? "s" : ""}
+                    </span>
                   )}
                 </div>
-
-                {/* Stats — description always visible on mobile, hover on desktop */}
-                <div className="absolute top-[65%] left-0 w-full h-[65%] bg-white px-5 pt-4 pb-5 transition-all duration-300 group-hover:top-[35%] text-left">
-                  <div className="text-[30px] text-[color:var(--text)] font-semibold tracking-tight leading-tight line-clamp-2">
-                    {tour.name}
-                  </div>
-
-                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 mt-1 transition-all duration-300 group-hover:mt-2">
-                    <div className="font-semibold text-[16px] text-[color:var(--text)]">
-                      R{tour.base_price_per_person}<span className="text-[11px] font-normal text-[color:var(--textMuted)] ml-0.5"> per person</span>
-                    </div>
-                    <div className="text-xs text-[color:var(--textMuted)]">
-                      • {formatDuration(tour.duration_minutes)}
-                    </div>
-                    {rv && (
-                      <div className="text-xs text-amber-500 font-semibold">
-                        ★ {rv.avg.toFixed(1)} · {rv.count} review{rv.count !== 1 ? "s" : ""}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Book Now — default state (visible, hidden on hover for desktop) */}
-                  <div className="text-center mt-5 transition-all duration-300 group-hover:hidden">
-                    <span className="inline-block rounded-full text-white text-[12px] font-semibold uppercase tracking-wide px-5 py-2"
-                      style={{ backgroundColor: 'var(--cta)' }}>
-                      Book Now
-                    </span>
-                  </div>
-
-                  {/* Description — always visible on mobile, hover-reveal on desktop */}
-                  <div className="mt-2 group-hover:opacity-100 sm:opacity-0 sm:transition-opacity sm:duration-300">
-                    <div className="hidden group-hover:block mt-2 mb-3 text-center">
-                      <span className="inline-block rounded-full text-white text-xs font-semibold uppercase tracking-wide px-5 py-2"
-                        style={{ backgroundColor: 'var(--cta)' }}>
-                        Book Now
-                      </span>
-                    </div>
-                    <div className="text-xs text-[color:var(--textMuted)] line-clamp-3 leading-relaxed">
-                      {tour.description || "An incredible kayaking experience along the stunning coastline."}
-                    </div>
-                  </div>
-                </div>
-
+                <p className="mt-3 line-clamp-2 text-[13px] leading-relaxed" style={{ color: "var(--ink-muted)" }}>
+                  {tour.description || "An incredible experience along the stunning coastline."}
+                </p>
+                <span className="btn btn-primary mt-4 w-full text-[13px]">
+                  {theme.card_cta_label || "Book Now"}
+                </span>
               </div>
             </button>
           );
@@ -276,7 +210,7 @@ export default function Home() {
               return (
                 <button type="button" key={combo.id} className="relative w-full max-w-[380px] mx-auto group cursor-pointer text-left" aria-label={"Book combo: " + combo.name}
                   onClick={() => router.push("/combo/" + combo.id)}>
-                  <div className="overflow-hidden bg-white shadow-sm rounded-2xl transition-all duration-300 hover:shadow-[0_13px_21px_-5px_rgba(0,0,0,0.2)] hover:-translate-y-1">
+                  <div className="glass glass-hover overflow-hidden" style={{ borderRadius: 28 }}>
                     {/* Dual image strip */}
                     <div className="flex h-[180px]">
                       <div className="w-1/2 relative overflow-hidden">
@@ -286,7 +220,7 @@ export default function Home() {
                           <p className="text-white text-xs font-semibold truncate">{tourA?.name}</p>
                         </div>
                       </div>
-                      <div className="w-1/2 relative overflow-hidden border-l-2 border-white">
+                      <div className="w-1/2 relative overflow-hidden border-l" style={{ borderColor: "var(--glass-border)" }}>
                         <Image src={tourB?.image_url || TOUR_IMAGES[tourB?.name] || TOUR_IMAGES["Sea Kayak"]} alt={tourB?.name || "Tour"}
                           fill sizes="190px" className="object-cover" />
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3">
@@ -297,27 +231,26 @@ export default function Home() {
                     {/* Content */}
                     <div className="px-5 py-4">
                       <div className="flex items-start justify-between gap-2">
-                        <h3 className="text-lg font-bold text-gray-900 leading-tight">{combo.name}</h3>
+                        <h3 className="font-display text-lg font-bold leading-tight" style={{ color: "var(--ink)" }}>{combo.name}</h3>
                         {savings > 0 && (
-                          <span className="shrink-0 bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full">
+                          <span className="shrink-0 rounded-full px-2.5 py-1 text-xs font-bold" style={{ background: "var(--accent)", color: "var(--ink-on-main)" }}>
                             Save R{savings}
                           </span>
                         )}
                       </div>
-                      {combo.description && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{combo.description}</p>}
+                      {combo.description && <p className="mt-1 line-clamp-2 text-xs" style={{ color: "var(--ink-muted)" }}>{combo.description}</p>}
                       <div className="flex items-baseline gap-2 mt-3">
-                        <span className="text-xl font-bold text-gray-900">R{combo.combo_price}</span>
-                        <span className="text-sm text-gray-400">/pp</span>
-                        {savings > 0 && <span className="text-sm text-gray-400 line-through">R{combo.original_price}</span>}
+                        <span className="font-display text-xl font-bold" style={{ color: "var(--ink)" }}>R{combo.combo_price}</span>
+                        <span className="text-sm" style={{ color: "var(--ink-muted)" }}>/pp</span>
+                        {savings > 0 && <span className="text-sm line-through" style={{ color: "var(--ink-faint)" }}>R{combo.original_price}</span>}
                       </div>
-                      <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                      <div className="mt-2 flex items-center gap-3 text-xs" style={{ color: "var(--ink-muted)" }}>
                         <span>{formatDuration((tourA?.duration_minutes || 0) + (tourB?.duration_minutes || 0))} total</span>
                         <span>•</span>
                         <span>2 experiences</span>
                       </div>
                       <div className="text-center mt-4">
-                        <span className="inline-block rounded-full text-white text-xs font-semibold uppercase tracking-wide px-6 py-2.5"
-                          style={{ backgroundColor: 'var(--cta)' }}>
+                        <span className="btn btn-primary w-full text-xs uppercase tracking-wide">
                           Book Combo
                         </span>
                       </div>

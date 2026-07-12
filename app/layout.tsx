@@ -1,15 +1,19 @@
 import type { Metadata } from "next";
-import { Inter, Fraunces } from "next/font/google";
+import { Inter, Quicksand } from "next/font/google";
 import "./globals.css";
 import ChatWidget from "./components/ChatWidget";
 import CookieBanner from "./components/CookieBanner";
 import ThemeProvider from "./components/ThemeProvider";
+import GlassBackdrop from "./components/GlassBackdrop";
 import Header from "./components/Header";
+import BottomNav from "./components/BottomNav";
 import Footer from "./components/Footer";
 import { getRequestTenant } from "./lib/tenant-server";
 
+// Glass design language pairing: rounded geometric display + legible humanist
+// body. Self-hosted via next/font — no CDN, no CSP change.
 const font = Inter({ subsets: ["latin"] });
-const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-display" });
+const display = Quicksand({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-display" });
 
 const DEFAULT_TITLE = "Book Your Tour";
 const DEFAULT_DESCRIPTION = "Book your next adventure tour online.";
@@ -65,11 +69,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#0F2B1F" />
       </head>
-      <body className={`${font.className} ${fraunces.variable}`} suppressHydrationWarning>
+      <body className={`${font.className} ${display.variable}`} suppressHydrationWarning>
         <ThemeProvider initialBusinessId={tenant?.id ?? null}>
+          <GlassBackdrop />
           <Header />
           <main className="min-h-[calc(100dvh-12rem)]">{children}</main>
           <Footer />
+          <BottomNav />
           <CookieBanner />
           <ChatWidget />
         </ThemeProvider>

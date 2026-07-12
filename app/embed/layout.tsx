@@ -14,6 +14,8 @@ export default function EmbedLayout({ children }: { children: React.ReactNode })
         "main{min-height:0!important}" +
         ".fixed.bottom-6.right-6{display:none!important}" +
         ".fixed.inset-x-0.bottom-4{display:none!important}" +
+        ".glass-bottom-nav{display:none!important}" +
+        ".glass-backdrop{display:none!important}" +
         // The widget floats on the partner page's hero — the document itself
         // must never paint the storefront background behind the glass card.
         "html,body{background:transparent!important}" +

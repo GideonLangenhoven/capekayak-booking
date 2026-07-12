@@ -2,6 +2,7 @@
 import { useEffect, useState, createContext, useContext } from "react";
 import { createBusinessResolverSupabase } from "../lib/supabase";
 import { tenantSubdomainFromHost } from "../lib/tenant-headers";
+import { computeTheme } from "../../lib/theme-engine";
 
 type ThemeData = {
   id: string | null;
@@ -204,6 +205,33 @@ export default function ThemeProvider({ children, initialBusinessId }: { childre
     if (theme.color_hover) {
       root.style.setProperty("--hoverOverlay", theme.color_hover);
     }
+
+    // Glass token system: every derived token (ink, alphas, tints, scrim) is
+    // computed by the legibility engine — operator colors are untrusted input
+    // and only ever TINT surfaces; text colors are solved for WCAG AA.
+    const glass = computeTheme({
+      main: theme.color_main,
+      secondary: theme.color_secondary,
+      cta: theme.color_cta,
+      bg: theme.color_bg,
+      nav: theme.color_nav,
+      hover: theme.color_hover,
+    });
+    for (const [k, v] of Object.entries(glass.vars)) root.style.setProperty(k, v);
+    root.setAttribute("data-scheme", glass.scheme);
+    // Legacy tokens that carry TEXT must use engine ink, not raw config —
+    // this is what keeps pastel-on-pastel palettes legible in components
+    // that haven't moved to the glass system yet.
+    root.style.setProperty("--text", glass.vars["--ink"]);
+    root.style.setProperty("--textMuted", glass.vars["--ink-muted"]);
+    let meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.name = "theme-color";
+      document.head.appendChild(meta);
+    }
+    meta.content = glass.vars["--theme-color"];
+
     // Update page title with business name
     if (theme.business_name) {
       document.title = theme.business_name + " | Book Your Tour";

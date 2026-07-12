@@ -337,12 +337,15 @@
   }
 
   .eyebrow {
-    color: var(--accent);
+    /* --accent-text: raw accent only when it passes AA on the card surface,
+       else the computed ink (theme-engine, spec §5 rule 6). */
+    color: var(--accent-text, var(--accent));
     @apply text-xs font-semibold uppercase tracking-[0.14em];
   }
 
   .headline-display {
-    font-size: clamp(2rem, 4vw, 3.2rem);
+    /* Spec §6: hero title 34–40px mobile → 56–72px desktop */
+    font-size: clamp(2.125rem, 5vw, 4rem);
     line-height: 1.06;
     @apply mt-3 font-semibold;
   }
@@ -360,22 +363,31 @@
     @apply mt-3 hidden text-base md:block md:text-lg;
   }
 
+  /* Glass reskin: .surface IS the card-elevation glass recipe now, so every
+     existing consumer becomes a frosted panel with zero per-file edits.
+     Blur/border/highlight are structural — config only tints. */
   .surface {
-    background: color-mix(in srgb, var(--surface), transparent 0%);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow-sm);
-    @apply rounded-2xl;
+    background: var(--glass-tint-card);
+    border: 1px solid var(--glass-border);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22), var(--shadow-card);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+    backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+    border-radius: 24px;
+    color: var(--ink);
   }
 
+  /* Inner panels sit ON glass — translucent tint only, no nested blur
+     (backdrop-filter inside backdrop-filter burns the per-viewport budget). */
   .surface-muted {
-    background: var(--surface2);
-    border: 1px solid color-mix(in srgb, var(--border), #ffffff 12%);
-    @apply rounded-xl;
+    background: color-mix(in srgb, var(--glass-solid-card) 55%, transparent);
+    border: 1px solid var(--glass-border);
+    @apply rounded-2xl;
+    color: var(--ink);
   }
 
   .btn {
     /* py-3 below sm: ≥44px touch target on phones; desktop keeps the compact 2.5 */
-    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-5 py-3 text-sm font-semibold no-underline sm:py-2.5;
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full px-5 py-3 text-sm font-semibold no-underline sm:py-2.5;
     transition:
       background-color var(--dur-fast) var(--ease-soft),
       color var(--dur-fast) var(--ease-soft),
@@ -389,36 +401,42 @@
   }
 
   .btn-primary {
-    background: var(--cta);
-    border: 1px solid var(--cta);
-    color: #fff;
+    /* Engine-picked ink + AA repair overlay layered via background-image so
+       mid-tone operator CTAs still pass 4.5:1 — the hue shows through. */
+    background-color: var(--cta);
+    background-image: linear-gradient(var(--cta-overlay), var(--cta-overlay));
+    border: 1px solid transparent;
+    color: var(--ink-on-cta);
     box-shadow: 0 8px 18px color-mix(in srgb, var(--cta) 26%, transparent);
   }
 
   .btn-primary:hover {
-    background: var(--ctaHover);
-    border-color: var(--ctaHover);
+    filter: brightness(1.06);
+    box-shadow: 0 10px 24px color-mix(in srgb, var(--cta) 34%, transparent);
   }
 
   .btn-secondary {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    color: var(--text);
+    background: var(--glass-tint-card);
+    border: 1px solid var(--glass-border);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22);
+    -webkit-backdrop-filter: blur(12px) saturate(150%);
+    backdrop-filter: blur(12px) saturate(150%);
+    color: var(--ink);
   }
 
   .btn-secondary:hover {
-    background: color-mix(in srgb, var(--surface2), #ffffff 20%);
+    background: color-mix(in srgb, var(--glass-tint-card), #ffffff 14%);
   }
 
   .btn-ghost {
     background: transparent;
     border: 1px solid transparent;
-    color: var(--textMuted);
+    color: var(--ink-muted);
   }
 
   .btn-ghost:hover {
-    color: var(--text);
-    background: color-mix(in srgb, var(--surface), transparent 0%);
+    color: var(--ink);
+    background: var(--hover-overlay);
   }
 
   .btn-destructive {
@@ -436,15 +454,17 @@
   }
 
   .field {
-    background: var(--surface);
-    border: 1.5px solid var(--border);
-    color: var(--text);
+    background: color-mix(in srgb, var(--glass-solid-card) 60%, transparent);
+    border: 1.5px solid var(--glass-border);
+    color: var(--ink);
     /* 16px below sm — anything smaller makes iOS Safari zoom the page on focus */
-    @apply w-full rounded-xl px-4 py-3 text-base sm:text-sm;
+    @apply w-full px-4 py-3 text-base sm:text-sm;
+    border-radius: 16px;
   }
 
   .field::placeholder {
-    color: color-mix(in srgb, var(--textMuted), #ffffff 24%);
+    /* --ink-muted is 72% ink — placeholder stays ≥4.5:1 on the solved surface */
+    color: var(--ink-muted);
   }
 
   .field:focus {
@@ -454,12 +474,12 @@
   }
 
   .field-label {
-    color: color-mix(in srgb, var(--text), #ffffff 28%);
+    color: var(--ink);
     @apply mb-2 block text-sm font-semibold;
   }
 
   .help-text {
-    color: var(--textMuted);
+    color: var(--ink-muted);
     @apply mt-1 text-xs;
   }
 
@@ -605,8 +625,8 @@
   color: var(--text);
 }
 
-.prose a {
-  color: var(--accent);
+.prose a { /* accent only when AA on glass — else engine falls back to ink */
+  color: var(--accent-text, var(--accent));
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -625,4 +645,265 @@
     transition-duration: 1ms !important;
     scroll-behavior: auto !important;
   }
+}
+/* ══════════════════════════════════════════════════════════════════════════
+   GLASS DESIGN SYSTEM
+   Structural glassmorphism: blur/border/highlight are hard-coded here and
+   cannot be removed by configuration. Operator colors only TINT surfaces via
+   the tokens below; every ink/alpha is solved by lib/theme-engine.ts so any
+   six-color palette stays WCAG AA. Components consume tokens, never config.
+   Static values below = the engine's output for the default palette, so the
+   first paint (before the tenant row loads) is already correct glass.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --ink: #0b1220;
+  --ink-muted: rgba(11, 18, 32, 0.72);
+  --ink-faint: rgba(11, 18, 32, 0.55);
+  --ink-nav: #0b1220;
+  --ink-sheet: #0b1220;
+  --ink-on-cta: #f8fafc;
+  --ink-on-main: #f8fafc;
+  --cta-overlay: rgba(0, 0, 0, 0.1);
+  --main-overlay: transparent;
+
+  --glass-alpha-card: 0.55;
+  --glass-alpha-nav: 0.6;
+  --glass-alpha-sheet: 0.72;
+  --glass-tint-card: rgba(245, 245, 245, 0.55);
+  --glass-tint-nav: rgba(255, 255, 255, 0.6);
+  --glass-tint-sheet: rgba(245, 245, 245, 0.72);
+  --glass-solid-card: rgba(245, 245, 245, 0.96);
+  --glass-solid-nav: rgba(255, 255, 255, 0.96);
+  --glass-solid-sheet: rgba(245, 245, 245, 0.97);
+  --glass-border: rgba(16, 24, 40, 0.24);
+  --glass-blur: 24px;
+
+  --accent-text: #0b1220;
+  --hover-overlay: rgba(72, 207, 173, 0.14);
+  --backdrop-scrim: linear-gradient(180deg, rgba(245, 245, 245, 0.45) 0%, rgba(245, 245, 245, 0.72) 100%);
+  --scrim-photo: linear-gradient(180deg, rgba(0, 0, 0, 0) 30%, rgba(16, 24, 40, 0.72) 100%);
+
+  --radius-pill: 9999px;
+  --shadow-card: 0 8px 32px rgb(0 0 0 / 0.22);
+  --focus-ring: 0 0 0 3px rgba(15, 93, 215, 0.55);
+}
+
+/* ── Canonical glass recipe — the ONLY way glass is built ──────────────── */
+.glass,
+.glass-nav,
+.glass-sheet {
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22), var(--shadow-card);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+}
+.glass {
+  background: var(--glass-tint-card);
+  border-radius: var(--radius-lg);
+  color: var(--ink);
+}
+.glass-nav {
+  background: var(--glass-tint-nav);
+  color: var(--ink-nav);
+}
+.glass-sheet {
+  background: var(--glass-tint-sheet);
+  border-radius: var(--radius-xl);
+  color: var(--ink-sheet);
+}
+
+/* Small capsules (price tags, info pins, chips): lighter blur to keep the
+   per-viewport backdrop-filter budget sane on long card lists. */
+.glass-chip {
+  background: var(--glass-tint-card);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22), 0 2px 10px rgb(0 0 0 / 0.14);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  backdrop-filter: blur(12px) saturate(150%);
+  color: var(--ink);
+}
+
+/* No backdrop-filter support (older Firefox etc.): near-opaque tint keeps the
+   translucent look and guarantees the solved ink still passes AA. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass, .glass-chip { background: var(--glass-solid-card); }
+  .glass-nav { background: var(--glass-solid-nav); }
+  .glass-sheet { background: var(--glass-solid-sheet); }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass, .glass-nav, .glass-sheet, .glass-chip {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .glass, .glass-chip { background: var(--glass-solid-card); }
+  .glass-nav { background: var(--glass-solid-nav); }
+  .glass-sheet { background: var(--glass-solid-sheet); }
+}
+
+@media (prefers-contrast: more) {
+  .glass, .glass-chip { background: var(--glass-solid-card); }
+  .glass-nav { background: var(--glass-solid-nav); }
+  .glass-sheet { background: var(--glass-solid-sheet); }
+  .glass, .glass-nav, .glass-sheet, .glass-chip { border-color: var(--ink); }
+}
+
+/* ── Backdrop (decorative, aria-hidden; never carries text) ────────────── */
+.glass-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.glass-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--backdrop-scrim);
+}
+.glass-backdrop img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* No tour imagery: soft mesh gradient from the operator palette + faint grain */
+.glass-backdrop-mesh {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(90% 70% at 12% 8%, color-mix(in srgb, var(--cfg-main, var(--accent)) 42%, transparent), transparent 60%),
+    radial-gradient(80% 65% at 88% 18%, color-mix(in srgb, var(--cfg-hover, var(--accent)) 30%, transparent), transparent 62%),
+    radial-gradient(110% 80% at 50% 105%, color-mix(in srgb, var(--cfg-secondary, #101828) 55%, transparent), transparent 70%),
+    var(--cfg-bg, var(--bg));
+}
+.glass-backdrop-mesh::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Photo scrim: any text overlaid on imagery sits above this gradient */
+.glass-photo-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim-photo);
+  pointer-events: none;
+}
+
+/* ── Buttons & interactive states ──────────────────────────────────────── */
+.glass-btn-cta,
+.glass-btn-accent {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+  transition: transform var(--dur-fast) var(--ease-soft), box-shadow var(--dur-fast) var(--ease-soft), filter var(--dur-fast) var(--ease-soft);
+}
+.glass-btn-cta { background: var(--cta); color: var(--ink-on-cta); }
+.glass-btn-accent { background: var(--accent); color: var(--ink-on-main); }
+/* AA repair layer for mid-tone operator colors — engine-computed overlay the
+   hue shows through; z-index below the label. */
+.glass-btn-cta::before,
+.glass-btn-accent::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+}
+.glass-btn-cta::before { background: var(--cta-overlay); }
+.glass-btn-accent::before { background: var(--main-overlay); }
+.glass-btn-cta:hover, .glass-btn-accent:hover { filter: brightness(1.05); box-shadow: 0 6px 20px rgb(0 0 0 / 0.25); }
+.glass-btn-cta:active, .glass-btn-accent:active { transform: scale(0.97); }
+.glass-btn-cta:disabled, .glass-btn-accent:disabled { opacity: 0.5; box-shadow: none; cursor: not-allowed; }
+
+.glass-hover {
+  transition: transform var(--dur-base) var(--ease-soft), box-shadow var(--dur-base) var(--ease-soft);
+}
+.glass-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22), 0 14px 40px rgb(0 0 0 / 0.28);
+}
+.glass-hover:hover::after { background: var(--hover-overlay); }
+
+.glass *:focus-visible,
+.glass-nav *:focus-visible,
+.glass-sheet *:focus-visible,
+.glass-btn-cta:focus-visible,
+.glass-btn-accent:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ── Inputs on glass ───────────────────────────────────────────────────── */
+.glass-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.625rem 0.875rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--glass-border);
+  background: color-mix(in srgb, var(--glass-solid-card) 60%, transparent);
+  color: var(--ink);
+  font-size: 16px; /* prevents iOS zoom */
+}
+.glass-input::placeholder { color: var(--ink-muted); }
+.glass-input:focus { outline: none; box-shadow: var(--focus-ring); }
+
+/* ── Sheets / modals ───────────────────────────────────────────────────── */
+@keyframes glass-sheet-up {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.glass-sheet-enter { animation: glass-sheet-up 300ms cubic-bezier(0.32, 0.72, 0, 1); }
+
+/* ── Skeletons ─────────────────────────────────────────────────────────── */
+@keyframes glass-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.glass-skeleton {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border);
+  background: linear-gradient(100deg, var(--glass-tint-card) 40%, color-mix(in srgb, var(--glass-tint-card) 60%, white) 50%, var(--glass-tint-card) 60%);
+  background-size: 200% 100%;
+  animation: glass-shimmer 1.6s ease-in-out infinite;
+}
+
+/* Micro-labels (eyebrows) */
+.glass-eyebrow {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+/* Chat launcher/panel float above the mobile bottom glass nav. The embed
+   widget hides via `.fixed.bottom-6.right-6` — those classes must stay. */
+@media (max-width: 1023px) {
+  .chat-launcher-lift { bottom: 5.75rem; }
+}
+
+/* Rich-text policy panes (spec §5 rule 6): operator HTML may carry inline
+   colors that fail contrast on the glass pane — computed ink wins over all
+   of them; links keep underline affordance with the AA-checked accent. */
+.glass-sheet .prose,
+.glass-sheet .prose * {
+  color: var(--ink-sheet) !important;
+}
+.glass-sheet .prose a {
+  color: var(--accent-text) !important;
+  text-decoration: underline;
 }

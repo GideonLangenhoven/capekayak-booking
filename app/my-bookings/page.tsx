@@ -927,7 +927,7 @@ export default function MyBookings() {
             {(["trips", "profile"] as const).map(t => (
               <button key={t} onClick={() => setActiveTab(t)} role="tab" aria-selected={activeTab === t}
                 className={"flex-1 rounded-lg px-4 py-2.5 text-[13px] font-semibold transition-colors sm:flex-none sm:py-1.5 " +
-                  (activeTab === t ? "bg-[color:var(--accent)] text-white" : "text-[color:var(--textMuted)] hover:text-[color:var(--text)]")}>
+                  (activeTab === t ? "bg-[color:var(--accent)] text-[color:var(--ink-on-main)]" : "text-[color:var(--textMuted)] hover:text-[color:var(--text)]")}>
                 {t === "trips" ? "Your trips" : "Profile"}
               </button>
             ))}
@@ -1001,7 +1001,7 @@ export default function MyBookings() {
                         className="field !py-2.5 min-w-0 flex-1 font-mono !text-[16px] uppercase tracking-widest sm:!py-2 sm:!text-[13px]"
                       />
                       <button onClick={checkVoucherBalance} disabled={voucherLoading || !voucherCode.trim()}
-                        className="inline-flex shrink-0 items-center self-stretch rounded-[10px] bg-[color:var(--accent)] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[color:var(--accentHover)] disabled:opacity-40"
+                        className="inline-flex shrink-0 items-center self-stretch rounded-[10px] bg-[color:var(--accent)] px-4 text-[13px] font-semibold text-[color:var(--ink-on-main)] transition-colors hover:bg-[color:var(--accentHover)] disabled:opacity-40"
                       >
                         {voucherLoading ? "…" : "Check"}
                       </button>

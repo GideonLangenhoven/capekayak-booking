@@ -168,13 +168,13 @@ export default function ComboBookingPage() {
       const isToday = isSameDay(date, today);
       cells.push(
         <button key={day} disabled={past || !has} onClick={() => { setSelectedDate(date); setSelectedSlot(null); }}
-          className={"relative aspect-square rounded-xl flex items-center justify-center text-sm font-medium transition-all " +
-            (sel ? "bg-gray-900 text-white shadow-lg scale-105 " : "") +
-            (!sel && has && !past ? "bg-white text-gray-900 hover:bg-gray-100 border border-gray-200 cursor-pointer " : "") +
-            (past || !has ? "text-gray-300 cursor-not-allowed " : "") +
-            (isToday && !sel ? "ring-2 ring-gray-900 ring-offset-2 " : "")}>
+          className={"relative aspect-square rounded-full flex items-center justify-center text-sm font-medium transition-all " +
+            (sel ? "bg-[color:var(--accent)] text-[color:var(--ink-on-main)] shadow-lg scale-105 " : "") +
+            (!sel && has && !past ? "bg-[color:var(--glass-tint-card)] text-[color:var(--ink)] hover:bg-[color:var(--hover-overlay)] border border-[color:var(--glass-border)] cursor-pointer " : "") +
+            (past || !has ? "text-[color:var(--ink-faint)] cursor-not-allowed " : "") +
+            (isToday && !sel ? "ring-2 ring-[color-mix(in_srgb,var(--accent)_25%,transparent)] ring-offset-2 " : "")}>
           {day}
-          {has && !past && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-emerald-500" />}
+          {has && !past && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[color:var(--accent)]" />}
         </button>
       );
     }
@@ -183,25 +183,25 @@ export default function ComboBookingPage() {
       <div>
         <div className="flex items-center justify-between mb-4">
           <button onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); } else setCalMonth(calMonth - 1); }}
-            disabled={!canPrev} className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 disabled:opacity-30">&larr;</button>
-          <h3 className="text-lg font-semibold">{fmtMonth(new Date(calYear, calMonth))}</h3>
+            disabled={!canPrev} className="w-9 h-9 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 rounded-full surface-muted flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)] disabled:opacity-30">&larr;</button>
+          <h3 className="text-lg font-semibold text-[color:var(--ink)]">{fmtMonth(new Date(calYear, calMonth))}</h3>
           <button onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1); } else setCalMonth(calMonth + 1); }}
-            className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50">&rarr;</button>
+            className="w-9 h-9 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 rounded-full surface-muted flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)]">&rarr;</button>
         </div>
         <div className="grid grid-cols-7 gap-1 mb-2">
-          {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(d => <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>)}
+          {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(d => <div key={d} className="text-center text-xs font-medium text-[color:var(--ink-muted)] py-1">{d}</div>)}
         </div>
         <div className="grid grid-cols-7 gap-1">{cells}</div>
-        <div className="flex items-center gap-4 mt-4 text-xs text-gray-500">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> Available</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-300 inline-block" /> Unavailable</span>
+        <div className="flex items-center gap-4 mt-4 text-xs text-[color:var(--ink-muted)]">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[color:var(--accent)] inline-block" /> Available</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[color:var(--glass-border)] inline-block" /> Unavailable</span>
         </div>
       </div>
     );
   }
 
   function renderSlots(daySlots: Slot[], selectedSlot: Slot | null, setSelectedSlot: (s: Slot) => void) {
-    if (daySlots.length === 0) return <div className="text-center py-8 text-gray-400"><p>No available slots.</p></div>;
+    if (daySlots.length === 0) return <div className="text-center py-8 text-[color:var(--ink-muted)]"><p>No available slots.</p></div>;
     return (
       <div className="space-y-2">
         {daySlots.map((s: Slot) => {
@@ -209,14 +209,14 @@ export default function ComboBookingPage() {
           const isSel = selectedSlot?.id === s.id;
           return (
             <button key={s.id} onClick={() => setSelectedSlot(s)}
-              className={"w-full text-left rounded-xl p-3 transition-all border " + (isSel ? "border-gray-900 bg-gray-900 text-white shadow-lg" : "border-gray-200 bg-white hover:border-gray-400")}>
+              className={"w-full text-left rounded-2xl p-3 transition-all " + (isSel ? "border-2 border-[color:var(--accent)] bg-[color:var(--accent)] text-[color:var(--ink-on-main)] shadow-lg" : "glass !rounded-2xl hover:shadow-md")}>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className={"text-base font-semibold " + (isSel ? "text-white" : "")}>{fmtTime(s.start_time, tz)}</p>
-                  <p className={"text-xs " + (isSel ? "text-gray-300" : "text-gray-500")}>{a} {a === 1 ? "spot" : "spots"} left</p>
+                  <p className={"text-base font-semibold " + (isSel ? "text-[color:var(--ink-on-main)]" : "text-[color:var(--ink)]")}>{fmtTime(s.start_time, tz)}</p>
+                  <p className={"text-xs " + (isSel ? "text-[color:var(--ink-on-main)] opacity-80" : "text-[color:var(--ink-muted)]")}>{a} {a === 1 ? "spot" : "spots"} left</p>
                 </div>
-                {isSel ? <span className="bg-white text-gray-900 px-3 py-1 rounded-lg text-xs font-medium">Selected</span>
-                  : <span className={"text-xs " + (a <= 3 ? "text-orange-500 font-medium" : "text-gray-400")}>{a <= 3 ? "Almost full" : "Available"}</span>}
+                {isSel ? <span className="bg-[color:var(--ink-on-main)] text-[color:var(--accent)] px-3 py-1 rounded-full text-xs font-medium">Selected</span>
+                  : <span className={"text-xs " + (a <= 3 ? "text-[color:var(--warning)] font-medium" : "text-[color:var(--ink-muted)]")}>{a <= 3 ? "Almost full" : "Available"}</span>}
               </div>
             </button>
           );
@@ -338,14 +338,16 @@ export default function ComboBookingPage() {
     setSubmitting(false);
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" /></div>;
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[color:var(--accent)]" /></div>;
 
   if (!combo) return (
     <div className="max-w-lg mx-auto px-4 py-16 text-center">
-      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6"><span className="text-3xl">&#x1F6AB;</span></div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-3">Combo Not Available</h2>
-      <p className="text-gray-500 mb-8">This combo package may have been removed or is currently unavailable.</p>
-      <a href="/" className="inline-block bg-gray-900 text-white px-8 py-3 rounded-xl text-sm font-semibold hover:bg-gray-800 shadow-md">Browse Tours</a>
+      <div className="w-16 h-16 bg-[color:var(--hover-overlay)] text-[color:var(--ink-muted)] rounded-full flex items-center justify-center mx-auto mb-6">
+        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><circle cx="12" cy="12" r="9" /><path strokeLinecap="round" d="M5.6 5.6l12.8 12.8" /></svg>
+      </div>
+      <h2 className="text-2xl font-bold text-[color:var(--ink)] mb-3">Combo Not Available</h2>
+      <p className="text-[color:var(--ink-muted)] mb-8">This combo package may have been removed or is currently unavailable.</p>
+      <a href="/" className="btn btn-primary px-8 py-3">Browse Tours</a>
     </div>
   );
 
@@ -364,57 +366,57 @@ export default function ComboBookingPage() {
           return (
             <div key={x.l} className="flex items-center flex-1">
               <div className="flex items-center gap-2 flex-1">
-                <div className={"w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all " + (active ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-400")}>
+                <div className={"w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all " + (active ? "bg-[color:var(--accent)] text-[color:var(--ink-on-main)]" : "bg-[color:var(--hover-overlay)] text-[color:var(--ink-muted)]")}>
                   {active && i < ci ? "\u2713" : i + 1}
                 </div>
-                <span className={"text-sm hidden sm:block " + (active ? "text-gray-900 font-medium" : "text-gray-400")}>{x.l}</span>
+                <span className={"text-sm hidden sm:block " + (active ? "text-[color:var(--ink)] font-medium" : "text-[color:var(--ink-muted)]")}>{x.l}</span>
               </div>
-              {i < 2 && <div className={"h-0.5 flex-1 mx-2 rounded " + (active && i < ci ? "bg-gray-900" : "bg-gray-200")} />}
+              {i < 2 && <div className={"h-0.5 flex-1 mx-2 rounded " + (active && i < ci ? "bg-[color:var(--accent)]" : "bg-[color:var(--glass-border)]")} />}
             </div>
           );
         })}
       </div>
 
       {/* Combo Header */}
-      <div className="flex items-center gap-4 mb-8 p-4 bg-gray-50 rounded-xl">
-        <div className="w-12 h-12 bg-[#0F2B1F] text-[#F4F1E8] rounded-xl flex items-center justify-center">
+      <div className="glass flex items-center gap-4 mb-8 p-4">
+        <div className="w-12 h-12 bg-[color:var(--accent)] text-[color:var(--ink-on-main)] rounded-full flex items-center justify-center">
           <svg viewBox="0 0 256 256" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="16" aria-hidden="true">
             <circle cx="98" cy="128" r="58" />
             <circle cx="158" cy="128" r="58" />
           </svg>
         </div>
         <div className="flex-1">
-          <h3 className="font-semibold text-lg">{combo.name}</h3>
-          <p className="text-gray-500 text-sm">{tourA?.name} + {tourB?.name}</p>
+          <h3 className="font-semibold text-lg text-[color:var(--ink)]">{combo.name}</h3>
+          <p className="text-[color:var(--ink-muted)] text-sm">{tourA?.name} + {tourB?.name}</p>
         </div>
         <div className="text-right">
-          <div className="font-bold text-lg">R{combo.combo_price}<span className="text-xs font-normal text-gray-400">/pp</span></div>
-          {savings > 0 && <div className="text-xs text-emerald-600 font-semibold">Save R{savings}</div>}
+          <div className="font-bold text-lg text-[color:var(--ink)]">R{combo.combo_price}<span className="text-xs font-normal text-[color:var(--ink-muted)]">/pp</span></div>
+          {savings > 0 && <div className="text-xs text-[color:var(--success)] font-semibold">Save R{savings}</div>}
         </div>
       </div>
 
       {/* STEP 1: Select Dates */}
       {step === "slots" && (
         <div>
-          <a href="/" className="text-sm text-gray-500 mb-6 hover:text-gray-900 inline-block">&larr; Back to tours</a>
+          <a href="/" className="text-sm text-[color:var(--ink-muted)] mb-6 hover:text-[color:var(--ink)] inline-block">&larr; Back to tours</a>
 
           {soldOutMsg && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3">
-              <span className="text-red-500 text-xl">&#x26A0;</span>
+            <div className="mb-4 p-4 bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] rounded-2xl flex items-center gap-3">
+              <svg className="w-5 h-5 shrink-0 text-[color:var(--danger)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
               <div className="flex-1">
-                <p className="text-sm font-semibold text-red-800">{soldOutMsg}</p>
-                <p className="text-xs text-red-600 mt-0.5">Available slots have been refreshed.</p>
+                <p className="text-sm font-semibold text-[color:var(--danger)]">{soldOutMsg}</p>
+                <p className="text-xs text-[color:var(--ink-muted)] mt-0.5">Available slots have been refreshed.</p>
               </div>
-              <button onClick={() => setSoldOutMsg("")} className="text-red-400 hover:text-red-600 text-lg">&times;</button>
+              <button onClick={() => setSoldOutMsg("")} className="min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 flex items-center justify-center text-[color:var(--ink-muted)] hover:text-[color:var(--danger)] text-lg">&times;</button>
             </div>
           )}
 
           {/* Tour A */}
           <div className="mb-10">
             <div className="flex items-center gap-3 mb-4">
-              <span className="w-7 h-7 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
-              <h2 className="text-xl font-bold">{tourA?.name}</h2>
-              <span className="text-sm text-gray-400">{formatDuration(tourA?.duration_minutes)}</span>
+              <span className="w-7 h-7 bg-[color:var(--accent)] text-[color:var(--ink-on-main)] rounded-full flex items-center justify-center text-xs font-bold">1</span>
+              <h2 className="text-xl font-bold text-[color:var(--ink)]">{tourA?.name}</h2>
+              <span className="text-sm text-[color:var(--ink-muted)]">{formatDuration(tourA?.duration_minutes)}</span>
             </div>
             <div className="grid md:grid-cols-2 gap-6">
               <div>
@@ -423,7 +425,7 @@ export default function ComboBookingPage() {
               <div>
                 <h3 className="text-base font-semibold mb-3">{dateA ? "Times for " + fmtDate(dateA.toISOString(), tz) : "Select a date"}</h3>
                 {!dateA ? (
-                  <div className="text-center py-8 text-gray-400"><p className="text-3xl mb-2">&#x1F4C5;</p><p className="text-sm">Tap a date to see times.</p></div>
+                  <div className="text-center py-8 text-[color:var(--ink-muted)]"><svg className="w-8 h-8 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><p className="text-sm">Tap a date to see times.</p></div>
                 ) : renderSlots(daySlotsA, slotA, setSlotA)}
               </div>
             </div>
@@ -432,9 +434,9 @@ export default function ComboBookingPage() {
           {/* Tour B */}
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-4">
-              <span className="w-7 h-7 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
-              <h2 className="text-xl font-bold">{tourB?.name}</h2>
-              <span className="text-sm text-gray-400">{formatDuration(tourB?.duration_minutes)}</span>
+              <span className="w-7 h-7 bg-[color:var(--accent)] text-[color:var(--ink-on-main)] rounded-full flex items-center justify-center text-xs font-bold">2</span>
+              <h2 className="text-xl font-bold text-[color:var(--ink)]">{tourB?.name}</h2>
+              <span className="text-sm text-[color:var(--ink-muted)]">{formatDuration(tourB?.duration_minutes)}</span>
             </div>
             <div className="grid md:grid-cols-2 gap-6">
               <div>
@@ -443,7 +445,7 @@ export default function ComboBookingPage() {
               <div>
                 <h3 className="text-base font-semibold mb-3">{dateB ? "Times for " + fmtDate(dateB.toISOString(), tz) : "Select a date"}</h3>
                 {!dateB ? (
-                  <div className="text-center py-8 text-gray-400"><p className="text-3xl mb-2">&#x1F4C5;</p><p className="text-sm">Tap a date to see times.</p></div>
+                  <div className="text-center py-8 text-[color:var(--ink-muted)]"><svg className="w-8 h-8 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><p className="text-sm">Tap a date to see times.</p></div>
                 ) : renderSlots(daySlotsB, slotB, setSlotB)}
               </div>
             </div>
@@ -451,7 +453,7 @@ export default function ComboBookingPage() {
 
           {slotA && slotB && (
             <button onClick={() => setStep("details")}
-              className="w-full mt-4 bg-gray-900 text-white py-3.5 rounded-xl text-sm font-semibold hover:bg-gray-800 shadow-md">
+              className="btn btn-primary w-full mt-4 !py-3.5">
               Continue &rarr;
             </button>
           )}
@@ -461,88 +463,88 @@ export default function ComboBookingPage() {
       {/* STEP 2: Details */}
       {step === "details" && (
         <div>
-          <button onClick={() => setStep("slots")} className="text-sm text-gray-500 mb-6 hover:text-gray-900">&larr; Back to dates</button>
-          <h2 className="text-3xl font-bold mb-8">Complete Your Combo Booking</h2>
+          <button onClick={() => setStep("slots")} className="text-sm text-[color:var(--ink-muted)] mb-6 hover:text-[color:var(--ink)]">&larr; Back to dates</button>
+          <h2 className="text-3xl font-bold mb-8 text-[color:var(--ink)]">Complete Your Combo Booking</h2>
           <div className="grid md:grid-cols-5 gap-8">
             <div className="md:col-span-3 space-y-5">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Number of People</label>
+                <label className="field-label">Number of People</label>
                 <div className="flex items-center gap-4">
-                  <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-11 h-11 border-2 border-gray-200 rounded-xl flex items-center justify-center text-xl hover:bg-gray-50">&minus;</button>
-                  <span className="text-2xl font-bold w-8 text-center">{qty}</span>
-                  <button onClick={() => setQty(Math.min(maxQty, qty + 1))} className="w-11 h-11 border-2 border-gray-200 rounded-xl flex items-center justify-center text-xl hover:bg-gray-50">+</button>
-                  <span className="text-sm text-gray-400">max {maxQty}</span>
+                  <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-11 h-11 rounded-full surface-muted flex items-center justify-center text-xl text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)]">&minus;</button>
+                  <span className="text-2xl font-bold w-8 text-center text-[color:var(--ink)]">{qty}</span>
+                  <button onClick={() => setQty(Math.min(maxQty, qty + 1))} className="w-11 h-11 rounded-full surface-muted flex items-center justify-center text-xl text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)]">+</button>
+                  <span className="text-sm text-[color:var(--ink-muted)]">max {maxQty}</span>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name *</label>
+                <label className="field-label">Full Name *</label>
                 <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="John Smith"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gray-900" />
+                  className="field" />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Email Address *</label>
+                <label className="field-label">Email Address *</label>
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="john@example.com"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gray-900" />
+                  className="field" />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Phone (optional)</label>
+                <label className="field-label">Phone (optional)</label>
                 <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+27 71 234 5678"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gray-900" />
+                  className="field" />
               </div>
               <label className="flex items-start gap-3 mt-4 cursor-pointer">
                 <input type="checkbox" checked={marketingOptIn} onChange={e => setMarketingOptIn(e.target.checked)}
-                  className="mt-1 w-4 h-4 shrink-0 rounded border-gray-300" />
-                <span className="text-xs text-gray-500 leading-relaxed">I agree to receive booking updates and occasional promotions by email and SMS. You can opt out at any time.</span>
+                  className="mt-1 w-4 h-4 shrink-0 rounded border-[color:var(--glass-border)]" />
+                <span className="text-xs text-[color:var(--ink-muted)] leading-relaxed">I agree to receive booking updates and occasional promotions by email and SMS. You can opt out at any time.</span>
               </label>
 
               {paymentError && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
-                  <p className="text-sm text-red-700">{paymentError}</p>
+                <div className="p-4 bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] rounded-2xl">
+                  <p className="text-sm text-[color:var(--danger)]">{paymentError}</p>
                 </div>
               )}
             </div>
 
             {/* Booking Summary Sidebar */}
             <div className="md:col-span-2">
-              <div className="bg-gray-50 rounded-2xl p-5 sticky top-6">
+              <div className="glass-sheet !rounded-[20px] p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sticky top-6">
                 <h3 className="font-bold mb-4">Combo Summary</h3>
                 <div className="space-y-3 text-sm">
-                  <div className="pb-3 border-b border-gray-200">
-                    <p className="font-semibold text-gray-900">{tourA?.name}</p>
-                    <div className="flex justify-between text-gray-500 mt-1">
-                      <span>Date</span><span className="font-medium text-gray-700">{slotA && fmtDate(slotA.start_time, tz)}</span>
+                  <div className="pb-3 border-b border-[color:var(--glass-border)]">
+                    <p className="font-semibold text-[color:var(--ink)]">{tourA?.name}</p>
+                    <div className="flex justify-between text-[color:var(--ink-muted)] mt-1">
+                      <span>Date</span><span className="font-medium text-[color:var(--ink)]">{slotA && fmtDate(slotA.start_time, tz)}</span>
                     </div>
-                    <div className="flex justify-between text-gray-500 mt-0.5">
-                      <span>Time</span><span className="font-medium text-gray-700">{slotA && fmtTime(slotA.start_time, tz)}</span>
-                    </div>
-                  </div>
-                  <div className="pb-3 border-b border-gray-200">
-                    <p className="font-semibold text-gray-900">{tourB?.name}</p>
-                    <div className="flex justify-between text-gray-500 mt-1">
-                      <span>Date</span><span className="font-medium text-gray-700">{slotB && fmtDate(slotB.start_time, tz)}</span>
-                    </div>
-                    <div className="flex justify-between text-gray-500 mt-0.5">
-                      <span>Time</span><span className="font-medium text-gray-700">{slotB && fmtTime(slotB.start_time, tz)}</span>
+                    <div className="flex justify-between text-[color:var(--ink-muted)] mt-0.5">
+                      <span>Time</span><span className="font-medium text-[color:var(--ink)]">{slotA && fmtTime(slotA.start_time, tz)}</span>
                     </div>
                   </div>
-                  <div className="flex justify-between"><span className="text-gray-500">Guests</span><span className="font-medium">{qty}</span></div>
-                  <div className="border-t border-gray-200 pt-3">
-                    <div className="flex justify-between"><span className="text-gray-500">Combo price &times; {qty}</span><span>R{comboTotal}</span></div>
+                  <div className="pb-3 border-b border-[color:var(--glass-border)]">
+                    <p className="font-semibold text-[color:var(--ink)]">{tourB?.name}</p>
+                    <div className="flex justify-between text-[color:var(--ink-muted)] mt-1">
+                      <span>Date</span><span className="font-medium text-[color:var(--ink)]">{slotB && fmtDate(slotB.start_time, tz)}</span>
+                    </div>
+                    <div className="flex justify-between text-[color:var(--ink-muted)] mt-0.5">
+                      <span>Time</span><span className="font-medium text-[color:var(--ink)]">{slotB && fmtTime(slotB.start_time, tz)}</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between"><span className="text-[color:var(--ink-muted)]">Guests</span><span className="font-medium">{qty}</span></div>
+                  <div className="border-t border-[color:var(--glass-border)] pt-3">
+                    <div className="flex justify-between"><span className="text-[color:var(--ink-muted)]">Combo price &times; {qty}</span><span>R{comboTotal}</span></div>
                     {savings > 0 && (
-                      <div className="flex justify-between text-emerald-600 mt-1">
+                      <div className="flex justify-between text-[color:var(--success)] mt-1">
                         <span>You save</span><span>R{savings * qty}</span>
                       </div>
                     )}
                   </div>
-                  <div className="border-t border-gray-200 pt-3">
+                  <div className="border-t border-[color:var(--glass-border)] pt-3">
                     <div className="flex justify-between text-lg font-bold"><span>Total</span><span>R{comboTotal}</span></div>
                   </div>
                 </div>
                 <button onClick={submitComboBooking} disabled={submitting || !name.trim() || !email.trim()}
-                  className="w-full mt-5 bg-gray-900 text-white py-3.5 rounded-xl text-sm font-semibold hover:bg-gray-800 disabled:opacity-40 shadow-md">
+                  className="btn btn-primary w-full mt-5 !py-3.5">
                   {submitting ? "Processing..." : "Pay R" + comboTotal}
                 </button>
-                <p className="text-xs text-gray-400 text-center mt-3">Secure payment via Paysafe, a PCI DSS compliant provider — card details never touch our servers</p>
+                <p className="surface-muted !rounded-full px-4 py-2 text-xs text-[color:var(--ink-muted)] text-center mt-3">Secure payment via Paysafe, a PCI DSS compliant provider — card details never touch our servers</p>
               </div>
             </div>
           </div>
@@ -554,59 +556,63 @@ export default function ComboBookingPage() {
         <div className="text-center py-16 max-w-md mx-auto">
           {paymentStatus === "processing" && (
             <>
-              <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+              <div className="w-20 h-20 bg-[color:var(--accentSoft)] rounded-full flex items-center justify-center mx-auto mb-6">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[color:var(--accent)]" />
               </div>
-              <h2 className="text-3xl font-bold mb-3">Processing Payment</h2>
-              <p className="text-gray-500">Please wait while we confirm your payment...</p>
+              <h2 className="text-3xl font-bold mb-3 text-[color:var(--ink)]">Processing Payment</h2>
+              <p className="text-[color:var(--ink-muted)]">Please wait while we confirm your payment...</p>
             </>
           )}
 
           {paymentStatus === "success" && (
             <>
-              <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6"><span className="text-4xl">&#x2705;</span></div>
-              <h2 className="text-3xl font-bold mb-3">Combo Booked!</h2>
-              <p className="text-gray-500 mb-8">Both adventures are confirmed. Check your email for details.</p>
+              <div className="w-20 h-20 bg-[color-mix(in_srgb,var(--success)_14%,transparent)] text-[color:var(--success)] rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><circle cx="12" cy="12" r="9" /><path strokeLinecap="round" strokeLinejoin="round" d="M8.5 12.5l2.5 2.5 4.5-5" /></svg>
+              </div>
+              <h2 className="text-3xl font-bold mb-3 text-[color:var(--ink)]">Combo Booked!</h2>
+              <p className="text-[color:var(--ink-muted)] mb-8">Both adventures are confirmed. Check your email for details.</p>
 
-              <div className="bg-gray-50 rounded-2xl p-6 text-left mb-4 space-y-3">
-                <h4 className="font-bold text-sm text-gray-900 mb-2">{tourA?.name}</h4>
+              <div className="glass p-6 text-left mb-4 space-y-3">
+                <h4 className="font-bold text-sm text-[color:var(--ink)] mb-2">{tourA?.name}</h4>
                 <div className="space-y-1 text-sm">
-                  <div className="flex justify-between"><span className="text-gray-500">Reference</span><span className="font-mono font-bold">{bookingRefA}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Date</span><span className="font-medium">{slotA && fmtDate(slotA.start_time, tz)}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Time</span><span className="font-medium">{slotA && fmtTime(slotA.start_time, tz)}</span></div>
+                  <div className="flex justify-between"><span className="text-[color:var(--ink-muted)]">Reference</span><span className="font-mono font-bold">{bookingRefA}</span></div>
+                  <div className="flex justify-between"><span className="text-[color:var(--ink-muted)]">Date</span><span className="font-medium">{slotA && fmtDate(slotA.start_time, tz)}</span></div>
+                  <div className="flex justify-between"><span className="text-[color:var(--ink-muted)]">Time</span><span className="font-medium">{slotA && fmtTime(slotA.start_time, tz)}</span></div>
                 </div>
               </div>
 
-              <div className="bg-gray-50 rounded-2xl p-6 text-left mb-8 space-y-3">
-                <h4 className="font-bold text-sm text-gray-900 mb-2">{tourB?.name}</h4>
+              <div className="glass p-6 text-left mb-8 space-y-3">
+                <h4 className="font-bold text-sm text-[color:var(--ink)] mb-2">{tourB?.name}</h4>
                 <div className="space-y-1 text-sm">
-                  <div className="flex justify-between"><span className="text-gray-500">Reference</span><span className="font-mono font-bold">{bookingRefB}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Date</span><span className="font-medium">{slotB && fmtDate(slotB.start_time, tz)}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Time</span><span className="font-medium">{slotB && fmtTime(slotB.start_time, tz)}</span></div>
+                  <div className="flex justify-between"><span className="text-[color:var(--ink-muted)]">Reference</span><span className="font-mono font-bold">{bookingRefB}</span></div>
+                  <div className="flex justify-between"><span className="text-[color:var(--ink-muted)]">Date</span><span className="font-medium">{slotB && fmtDate(slotB.start_time, tz)}</span></div>
+                  <div className="flex justify-between"><span className="text-[color:var(--ink-muted)]">Time</span><span className="font-medium">{slotB && fmtTime(slotB.start_time, tz)}</span></div>
                 </div>
               </div>
 
-              <div className="bg-[#F7E8D8] border border-[#EAD3B8] rounded-2xl p-5 text-left mb-8">
+              <div className="bg-[color-mix(in_srgb,var(--warning)_14%,transparent)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] rounded-2xl p-5 text-left mb-8">
                 <div className="flex justify-between text-sm">
-                  <span className="text-[#8F4E13] font-semibold">Combo Total Paid</span>
-                  <span className="font-bold text-[#6E3C0D]">R{comboTotal}</span>
+                  <span className="text-[color:var(--warning)] font-semibold">Combo Total Paid</span>
+                  <span className="font-bold text-[color:var(--ink)]">R{comboTotal}</span>
                 </div>
                 {savings > 0 && (
-                  <p className="text-xs text-[#B4641C] mt-1">You saved R{savings * qty} with this combo!</p>
+                  <p className="text-xs text-[color:var(--warning)] mt-1">You saved R{savings * qty} with this combo!</p>
                 )}
               </div>
 
-              <a href="/" className="block bg-gray-900 text-white py-3 rounded-xl text-sm font-semibold hover:bg-gray-800">Browse More Tours</a>
+              <a href="/" className="btn btn-primary w-full">Browse More Tours</a>
             </>
           )}
 
           {paymentStatus === "failed" && (
             <>
-              <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6"><span className="text-4xl">&#x274C;</span></div>
-              <h2 className="text-3xl font-bold mb-3">Payment Failed</h2>
-              <p className="text-gray-500 mb-4">{paymentError || "Something went wrong with your payment."}</p>
+              <div className="w-20 h-20 bg-[color-mix(in_srgb,var(--danger)_12%,transparent)] text-[color:var(--danger)] rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><circle cx="12" cy="12" r="9" /><path strokeLinecap="round" d="M9 9l6 6M15 9l-6 6" /></svg>
+              </div>
+              <h2 className="text-3xl font-bold mb-3 text-[color:var(--ink)]">Payment Failed</h2>
+              <p className="text-[color:var(--ink-muted)] mb-4">{paymentError || "Something went wrong with your payment."}</p>
               <button onClick={() => { setStep("details"); setPaymentStatus("idle"); setPaymentError(""); setSubmitting(false); }}
-                className="inline-block bg-gray-900 text-white px-10 py-3 rounded-xl text-sm font-semibold hover:bg-gray-800 shadow-md">
+                className="btn btn-primary px-10 !py-3">
                 Try Again
               </button>
             </>

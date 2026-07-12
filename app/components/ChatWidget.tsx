@@ -73,30 +73,31 @@ export default function ChatWidget() {
   return (
     <>
       {!open && (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-center">
+        <div className="fixed bottom-6 right-6 chat-launcher-lift z-50 flex flex-col items-center">
           <style>{`
             @keyframes blurFadeInOut {
-              0%   { opacity:0; text-shadow:0 0 40px #fff; transform:translateX(-50%) scale(1.3); }
-              20%, 75% { opacity:1; text-shadow:0 0 1px #fff;  transform:translateX(-50%) scale(1);   }
-              100% { opacity:0; text-shadow:0 0 50px #fff; transform:translateX(-50%) scale(0);   }
+              0%   { opacity:0; transform:translateX(-50%) scale(1.15); }
+              20%, 75% { opacity:1; transform:translateX(-50%) scale(1); }
+              100% { opacity:0; transform:translateX(-50%) scale(0.85); }
             }
           `}</style>
+          {/* Label sits on a glass capsule — text never floats on raw backdrop */}
           <span
-            className="absolute -top-9 left-1/2 whitespace-nowrap text-[21px] font-semibold text-black hidden sm:inline"
-            style={{ animation: "blurFadeInOut 3s ease-in-out infinite" }}
+            className="glass-chip absolute -top-11 left-1/2 hidden whitespace-nowrap px-3.5 py-1.5 text-sm font-semibold sm:inline"
+            style={{ animation: "blurFadeInOut 3s ease-in-out infinite", color: "var(--ink)" }}
           >Book here</span>
           {chatbot_avatar ? (
-            <button aria-label="Open chat" onClick={handleOpenChat} className="w-[52px] h-[52px] md:w-20 md:h-20 rounded-full shadow-lg hover:scale-105 transition-all overflow-hidden bg-white border-2 border-gray-200">
+            <button aria-label="Open chat" onClick={handleOpenChat} className="glass-chip h-[52px] w-[52px] overflow-hidden !rounded-full p-0 transition-transform hover:scale-105 md:h-20 md:w-20">
               {/* @ts-expect-error dotlottie-wc is a web component */}
               <dotlottie-wc src={chatbot_avatar} style={{ width: "100%", height: "100%" }} autoplay loop></dotlottie-wc>
             </button>
           ) : (
-            <button aria-label="Open chat" onClick={handleOpenChat} className="w-[52px] h-[52px] md:w-20 md:h-20 bg-gray-900 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-800 hover:scale-105 transition-all"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 md:w-6 md:h-6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg></button>
+            <button aria-label="Open chat" onClick={handleOpenChat} className="glass-chip flex h-[52px] w-[52px] items-center justify-center !rounded-full transition-transform hover:scale-105 md:h-20 md:w-20" style={{ background: "var(--accent)", color: "var(--ink-on-main)" }}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 md:h-6 md:w-6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg></button>
           )}
         </div>
       )}
       {open && (
-        <div className="fixed bottom-6 right-6 w-[22rem] h-[32rem] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden z-50" style={{ animation: "su .2s ease-out" }}>
+        <div className="glass-sheet fixed bottom-6 right-6 chat-launcher-lift z-50 flex h-[32rem] w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden" style={{ animation: "su .2s ease-out" }}>
           <style>{`@keyframes su{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}@keyframes bl{0%,80%,100%{opacity:0}40%{opacity:1}}`}</style>
           <div className="bg-gray-900 text-white p-4 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3"><div className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center"><ChatSparkGlyph size={18} /></div><div><p className="text-sm font-semibold">{business_name || "Chat"}</p>{isHuman ? (<div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400"></span><p className="text-xs text-gray-400">Live agent{adminName ? " \u00b7 " + adminName : ""}</p></div>) : (<div className="flex items-center gap-1.5"><SparkleGlyph size={10} className="text-[#E89B4B]" /><p className="text-xs text-gray-400">AI assistant</p></div>)}</div></div>
