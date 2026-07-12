@@ -20,6 +20,11 @@ export default function GlassBackdrop() {
 
   useEffect(() => {
     if (!theme.id || isEmbed) return;
+    // Operator-uploaded background wins; first active tour photo is the fallback.
+    if (theme.hero_image && theme.hero_image.trim()) {
+      setImageUrl(theme.hero_image.trim());
+      return;
+    }
     let cancelled = false;
     (async () => {
       const supabase = createTenantSupabase(theme.id);
@@ -35,7 +40,7 @@ export default function GlassBackdrop() {
       if (first) setImageUrl(first);
     })();
     return () => { cancelled = true; };
-  }, [theme.id, isEmbed]);
+  }, [theme.id, theme.hero_image, isEmbed]);
 
   if (isEmbed) return null;
 

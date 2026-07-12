@@ -16,6 +16,10 @@ type ThemeData = {
   hero_eyebrow: string | null;
   hero_title: string | null;
   hero_subtitle: string | null;
+  // Operator-uploaded site background (admin → Booking Site Configuration).
+  // GlassBackdrop prefers it over the first tour photo. Anon column grant
+  // confirmed on businesses.hero_image.
+  hero_image: string | null;
   business_name: string | null;
   business_tagline: string | null;
   logo_url: string | null;
@@ -43,7 +47,7 @@ type ThemeData = {
 const defaults: ThemeData = {
   id: null, color_main: null, color_secondary: null, color_cta: null,
   color_bg: null, color_nav: null, color_hover: null, chatbot_avatar: null,
-  hero_eyebrow: null, hero_title: null, hero_subtitle: null,
+  hero_eyebrow: null, hero_title: null, hero_subtitle: null, hero_image: null,
   business_name: null, business_tagline: null, logo_url: null,
   timezone: null, what_to_bring: null, what_to_wear: null, directions: null,
   nav_gift_voucher_label: null, nav_my_bookings_label: null,
