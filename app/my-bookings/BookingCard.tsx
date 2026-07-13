@@ -9,35 +9,8 @@ import type { Booking, BookingLog } from "../lib/types";
 
 /* ─── Inline icons (stroke 1.8 per brand — never emoji) ─── */
 const ic = "shrink-0";
-function IconUsers({ className = "h-3.5 w-3.5" }: { className?: string }) {
-  return <svg className={ic + " " + className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>;
-}
-function IconPin({ className = "h-3.5 w-3.5" }: { className?: string }) {
-  return <svg className={ic + " " + className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
-}
-function IconClock({ className = "h-3.5 w-3.5" }: { className?: string }) {
-  return <svg className={ic + " " + className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
-}
-function IconCheck({ className = "h-3.5 w-3.5" }: { className?: string }) {
-  return <svg className={ic + " " + className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>;
-}
-function IconPen({ className = "h-3.5 w-3.5" }: { className?: string }) {
-  return <svg className={ic + " " + className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>;
-}
 function IconChevron({ open, className = "h-3.5 w-3.5" }: { open?: boolean; className?: string }) {
   return <svg className={ic + " transition-transform " + (open ? "rotate-90 " : "") + className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>;
-}
-function IconCamera({ className = "h-3.5 w-3.5" }: { className?: string }) {
-  return <svg className={ic + " " + className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
-}
-function IconTicket({ className = "h-3.5 w-3.5" }: { className?: string }) {
-  return <svg className={ic + " " + className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" /></svg>;
-}
-function IconAlert({ className = "h-3.5 w-3.5" }: { className?: string }) {
-  return <svg className={ic + " " + className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>;
-}
-function IconLock({ className = "h-3.5 w-3.5" }: { className?: string }) {
-  return <svg className={ic + " " + className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>;
 }
 
 /* ─── Status pill ─── */
@@ -165,7 +138,7 @@ export default function BookingCard({
             {isCompleted && photos && photos.length > 0 && (
               <a href={photos[0]} target="_blank" rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 py-1.5 text-[12px] font-semibold text-[color:var(--accent)] hover:underline">
-                <IconCamera /> Photos
+                Photos
               </a>
             )}
             {(isCompleted || isExpired || (isCancelled && !hasCredit && (b.refund_status === "NONE" || !b.refund_status))) && (
@@ -213,7 +186,6 @@ export default function BookingCard({
           boxShadow: "var(--shadow-md)",
         }}
       >
-        {/* dotted-trail motif (echoes the brand mark) */}
         <svg aria-hidden className="pointer-events-none absolute -right-5 -top-8 h-44 w-44 opacity-[0.13]" viewBox="0 0 120 120" fill="none">
           <path d="M12 96C34 88 40 64 56 52c14-10 34-12 48-28" stroke="#F7F5F0" strokeWidth="2.4" strokeLinecap="round" strokeDasharray="0.5 9" />
           <circle cx="104" cy="22" r="5" stroke="#F7F5F0" strokeWidth="2" />
@@ -228,15 +200,14 @@ export default function BookingCard({
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" /> Payment pending
               </span>
             ) : countdown ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/12 px-2.5 py-1 text-[12px] font-semibold">
-                <IconClock className="h-3 w-3" /> {countdown}
-              </span>
+               <span className="inline-flex items-center px-2.5 py-1 text-[12px] font-semibold">
+                 {countdown}
+               </span>
             ) : (
               <StatusPill status={b.status} onDark />
             )}
           </div>
 
-          {/* explicit color: the global heading rule would paint var(--text) on the dark panel */}
           <h3 className="font-display mt-2.5 text-[26px] font-semibold leading-[1.12] tracking-[-0.02em] text-[#F7F5F0] sm:text-[30px]">
             {b.tours?.name || "Booking"}
           </h3>
@@ -248,9 +219,9 @@ export default function BookingCard({
           )}
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[12px] font-medium text-[#F7F5F0]/85">
-              <IconUsers /> {b.qty} {b.qty === 1 ? "guest" : "guests"}
-            </span>
+             <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-[12px] font-medium text-[#F7F5F0]/85">
+               {b.qty} {b.qty === 1 ? "guest" : "guests"}
+             </span>
             {Number(b.total_amount) > 0 && (
               <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-[12px] font-medium text-[#F7F5F0]/85">
                 R{b.total_amount}
@@ -262,25 +233,21 @@ export default function BookingCard({
             {!countdown && paymentPending !== b.id ? null : <StatusPill status={b.status} onDark />}
           </div>
 
-          {/* Trip prep */}
           <div className="mt-6 space-y-2.5 border-t border-white/12 pt-5">
             {waiverPending && b.waiver_token ? (
               <Link
                 href={"/waiver?booking=" + b.id + "&token=" + b.waiver_token}
                 className={heroSolid + " w-full sm:w-auto" + (isUrgentWaiver ? " ring-2 ring-white/35" : "")}
               >
-                <IconPen />
                 {isUrgentWaiver ? "Sign waiver — required before your trip" : "Sign your waiver"}
               </Link>
             ) : waiverSigned ? (
               <p className="flex items-center gap-2 text-[13px] text-[#F7F5F0]/75">
-                <IconCheck className="h-3.5 w-3.5 text-[#F7F5F0]" /> Waiver signed — you're all set
+                Waiver signed — you&apos;re all set
               </p>
             ) : null}
 
-            {meetingPoint && (
-              <p className="flex items-start gap-2 text-[13px] text-[#F7F5F0]/85">
-                <IconPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <p className="flex items-start text-[13px] text-[#F7F5F0]/85">
                 <span>
                   Meet at{" "}
                   {mapsUrl ? (
@@ -292,7 +259,6 @@ export default function BookingCard({
                   )}
                 </span>
               </p>
-            )}
 
             {whatToBring && (
               <div>
@@ -300,7 +266,7 @@ export default function BookingCard({
                   onClick={() => setExpandedWhatToBring(prev => ({ ...prev, [b.id]: !prev[b.id] }))}
                   className="flex items-center gap-1.5 py-1 text-[13px] font-semibold text-[#F7F5F0]/75 transition-colors hover:text-[#F7F5F0]"
                 >
-                  <IconChevron open={bringOpen} className="h-3 w-3" /> What to bring
+                  What to bring
                 </button>
                 {bringOpen && (
                   <div className="mt-2 whitespace-pre-line rounded-xl bg-white/8 p-3.5 text-[13px] leading-relaxed text-[#F7F5F0]/85">
@@ -318,24 +284,23 @@ export default function BookingCard({
 
             {creditPanel}
 
-            {b.refund_status === "REQUESTED" && (
-              <p className="flex items-center gap-2 text-[12.5px] font-semibold text-[#F7F5F0]/80">
-                <IconClock /> Refund of R{b.refund_amount || b.total_amount} pending
-              </p>
-            )}
-            {isActive && !isPast && tier === "LIMITED" && (
-              <p className="flex items-center gap-2 text-[12.5px] text-[#F7F5F0]/70">
-                <IconAlert /> Trip is within 24 hours — changes are limited
-              </p>
-            )}
-            {isActive && !isPast && tier === "LOCKED" && (
-              <p className="flex items-center gap-2 text-[12.5px] text-[#F7F5F0]/70">
-                <IconAlert /> Trip is soon — changes and refunds follow the cancellation policy
-              </p>
-            )}
+             {b.refund_status === "REQUESTED" && (
+               <p className="flex items-center text-[12.5px] font-semibold text-[#F7F5F0]/80">
+                 Refund of R{b.refund_amount || b.total_amount} pending
+               </p>
+             )}
+             {isActive && !isPast && tier === "LIMITED" && (
+               <p className="flex items-center text-[12.5px] text-[#F7F5F0]/70">
+                 Trip is within 24 hours — changes are limited
+               </p>
+             )}
+             {isActive && !isPast && tier === "LOCKED" && (
+               <p className="flex items-center text-[12.5px] text-[#F7F5F0]/70">
+                 Trip is soon — changes and refunds follow the cancellation policy
+               </p>
+             )}
           </div>
 
-          {/* Actions */}
           {(isActive || isCompleted) && (
             <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
               {isActive && tier === "FULL" && (
@@ -415,15 +380,15 @@ export default function BookingCard({
       </div>
 
       <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-[color:var(--textMuted)]">
-        <span className="inline-flex items-center gap-1"><IconUsers className="h-3 w-3" /> {b.qty}</span>
+        <span className="inline-flex items-center">{b.qty}</span>
         {Number(b.total_amount) > 0 && <><span aria-hidden>·</span><span>R{b.total_amount}</span></>}
         <span aria-hidden>·</span>
         <span className="tabular-nums">Ref {ref}</span>
         {countdown && (
           <>
             <span aria-hidden>·</span>
-            <span className="inline-flex items-center gap-1 font-semibold" style={{ color: "var(--accent)" }}>
-              <IconClock className="h-3 w-3" /> {countdown}
+            <span className="inline-flex items-center font-semibold" style={{ color: "var(--accent)" }}>
+              {countdown}
             </span>
           </>
         )}
@@ -435,16 +400,15 @@ export default function BookingCard({
           {waiverPending && b.waiver_token && (
             <Link
               href={"/waiver?booking=" + b.id + "&token=" + b.waiver_token}
-              className="flex w-full items-center justify-center gap-1.5 rounded-[10px] px-3 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 sm:inline-flex sm:w-auto sm:py-1.5 sm:text-[12.5px]"
+              className="flex w-full items-center justify-center rounded-[10px] px-3 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 sm:inline-flex sm:w-auto sm:py-1.5 sm:text-[12.5px]"
               style={{ background: isUrgentWaiver ? "var(--danger)" : "var(--warning)" }}
             >
-              <IconPen /> {isUrgentWaiver ? "Sign waiver now — required" : "Sign your waiver"}
+              {isUrgentWaiver ? "Sign waiver now — required" : "Sign your waiver"}
             </Link>
           )}
 
           {meetingPoint && !isCancelled && (
-            <p className="flex items-start gap-1.5 text-[12.5px] text-[color:var(--textMuted)]">
-              <IconPin className="mt-0.5 h-3 w-3" />
+            <p className="flex items-start text-[12.5px] text-[color:var(--textMuted)]">
               <span>
                 {mapsUrl ? (
                   <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-[color:var(--accent)] hover:underline">{meetingPoint}</a>
@@ -478,23 +442,23 @@ export default function BookingCard({
           {creditPanel}
 
           {b.refund_status === "REQUESTED" && (
-            <p className="flex items-center gap-1.5 text-[12.5px] font-semibold" style={{ color: "var(--warning)" }}>
-              <IconClock /> Refund of R{b.refund_amount || b.total_amount} pending
+            <p className="flex items-center text-[12.5px] font-semibold" style={{ color: "var(--warning)" }}>
+              Refund of R{b.refund_amount || b.total_amount} pending
             </p>
           )}
           {isCancelled && b.converted_to_voucher_id && (
-            <p className="flex items-center gap-1.5 text-[12.5px] font-semibold" style={{ color: "var(--accent)" }}>
-              <IconTicket /> Converted to voucher — check your email
+            <p className="flex items-center text-[12.5px] font-semibold" style={{ color: "var(--accent)" }}>
+              Converted to voucher — check your email
             </p>
           )}
           {isActive && !isPast && tier === "LIMITED" && (
-            <p className="flex items-center gap-1.5 text-[12.5px] font-semibold" style={{ color: "var(--warning)" }}>
-              <IconAlert /> Trip within 24h — changes limited
+            <p className="flex items-center text-[12.5px] font-semibold" style={{ color: "var(--warning)" }}>
+              Trip within 24h — changes limited
             </p>
           )}
           {isActive && !isPast && tier === "LOCKED" && (
-            <p className="flex items-center gap-1.5 text-[12.5px] font-semibold" style={{ color: "var(--danger)" }}>
-              <IconLock /> Trip within 12h — contact us for changes
+            <p className="flex items-center text-[12.5px] font-semibold" style={{ color: "var(--danger)" }}>
+              Trip within 12h — contact us for changes
             </p>
           )}
         </div>
@@ -502,8 +466,8 @@ export default function BookingCard({
 
       {isCompleted && photos && photos.length > 0 && (
         <a href={photos[0]} target="_blank" rel="noopener noreferrer"
-          className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-semibold text-[color:var(--accent)] hover:underline">
-          <IconCamera /> View trip photos
+          className="mt-3 inline-flex items-center text-[13px] font-semibold text-[color:var(--accent)] hover:underline">
+          View trip photos
         </a>
       )}
 

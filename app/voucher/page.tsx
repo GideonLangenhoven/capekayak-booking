@@ -8,7 +8,7 @@ import Card from "../components/ui/Card";
 import VoucherSkeleton from "../components/skeletons/VoucherSkeleton";
 import Toast from "../components/ui/Toast";
 import { useToast } from "../hooks/useToast";
-import { GiftGlyph, CreditCardGlyph } from "../components/ui/Glyphs";
+
 
 export default function VoucherPage() {
   const theme = useTheme();
@@ -64,7 +64,7 @@ export default function VoucherPage() {
           sit on raw backdrop imagery (§5 rule 4). */}
       <div className="glass-sheet px-5 py-7 sm:px-8 sm:py-9">
       <div className="mb-8 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[color:var(--accentSoft)] text-[color:var(--accent)]"><GiftGlyph size={30} /></div>
+
         <h2 className="headline-lg">Give the Gift of Adventure</h2>
         <p className="mt-2">Purchase a gift voucher valid for any {theme.business_name || ""} adventure. Valid for 3 years.</p>
       </div>
@@ -134,7 +134,7 @@ export default function VoucherPage() {
 
       {step === "pay" && (
         <div className="panel-enter py-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[color:var(--accentSoft)] text-[color:var(--accent)]"><CreditCardGlyph size={30} /></div>
+
           <h3 className="headline-md mb-2">Complete Secure Payment</h3>
           <p className="mb-6">
             {recipientEmail.trim()

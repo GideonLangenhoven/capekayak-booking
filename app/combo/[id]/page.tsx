@@ -342,9 +342,7 @@ export default function ComboBookingPage() {
 
   if (!combo) return (
     <div className="max-w-lg mx-auto px-4 py-16 text-center">
-      <div className="w-16 h-16 bg-[color:var(--hover-overlay)] text-[color:var(--ink-muted)] rounded-full flex items-center justify-center mx-auto mb-6">
-        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><circle cx="12" cy="12" r="9" /><path strokeLinecap="round" d="M5.6 5.6l12.8 12.8" /></svg>
-      </div>
+
       <h2 className="text-2xl font-bold text-[color:var(--ink)] mb-3">Combo Not Available</h2>
       <p className="text-[color:var(--ink-muted)] mb-8">This combo package may have been removed or is currently unavailable.</p>
       <a href="/" className="btn btn-primary px-8 py-3">Browse Tours</a>
@@ -379,12 +377,7 @@ export default function ComboBookingPage() {
 
       {/* Combo Header */}
       <div className="glass flex items-center gap-4 mb-8 p-4">
-        <div className="w-12 h-12 bg-[color:var(--accent)] text-[color:var(--ink-on-main)] rounded-full flex items-center justify-center">
-          <svg viewBox="0 0 256 256" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="16" aria-hidden="true">
-            <circle cx="98" cy="128" r="58" />
-            <circle cx="158" cy="128" r="58" />
-          </svg>
-        </div>
+
         <div className="flex-1">
           <h3 className="font-semibold text-lg text-[color:var(--ink)]">{combo.name}</h3>
           <p className="text-[color:var(--ink-muted)] text-sm">{tourA?.name} + {tourB?.name}</p>
@@ -402,7 +395,7 @@ export default function ComboBookingPage() {
 
           {soldOutMsg && (
             <div className="mb-4 p-4 bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] rounded-2xl flex items-center gap-3">
-              <svg className="w-5 h-5 shrink-0 text-[color:var(--danger)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+
               <div className="flex-1">
                 <p className="text-sm font-semibold text-[color:var(--danger)]">{soldOutMsg}</p>
                 <p className="text-xs text-[color:var(--ink-muted)] mt-0.5">Available slots have been refreshed.</p>
@@ -425,7 +418,7 @@ export default function ComboBookingPage() {
               <div>
                 <h3 className="text-base font-semibold mb-3">{dateA ? "Times for " + fmtDate(dateA.toISOString(), tz) : "Select a date"}</h3>
                 {!dateA ? (
-                  <div className="text-center py-8 text-[color:var(--ink-muted)]"><svg className="w-8 h-8 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><p className="text-sm">Tap a date to see times.</p></div>
+                  <div className="text-center py-8 text-[color:var(--ink-muted)]"><p className="text-sm">Tap a date to see times.</p></div>
                 ) : renderSlots(daySlotsA, slotA, setSlotA)}
               </div>
             </div>
@@ -445,7 +438,7 @@ export default function ComboBookingPage() {
               <div>
                 <h3 className="text-base font-semibold mb-3">{dateB ? "Times for " + fmtDate(dateB.toISOString(), tz) : "Select a date"}</h3>
                 {!dateB ? (
-                  <div className="text-center py-8 text-[color:var(--ink-muted)]"><svg className="w-8 h-8 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><p className="text-sm">Tap a date to see times.</p></div>
+                  <div className="text-center py-8 text-[color:var(--ink-muted)]"><p className="text-sm">Tap a date to see times.</p></div>
                 ) : renderSlots(daySlotsB, slotB, setSlotB)}
               </div>
             </div>
@@ -566,9 +559,7 @@ export default function ComboBookingPage() {
 
           {paymentStatus === "success" && (
             <>
-              <div className="w-20 h-20 bg-[color-mix(in_srgb,var(--success)_14%,transparent)] text-[color:var(--success)] rounded-full flex items-center justify-center mx-auto mb-6">
-                <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><circle cx="12" cy="12" r="9" /><path strokeLinecap="round" strokeLinejoin="round" d="M8.5 12.5l2.5 2.5 4.5-5" /></svg>
-              </div>
+
               <h2 className="text-3xl font-bold mb-3 text-[color:var(--ink)]">Combo Booked!</h2>
               <p className="text-[color:var(--ink-muted)] mb-8">Both adventures are confirmed. Check your email for details.</p>
 
@@ -606,9 +597,7 @@ export default function ComboBookingPage() {
 
           {paymentStatus === "failed" && (
             <>
-              <div className="w-20 h-20 bg-[color-mix(in_srgb,var(--danger)_12%,transparent)] text-[color:var(--danger)] rounded-full flex items-center justify-center mx-auto mb-6">
-                <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><circle cx="12" cy="12" r="9" /><path strokeLinecap="round" d="M9 9l6 6M15 9l-6 6" /></svg>
-              </div>
+
               <h2 className="text-3xl font-bold mb-3 text-[color:var(--ink)]">Payment Failed</h2>
               <p className="text-[color:var(--ink-muted)] mb-4">{paymentError || "Something went wrong with your payment."}</p>
               <button onClick={() => { setStep("details"); setPaymentStatus("idle"); setPaymentError(""); setSubmitting(false); }}

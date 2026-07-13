@@ -226,6 +226,15 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     }
   }, [allSlots]);
 
+  // Smart Defaults: auto-select the first available date and slot if not already set.
+  useEffect(() => {
+    if (allSlots.length > 0 && !selectedDate && !selectedSlot && !params.get("slot") && !params.get("date")) {
+      const firstSlot = allSlots[0];
+      setSelectedDate(new Date(firstSlot.start_time));
+      setSelectedSlot(firstSlot);
+    }
+  }, [allSlots, selectedDate, selectedSlot, params]);
+
   const daySlots = useMemo(() => {
     if (!selectedDate) return [];
     return allSlots.filter(s => isSameDay(new Date(s.start_time), selectedDate));
@@ -576,9 +585,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
 
   if (tourNotFound) return (
     <div className="max-w-lg mx-auto px-4 py-16 text-center">
-      <div className="w-16 h-16 bg-[color:var(--hover-overlay)] text-[color:var(--ink-muted)] rounded-full flex items-center justify-center mx-auto mb-6">
-        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><circle cx="12" cy="12" r="9" /><path strokeLinecap="round" d="M5.6 5.6l12.8 12.8" /></svg>
-      </div>
+
       <h2 className="text-2xl font-bold text-[color:var(--ink)] mb-3">This tour is no longer available</h2>
       <p className="text-[color:var(--ink-muted)] mb-8">The tour you are looking for may have been removed or is currently unavailable. Check out our current adventures!</p>
       <a href="/" className="btn btn-primary px-8 py-3">
@@ -615,9 +622,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           {soldOutMsg && (
             <div className="mb-6 p-5 glass flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-[color-mix(in_srgb,var(--warning)_15%,transparent)] text-[color:var(--warning)] flex items-center justify-center shrink-0 mt-0.5">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
-              </div>
+
               <div className="flex-1 pt-0.5">
                 <p className="text-[14px] font-bold text-[color:var(--ink)]">{soldOutMsg}</p>
                 <p className="text-[13px] font-medium text-[color:var(--ink-muted)] mt-1">Available slots have been refreshed below so you can try again.</p>
@@ -630,14 +635,10 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
           
           <div className="text-center mb-10 w-full flex flex-col items-center justify-center">
              {!embed && <a href="/" className="glass-chip inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-bold text-[color:var(--ink-muted)] transition-colors mb-6 hover:shadow-md">
-               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
                Back to tours
              </a>}
              {/* Only render once the tour row is loaded — "0 min · From R" placeholders read as broken */}
              {selectedTour && <div className="glass-chip inline-flex items-center gap-4 p-2 pr-6 mb-2">
-               <div className="w-12 h-12 bg-[color:var(--accentSoft)] text-[color:var(--accent-text)] rounded-full flex items-center justify-center shrink-0">
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-               </div>
                <div className="text-left">
                  <h3 className="font-extrabold text-[16px] text-[color:var(--ink)] leading-tight">{selectedTour?.name}</h3>
                  <p className="text-[color:var(--ink-muted)] text-[12px] font-bold mt-0.5">
@@ -663,17 +664,12 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
 
               {!selectedDate ? (
                 <div className="glass !border-dashed text-center py-16 px-6 flex flex-col items-center justify-center">
-                  <div className="w-16 h-16 surface-muted !rounded-full flex items-center justify-center text-[color:var(--accent-text)] mb-4">
-                     <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                  </div>
+
                   <p className="text-[14px] font-bold text-[color:var(--ink)]">No date selected</p>
                    <p className="text-[13px] font-medium text-[color:var(--ink-muted)] mt-1">Tap a highlighted date to see available times.</p>
                 </div>
               ) : daySlots.length === 0 ? (
                 <div className="glass !border-dashed text-center py-16 px-6 flex flex-col items-center justify-center">
-                   <div className="w-16 h-16 surface-muted !rounded-full flex items-center justify-center text-[color:var(--ink-muted)] mb-4">
-                     <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  </div>
                   <p className="text-[14px] font-bold text-[color:var(--ink)]">No times available</p>
                   <p className="text-[13px] font-medium text-[color:var(--ink-muted)] mt-1">Try selecting another date to proceed.</p>
                 </div>
@@ -701,9 +697,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                         aria-label={fmtTime(s.start_time, tz) + " — " + a + " spots " + (isLow ? "remaining, book soon" : "available")}
                         className={"w-full text-left rounded-[1.5rem] p-5 transition-all outline-none flex items-center gap-4 group " + (isSel ? "border-2 border-[color:var(--accent)] bg-[color:var(--accent)] text-[color:var(--ink-on-main)] shadow-lg overflow-hidden relative" : "glass !rounded-[1.5rem] hover:shadow-md")}>
                         {isSel && <div className="absolute inset-0 bg-[color:var(--main-overlay)] mix-blend-overlay"></div>}
-                        <div className={"w-12 h-12 rounded-full flex items-center justify-center shrink-0 relative z-10 " + (isSel ? "bg-[color:var(--ink-on-main)] text-[color:var(--accent)]" : "bg-[color:var(--accentSoft)] text-[color:var(--accent-text)] group-hover:bg-[color:var(--hover-overlay)]")}>
-                           <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        </div>
+
                         <div className="flex-1 min-w-0 relative z-10">
                            <p className={"text-[18px] font-extrabold leading-tight " + (isSel ? "text-[color:var(--ink-on-main)]" : "text-[color:var(--ink)]")}>{fmtTime(s.start_time, tz)}</p>
                            <p className={"text-[12px] font-bold mt-0.5 " + (isSel ? "text-[color:var(--ink-on-main)] opacity-80" : isVeryLow ? "text-[color:var(--danger)]" : isLow ? "text-[color:var(--warning)]" : "text-[color:var(--ink-muted)]")}>{a} {a === 1 ? "spot" : "spots"} remaining</p>
@@ -723,18 +717,89 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                       </button>
                     );
                   })}
-                  
-                  {selectedSlot && (
-                    <div className="mt-4 animate-in fade-in slide-in-from-top-2">
-                       <button onClick={() => { setHoldExpiresAt(new Date(Date.now() + 15 * 60 * 1000)); setStep("details"); }} className="btn btn-primary w-full !py-4 text-[15px] group">
-                         Continue to Details
-                         <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-                       </button>
+                     {selectedSlot && (
+                    <div className="mt-6 space-y-6 animate-in fade-in slide-in-from-top-2">
+                      {/* Qty Selector */}
+                      <div className="glass p-5">
+                        <label className="block text-[14px] font-extrabold text-[color:var(--ink)] mb-3">Number of Guests</label>
+                        <div className="flex items-center gap-5">
+                          <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-12 h-12 surface-muted rounded-[1.125rem] flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)] hover:text-[color:var(--ink)] transition-colors">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" /></svg>
+                          </button>
+                          <span className="text-3xl font-extrabold w-10 text-center text-[color:var(--ink)]">{qty}</span>
+                          <button onClick={() => setQty(Math.min(avail, qty + 1))} className="w-12 h-12 surface-muted rounded-[1.125rem] flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)] hover:text-[color:var(--ink)] transition-colors">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                          </button>
+                          <span className="text-[13px] font-bold text-[color:var(--ink-muted)] ml-2">max {avail} limit</span>
+                        </div>
+                      </div>
+
+                      {/* Extras & Add-Ons Selector */}
+                      {availableAddOns.length > 0 && (
+                        <div className="glass p-5">
+                          <label className="block text-[14px] font-extrabold text-[color:var(--ink)] tracking-wide mb-3 uppercase">Extras & Add-Ons</label>
+                          <div className="space-y-3">
+                            {availableAddOns.map(ao => {
+                              const isSelected = !!selectedAddOns[ao.id];
+                              const percentage = Math.round((ao.price / baseTotal) * 100);
+                              const contrastLabel = percentage > 0 ? ` (just ${percentage}% of booking)` : "";
+                              return (
+                                <div key={ao.id} className={"rounded-[1.25rem] p-3.5 transition-all " + (isSelected ? "border-2 border-[color:var(--accent)] bg-[color:var(--accentSoft)]" : "surface-muted !rounded-[1.25rem] hover:bg-[color:var(--hover-overlay)]")}>
+                                  <div className="flex items-start gap-3">
+                                    <input type="checkbox" checked={isSelected} onChange={() => toggleAddOn(ao.id)}
+                                      className="mt-1 w-5 h-5 shrink-0 rounded border-[color:var(--glass-border)] text-[color:var(--accent)] focus:ring-[color:var(--accent)] cursor-pointer" />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-start justify-between">
+                                        <span className="text-[14px] font-bold text-[color:var(--ink)]">{ao.name}</span>
+                                        <span className="text-[13px] font-extrabold text-[color:var(--accent-text)] bg-[color:var(--accentSoft)] px-2 py-0.5 rounded-full shrink-0 ml-2">
+                                          +R{ao.price}{contrastLabel}
+                                        </span>
+                                      </div>
+                                      {ao.description && <p className="text-[12px] text-[color:var(--ink-muted)] mt-1 font-medium leading-relaxed">{ao.description}</p>}
+                                    </div>
+                                  </div>
+                                  {isSelected && (
+                                    <div className="flex items-center gap-2.5 mt-3 ml-8 surface-muted p-1.5 w-max !rounded-full">
+                                      <span className="text-[10px] font-bold uppercase tracking-wider text-[color:var(--ink-muted)] ml-1.5">Qty</span>
+                                      <button onClick={() => setAddOnQty(ao.id, (selectedAddOns[ao.id] || 1) - 1)}
+                                        className="w-7 h-7 rounded-full flex items-center justify-center text-[color:var(--ink-muted)] bg-[color:var(--hover-overlay)] hover:text-[color:var(--ink)] transition-colors">
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" /></svg>
+                                      </button>
+                                      <span className="text-[13px] font-extrabold w-5 text-center text-[color:var(--ink)]">{selectedAddOns[ao.id]}</span>
+                                      <button onClick={() => setAddOnQty(ao.id, (selectedAddOns[ao.id] || 1) + 1)}
+                                        className="w-7 h-7 rounded-full flex items-center justify-center text-[color:var(--ink-muted)] bg-[color:var(--hover-overlay)] hover:text-[color:var(--ink)] transition-colors">
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Brief Reciprocity/Endowment Pricing Summary */}
+                      <div className="glass p-5">
+                        <div className="space-y-2 text-[14px]">
+                          <div className="flex justify-between items-center"><span className="text-[color:var(--ink-muted)] font-bold">Base Price ({qty} Guests)</span><span className="font-extrabold text-[color:var(--ink)]">R{baseTotal}</span></div>
+                          {addOnsTotal > 0 && (
+                            <div className="flex justify-between items-center"><span className="text-[color:var(--ink-muted)] font-bold">Selected Extras</span><span className="font-extrabold text-[color:var(--accent-text)]">+R{addOnsTotal}</span></div>
+                          )}
+                          <div className="border-t border-[color:var(--glass-border)] pt-3 mt-3 flex justify-between items-end">
+                            <span className="text-[13px] font-extrabold uppercase tracking-widest text-[color:var(--ink-muted)]">Subtotal</span>
+                            <span className="text-2xl font-extrabold tracking-tight text-[color:var(--ink)]">R{grandTotal}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button onClick={() => { setHoldExpiresAt(new Date(Date.now() + 15 * 60 * 1000)); setStep("details"); }} className="btn btn-primary w-full !py-4 text-[15px] group">
+                        Continue to Details
+                      </button>
                     </div>
                   )}
                   
                   <p className="text-[12px] font-bold text-[color:var(--ink-muted)] mt-2 flex items-center justify-center gap-1.5 text-center">
-                    <svg className="w-4 h-4 text-[color:var(--ink-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     Bookings automatically close 1 hour prior to departure
                   </p>
                 </div>
@@ -764,21 +829,6 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
           <h2 className="text-3xl font-extrabold text-[color:var(--ink)] mb-8 tracking-tight pl-2">Complete Booking</h2>
           <div className="grid md:grid-cols-5 gap-8 lg:gap-12">
             <div className="md:col-span-3 space-y-6">
-              
-              {/* Qty Selector */}
-              <div className="glass p-6">
-                <label className="block text-[14px] font-extrabold text-[color:var(--ink)] mb-4">Number of People</label>
-                <div className="flex items-center gap-5">
-                  <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-12 h-12 surface-muted rounded-[1.125rem] flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)] hover:text-[color:var(--ink)] transition-colors">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" /></svg>
-                  </button>
-                  <span className="text-3xl font-extrabold w-10 text-center text-[color:var(--ink)]">{qty}</span>
-                  <button onClick={() => setQty(Math.min(avail, qty + 1))} className="w-12 h-12 surface-muted rounded-[1.125rem] flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)] hover:text-[color:var(--ink)] transition-colors">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
-                  </button>
-                  <span className="text-[13px] font-bold text-[color:var(--ink-muted)] ml-2">max {avail} limit</span>
-                </div>
-              </div>
 
               {/* Personal Details */}
               <div className="glass p-6 space-y-5">
@@ -824,58 +874,15 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                  )}
               </div>
 
-              {availableAddOns.length > 0 && (
-                <div className="glass p-6">
-                  <label className="block text-[14px] font-extrabold text-[color:var(--ink)] tracking-wide mb-4 uppercase">Extras & Add-Ons</label>
-                  <div className="space-y-3">
-                    {availableAddOns.map(ao => {
-                      const isSelected = !!selectedAddOns[ao.id];
-                      return (
-                        <div key={ao.id} className={"rounded-[1.25rem] p-4 transition-all " + (isSelected ? "border-2 border-[color:var(--accent)] bg-[color:var(--accentSoft)]" : "surface-muted !rounded-[1.25rem] hover:bg-[color:var(--hover-overlay)]")}>
-                          <div className="flex items-start gap-4">
-                            <input type="checkbox" checked={isSelected} onChange={() => toggleAddOn(ao.id)}
-                              className="mt-1 w-5 h-5 shrink-0 rounded border-[color:var(--glass-border)] text-[color:var(--accent)] focus:ring-[color:var(--accent)] cursor-pointer" />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start justify-between">
-                                <span className="text-[15px] font-bold text-[color:var(--ink)]">{ao.name}</span>
-                                <span className="text-[14px] font-extrabold text-[color:var(--accent-text)] bg-[color:var(--accentSoft)] px-2.5 py-0.5 rounded-full shrink-0 ml-2">+R{ao.price}</span>
-                              </div>
-                              {ao.description && <p className="text-[13px] text-[color:var(--ink-muted)] mt-1 font-medium leading-relaxed">{ao.description}</p>}
-                            </div>
-                          </div>
-                          {isSelected && (
-                            <div className="flex items-center gap-3 mt-4 ml-9 surface-muted p-2 w-max !rounded-full">
-                              <span className="text-[11px] font-bold uppercase tracking-wider text-[color:var(--ink-muted)] ml-2">Qty</span>
-                              <button onClick={() => setAddOnQty(ao.id, (selectedAddOns[ao.id] || 1) - 1)}
-                                className="w-8 h-8 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 rounded-full flex items-center justify-center text-[color:var(--ink-muted)] bg-[color:var(--hover-overlay)] hover:text-[color:var(--ink)] transition-colors">
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" /></svg>
-                              </button>
-                              <span className="text-[14px] font-extrabold w-6 text-center text-[color:var(--ink)]">{selectedAddOns[ao.id]}</span>
-                              <button onClick={() => setAddOnQty(ao.id, (selectedAddOns[ao.id] || 1) + 1)}
-                                className="w-8 h-8 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 rounded-full flex items-center justify-center text-[color:var(--ink-muted)] bg-[color:var(--hover-overlay)] hover:text-[color:var(--ink)] transition-colors">
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
               {/* Discounts Block */}
               <div className="glass p-6 space-y-6">
                  <div>
                    <label htmlFor="book-promo" className="block text-[14px] font-extrabold text-[color:var(--ink)] tracking-wide mb-3 uppercase">Promo Code</label>
                    {!appliedPromo ? (
                      <>
-                       <div className="flex gap-2 relative">
-                         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[color:var(--ink-muted)]">
-                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
-                         </div>
+                       <div className="flex gap-2">
                          <input id="book-promo" type="text" value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder="e.g. SUMMER20"
-                           className="field flex-1 pl-10 font-bold uppercase tracking-wider placeholder:normal-case placeholder:font-medium"
+                           className="field flex-1 pl-4 font-bold uppercase tracking-wider placeholder:normal-case placeholder:font-medium"
                            onKeyDown={e => e.key === "Enter" && applyPromo()} />
                          <button onClick={applyPromo} className="btn btn-primary px-6">Apply</button>
                        </div>
@@ -884,9 +891,6 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                    ) : (
                      <div className="flex items-center justify-between bg-[color:var(--accentSoft)] border border-[color-mix(in_srgb,var(--accent)_30%,transparent)] px-5 py-4 rounded-full">
                        <div className="flex items-center gap-3">
-                         <div className="w-8 h-8 rounded-full bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] text-[color:var(--accent-text)] flex items-center justify-center shrink-0">
-                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                         </div>
                          <span className="text-[14px] text-[color:var(--accent-text)] font-extrabold">
                            {appliedPromo.code} <span className="text-[color:var(--accent-text)] opacity-70 ml-1 font-bold">({appliedPromo.discount_type === "PERCENT" ? appliedPromo.discount_value + "% off" : "R" + appliedPromo.discount_value + " off"})</span>
                          </span>
@@ -911,9 +915,6 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                      return (
                        <div key={v.code} className="flex items-center justify-between mt-3 bg-[color-mix(in_srgb,var(--success)_10%,transparent)] border border-[color-mix(in_srgb,var(--success)_30%,transparent)] px-5 py-4 rounded-full">
                          <div className="flex items-center gap-3">
-                           <div className="w-8 h-8 rounded-full bg-[color-mix(in_srgb,var(--success)_16%,transparent)] text-[color:var(--success)] flex items-center justify-center shrink-0">
-                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                           </div>
                            <span className="text-[14px] text-[color:var(--ink)] font-extrabold font-mono tracking-widest">
                              {v.code}
                              <span className="font-sans text-[color:var(--success)] tracking-normal ml-2">
@@ -931,9 +932,6 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
               </div>
 
               <div className="mt-4 p-5 glass flex items-start gap-4">
-                <div className="w-10 h-10 rounded-full bg-[color-mix(in_srgb,var(--warning)_15%,transparent)] text-[color:var(--warning)] flex items-center justify-center shrink-0 mt-0.5">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                </div>
                 <div className="flex-1 pt-0.5">
                   <p className="text-[14px] font-extrabold text-[color:var(--ink)]">Waiver Required</p>
                   <p className="text-[13px] font-medium text-[color:var(--ink-muted)] mt-1">All participants must complete a digital waiver before arriving. A secure link will be included in your confirmation email.</p>
@@ -997,27 +995,22 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
 
                 <button onClick={submitBooking} disabled={submitting || !name.trim() || !email.trim() || !phone.trim() || !termsAccepted}
                   className="btn btn-primary w-full mt-8 !py-4 text-[15px]">
-                  {submitting ? "Processing..." : finalTotal <= 0 ? "Confirm Booking ✓" : "Pay R" + finalTotal + " Securely"}
+                  {submitting ? "Processing..." : finalTotal <= 0 ? "Confirm Booking ✓" : "Pay R" + finalTotal + " Total Securely →"}
                 </button>
                 <div className="surface-muted !rounded-full flex items-center justify-center gap-2 mt-4 px-4 py-2 text-[11px] font-bold text-[color:var(--ink-muted)] uppercase tracking-widest">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                   Yoco Secure Payment
                 </div>
                 <div className="mt-4 space-y-2 text-[12px] text-[color:var(--ink-muted)]">
                   <div className="flex items-center gap-2">
-                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                     <span>Card details handled directly by Yoco — never touch our servers</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
                     <span>Processed by a PCI DSS compliant provider over encrypted TLS</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                     <span>Flexible cancellation policy</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                     <span>Confirmation email sent within 1 minute</span>
                   </div>
                   {theme.refund_policy_text && (
@@ -1038,11 +1031,6 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
         <div className="text-center py-16 max-w-lg mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
           {paymentUrl === "FREE" ? (
             <div className="glass p-8 flex flex-col items-center">
-              <div className="w-24 h-24 bg-[color-mix(in_srgb,var(--success)_12%,transparent)] rounded-full flex items-center justify-center mb-6 shadow-inner">
-                <div className="w-16 h-16 bg-[color:var(--success)] rounded-full flex items-center justify-center text-[color:var(--ink-on-main)] shadow-md">
-                  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                </div>
-              </div>
               <h2 className="text-3xl font-extrabold text-[color:var(--ink)] mb-2 tracking-tight">You&apos;re All Set!</h2>
               <p className="text-[15px] font-bold text-[color:var(--ink-muted)] mb-8">Booking confirmed. Your itinerary is on its way.</p>
 
@@ -1055,9 +1043,6 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
 
               {voucherRemainders.length > 0 && (
                 <div className="w-full bg-[color-mix(in_srgb,var(--success)_10%,transparent)] border border-[color-mix(in_srgb,var(--success)_25%,transparent)] rounded-[1.5rem] p-6 text-left mb-8 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-4 opacity-10">
-                     <svg className="w-16 h-16 text-[color:var(--success)]" fill="currentColor" viewBox="0 0 24 24"><path d="M21.582 5.764a.75.75 0 00-1.164-.264L12 12.181l-8.418-6.68a.75.75 0 00-1.164.264v12.47a.75.75 0 00.75.75h17.664a.75.75 0 00.75-.75V5.764z"/></svg>
-                  </div>
                   <p className="text-[14px] font-extrabold text-[color:var(--success)] tracking-wide uppercase mb-3 relative z-10">Voucher Credit Return</p>
                   {voucherRemainders.map((vr) => (
                     <div key={vr.code} className="flex flex-col mb-2 last:mb-0 relative z-10">
@@ -1071,9 +1056,6 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
 
               {waiverUrl && (
                 <div className="w-full bg-[color-mix(in_srgb,var(--warning)_10%,transparent)] border border-[color-mix(in_srgb,var(--warning)_25%,transparent)] rounded-[1.5rem] p-6 text-left mb-8 flex flex-col items-start">
-                  <div className="w-10 h-10 rounded-full bg-[color-mix(in_srgb,var(--warning)_15%,transparent)] flex items-center justify-center text-[color:var(--warning)] mb-3 shadow-sm border border-[color-mix(in_srgb,var(--warning)_30%,transparent)]">
-                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                  </div>
                   <p className="text-[15px] font-extrabold text-[color:var(--ink)] mb-1">Sign Waiver Document</p>
                   <p className="text-[13px] font-bold text-[color:var(--ink-muted)] mb-5 leading-relaxed">It is mandatory for all group members to sign the safety waiver. Complete it now to save time.</p>
                   <a href={waiverUrl} className="btn btn-primary w-full !py-3.5">Review & Sign Documents</a>
@@ -1087,9 +1069,6 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
             </div>
           ) : (
             <div className="glass p-8 flex flex-col items-center">
-              <div className="w-20 h-20 surface-muted !rounded-full flex items-center justify-center mb-6 shadow-inner">
-                 <svg className="w-8 h-8 text-[color:var(--ink)]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
-              </div>
               <h2 className="text-3xl font-extrabold text-[color:var(--ink)] mb-2 tracking-tight">Finalizing Checkout</h2>
               {holdExpiresAt ? (
                 <div className="mb-4 mt-2">
@@ -1113,7 +1092,6 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
 
               <a href={paymentUrl} onClick={embed ? (e) => { e.preventDefault(); if (window.top) window.top.location.href = paymentUrl; else window.location.href = paymentUrl; } : undefined} className="btn btn-primary w-full !py-4 text-[16px]">Proceed to Secure Portal &rarr;</a>
               <div className="surface-muted !rounded-full flex items-center justify-center gap-2 mt-6 px-4 py-2 text-[11px] font-bold text-[color:var(--ink-muted)] uppercase tracking-widest">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                 Regulated via Yoco · Ref: {bookingRef}
               </div>
             </div>

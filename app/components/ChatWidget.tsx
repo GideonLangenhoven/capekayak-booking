@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import ChatCalendar from "./ChatCalendar";
 import { useTheme } from "./ThemeProvider";
-import { ChatSparkGlyph, SparkleGlyph } from "./ui/Glyphs";
+
 import type { ChatMessage, ChatButton } from "../lib/types";
 
 export default function ChatWidget() {
@@ -99,24 +99,44 @@ export default function ChatWidget() {
       {open && (
         <div className="glass-sheet fixed bottom-6 right-6 chat-launcher-lift z-50 flex h-[32rem] w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden" style={{ animation: "su .2s ease-out" }}>
           <style>{`@keyframes su{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}@keyframes bl{0%,80%,100%{opacity:0}40%{opacity:1}}`}</style>
-          <div className="bg-gray-900 text-white p-4 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-3"><div className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center"><ChatSparkGlyph size={18} /></div><div><p className="text-sm font-semibold">{business_name || "Chat"}</p>{isHuman ? (<div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400"></span><p className="text-xs text-gray-400">Live agent{adminName ? " \u00b7 " + adminName : ""}</p></div>) : (<div className="flex items-center gap-1.5"><SparkleGlyph size={10} className="text-[#E89B4B]" /><p className="text-xs text-gray-400">AI assistant</p></div>)}</div></div>
+          <div className="border-b p-4 flex items-center justify-between shrink-0" style={{ borderColor: "var(--glass-border)", color: "var(--ink-sheet)" }}>
+            <div className="flex items-center gap-3">
+
+              <div>
+                <p className="text-sm font-semibold" style={{ color: "var(--ink-sheet)" }}>{business_name || "Chat"}</p>
+                {isHuman ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <p className="text-xs" style={{ color: "var(--ink-muted)" }}>Live agent{adminName ? " \u00b7 " + adminName : ""}</p>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs" style={{ color: "var(--ink-muted)" }}>AI assistant</p>
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="flex items-center gap-1">
-              <button aria-label="New chat" onClick={() => { setMsgs([]); setSt({ step: "IDLE" }); greeted.current = false; setTimeout(() => { greeted.current = true; setTyping(true); setTimeout(() => { setTyping(false); setMsgs([{ role: "bot", text: "Hi there! How can I help?" }]); }, 900 + Math.random() * 500); }, 400); }} className="text-gray-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10" title="New chat"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
-              <button aria-label="Close chat" onClick={() => setOpen(false)} className="text-gray-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10" title="Close">✕</button>
+              <button aria-label="New chat" onClick={() => { setMsgs([]); setSt({ step: "IDLE" }); greeted.current = false; setTimeout(() => { greeted.current = true; setTyping(true); setTimeout(() => { setTyping(false); setMsgs([{ role: "bot", text: "Hi there! How can I help?" }]); }, 900 + Math.random() * 500); }, 400); }} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[color:var(--hover-overlay)]" style={{ color: "var(--ink-muted)" }} title="New chat"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+              <button aria-label="Close chat" onClick={() => setOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[color:var(--hover-overlay)]" style={{ color: "var(--ink-muted)" }} title="Close">✕</button>
             </div>
           </div>
-          <div className="flex-1 overflow-auto p-4 space-y-3 bg-gray-50">
+          <div className="flex-1 overflow-auto p-4 space-y-3 bg-transparent">
             {msgs.map((m, i) => (
               <div key={i}>
                 <div className={"flex " + (m.role === "user" ? "justify-end" : "justify-start")} style={{ animation: "su .15s ease-out" }}>
-                  {m.role === "bot" && <div className="w-7 h-7 bg-gray-900 text-white rounded-full flex items-center justify-center mr-2 shrink-0 mt-1"><ChatSparkGlyph size={13} /></div>}
-                  <div className={"max-w-[80%] px-3.5 py-2.5 text-sm leading-relaxed " + (m.role === "user" ? "bg-gray-900 text-white rounded-2xl rounded-br-md" : "bg-white border border-gray-200 text-gray-800 rounded-2xl rounded-bl-md shadow-sm")}><p className="whitespace-pre-wrap">{m.text}</p></div>
+
+                  <div
+                    className={"max-w-[80%] px-3.5 py-2.5 text-sm leading-relaxed " + (m.role === "user" ? "rounded-2xl rounded-br-md shadow-sm" : "border rounded-2xl rounded-bl-md shadow-sm")}
+                    style={m.role === "user" ? { backgroundColor: "var(--accent)", color: "var(--ink-on-main)" } : { backgroundColor: "var(--glass-tint-card)", color: "var(--ink)", borderColor: "var(--glass-border)" }}
+                  >
+                    <p className="whitespace-pre-wrap" style={m.role === "user" ? { color: "var(--ink-on-main)" } : { color: "var(--ink)" }}>{m.text}</p>
+                  </div>
                 </div>
                 {m.paymentUrl && (
                   <div className="ml-9 mt-2">
-                    <a href={m.paymentUrl} target="_blank" rel="noopener noreferrer" className="inline-block bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-emerald-700 no-underline shadow-md">Complete Payment →</a>
-                    <p className="text-xs text-gray-400 mt-1">Spots held for 15 min</p>
+                    <a href={m.paymentUrl} target="_blank" rel="noopener noreferrer" className="inline-block px-5 py-2.5 rounded-xl text-sm font-semibold no-underline shadow-md" style={{ backgroundColor: "var(--cta)", color: "var(--ink-on-cta)" }}>Complete Payment →</a>
+                    <p className="text-xs mt-1" style={{ color: "var(--ink-muted)" }}>Spots held for 15 min</p>
                   </div>
                 )}
                 {m.calendar && m.calendar.length > 0 && (
@@ -125,20 +145,44 @@ export default function ChatWidget() {
                 {m.buttons && m.buttons.length > 0 && (
                   <div className="ml-9 mt-2 flex flex-col gap-1.5">
                     {m.buttons.map((b: ChatButton, j: number) => (
-                      <button key={j} onClick={() => send("btn:" + b.value)} className="text-left text-xs bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-700 hover:bg-gray-100 hover:border-gray-400 transition-colors font-medium shadow-sm">{b.label}</button>
+                      <button key={j} onClick={() => send("btn:" + b.value)}
+                        className="text-left text-xs border rounded-xl px-3 py-2.5 transition-colors font-medium shadow-sm hover:bg-[color:var(--hover-overlay)]"
+                        style={{ backgroundColor: "var(--glass-tint-card)", color: "var(--ink)", borderColor: "var(--glass-border)" }}
+                      >
+                        {b.label}
+                      </button>
                     ))}
                   </div>
                 )}
               </div>
             ))}
-            {showJoined && (<div className="text-center text-xs text-gray-500 my-2 animate-in fade-in duration-300">A team member just joined this chat.</div>)}
-            {typing && <div className="flex justify-start" style={{ animation: "su .15s ease-out" }}><div className="w-7 h-7 bg-gray-900 text-white rounded-full flex items-center justify-center mr-2 shrink-0"><ChatSparkGlyph size={13} /></div><div className="bg-white border border-gray-200 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm"><div className="flex gap-1"><span className="w-2 h-2 rounded-full bg-gray-400" style={{ animation: "bl 1.4s infinite 0s" }} /><span className="w-2 h-2 rounded-full bg-gray-400" style={{ animation: "bl 1.4s infinite .2s" }} /><span className="w-2 h-2 rounded-full bg-gray-400" style={{ animation: "bl 1.4s infinite .4s" }} /></div></div></div>}
+            {showJoined && (<div className="text-center text-xs my-2 animate-in fade-in duration-300" style={{ color: "var(--ink-muted)" }}>A team member just joined this chat.</div>)}
+            {typing && (
+              <div className="flex justify-start" style={{ animation: "su .15s ease-out" }}>
+
+                <div className="border rounded-2xl rounded-bl-md px-4 py-3 shadow-sm" style={{ backgroundColor: "var(--glass-tint-card)", borderColor: "var(--glass-border)" }}>
+                  <div className="flex gap-1">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "var(--ink-muted)", animation: "bl 1.4s infinite 0s" }} />
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "var(--ink-muted)", animation: "bl 1.4s infinite .2s" }} />
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "var(--ink-muted)", animation: "bl 1.4s infinite .4s" }} />
+                  </div>
+                </div>
+              </div>
+            )}
             <div ref={endRef} />
           </div>
-          <div className="p-3 border-t border-gray-200 bg-white shrink-0">
+          <div className="p-3 border-t shrink-0 bg-transparent" style={{ borderColor: "var(--glass-border)" }}>
             <div className="flex gap-2">
-              <input ref={inRef} type="text" aria-label="Chat message" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="Type a message..." disabled={typing} className="flex-1 px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:opacity-50" />
-              <button aria-label="Send message" onClick={() => send()} disabled={!input.trim() || typing} className="bg-gray-900 text-white w-10 h-10 rounded-xl flex items-center justify-center hover:bg-gray-800 disabled:opacity-30 shrink-0"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg></button>
+              <input ref={inRef} type="text" aria-label="Chat message" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="Type a message..." disabled={typing}
+                className="flex-1 px-3.5 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)] disabled:opacity-50"
+                style={{ backgroundColor: "var(--glass-tint-card)", color: "var(--ink)", borderColor: "var(--glass-border)" }}
+              />
+              <button aria-label="Send message" onClick={() => send()} disabled={!input.trim() || typing}
+                className="w-10 h-10 rounded-xl flex items-center justify-center disabled:opacity-30 shrink-0"
+                style={{ backgroundColor: "var(--cta)", color: "var(--ink-on-cta)" }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
+              </button>
             </div>
           </div>
         </div>

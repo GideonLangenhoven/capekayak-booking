@@ -94,9 +94,7 @@ export default function Home() {
       {draft && (
         <div className="glass mb-8 px-5 py-4 animate-in fade-in duration-300">
           <div className="flex items-center gap-4">
-            <div className="glass-chip flex h-10 w-10 shrink-0 items-center justify-center" style={{ color: "var(--accent-text)" }}>
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            </div>
+
             <div className="flex-1 min-w-0">
               <p className="text-[14px] font-semibold" style={{ color: "var(--ink)" }}>Pick up where you left off?</p>
               <p className="truncate text-[13px]" style={{ color: "var(--ink-muted)" }}>
@@ -171,13 +169,11 @@ export default function Home() {
                   {tour.name}
                 </h3>
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <span className="glass-chip inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+                  <span className="glass-chip inline-flex items-center px-2.5 py-1 text-[11px] font-semibold">
                     {formatDuration(tour.duration_minutes)}
                   </span>
                   {rv && (
-                    <span className="glass-chip inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                    <span className="glass-chip inline-flex items-center px-2.5 py-1 text-[11px] font-semibold">
                       {rv.avg.toFixed(1)} · {rv.count} review{rv.count !== 1 ? "s" : ""}
                     </span>
                   )}

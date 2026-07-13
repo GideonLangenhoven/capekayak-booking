@@ -36,7 +36,6 @@ interface LoginScreenProps {
 function MailBadge() {
   return (
     <div className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium" style={{ background: "var(--accentSoft)", color: "var(--accent)" }}>
-      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
       Check your email
     </div>
   );
@@ -183,14 +182,7 @@ export default function LoginScreen({
       <div className="glass-sheet glass-sheet-enter p-6 sm:p-8">
       {/* Brand moment */}
       <div className="mb-7 text-center">
-        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: "var(--accentSoft)", color: "var(--accent)" }}>
-          {/* dotted trail — echoes the brand mark */}
-          <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path d="M4 19c4.5-1.5 5-6 8-8.5 2.2-1.8 5-2 7-4.5" strokeWidth={1.9} strokeLinecap="round" strokeDasharray="0.2 3.4" />
-            <circle cx="19.5" cy="5.5" r="1.9" strokeWidth={1.6} />
-            <circle cx="4" cy="19" r="1.3" fill="currentColor" stroke="none" />
-          </svg>
-        </div>
+
         <h1 className="font-display text-[27px] font-semibold tracking-[-0.02em] text-[color:var(--text)]">Your trips</h1>
         <p className="mx-auto mt-2 max-w-[300px] text-sm text-[color:var(--textMuted)]">{subtitle}</p>
       </div>
@@ -320,7 +312,6 @@ export default function LoginScreen({
       </div>
 
       <p className="glass-chip mx-auto mt-5 flex w-fit max-w-full items-center justify-center gap-1.5 px-4 py-2 text-center text-xs" style={{ color: "var(--ink)" }}>
-        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
         Secure one-time sign-in for {theme.business_name || "your"} bookings — no passwords.
       </p>
     </div>

@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createVoucherSupabase } from "../lib/supabase";
 import ConfirmationSkeleton from "../components/skeletons/ConfirmationSkeleton";
-import { GiftGlyph } from "../components/ui/Glyphs";
+
 
 function VoucherConfirmedContent() {
   const params = useSearchParams();
@@ -31,7 +31,7 @@ function VoucherConfirmedContent() {
   return (
     <div className="app-container max-w-md page-wrap">
       <div className="mb-8 text-center">
-        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-[color:var(--accentSoft)] text-[color:var(--accent)]"><GiftGlyph size={38} /></div>
+
         <h2 className="headline-lg mb-2">Voucher Purchase Confirmed</h2>
         <p>Your gift voucher is ready to share.</p>
       </div>
@@ -71,7 +71,7 @@ function VoucherConfirmedContent() {
       )}
 
       <div className="surface-muted mb-6 p-4 toast-enter">
-        <p className="text-sm font-medium text-[color:var(--text)]">📧 Voucher details emailed to {voucher?.buyer_email}</p>
+        <p className="text-sm font-medium text-[color:var(--text)]">Voucher details emailed to {voucher?.buyer_email}</p>
         <p className="mt-1 text-xs">Share this code with the recipient to use during online or WhatsApp booking.</p>
       </div>
 

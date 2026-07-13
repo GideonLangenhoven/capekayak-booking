@@ -14,7 +14,6 @@ export default function Footer() {
         <p className="max-w-none">{line1}</p>
         {line2 && <p className="mt-1 max-w-none">{line2}</p>}
         <p className="glass-chip mx-auto mt-4 inline-flex max-w-full items-center gap-2 px-4 py-2 text-xs">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0"><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>
           <span>Secure checkout — payments processed by PCI DSS compliant providers &middot; card details never touch our servers &middot; TLS encrypted</span>
         </p>
         <nav className="mt-4 flex flex-wrap justify-center gap-4">

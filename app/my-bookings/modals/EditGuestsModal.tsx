@@ -164,7 +164,6 @@ export default function EditGuestsModal({
               className="flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white transition hover:opacity-90"
               style={{ backgroundColor: "var(--accent, #14b8a6)" }}>
               Pay R{paymentAmount ?? finalCost} now
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
             </a>
             <p className="text-xs text-center text-[color:var(--textMuted)]">Your extra guest{guestDiff > 1 ? "s are" : " is"} held for 15 minutes. The booking updates automatically once payment completes — you can close this after paying.</p>
           </div>

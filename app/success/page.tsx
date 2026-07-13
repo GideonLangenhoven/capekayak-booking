@@ -5,7 +5,7 @@ import Link from "next/link";
 import { createScopedSupabase, createTenantSupabase, supabase } from "../lib/supabase";
 import { useTheme } from "../components/ThemeProvider";
 import ConfirmationSkeleton from "../components/skeletons/ConfirmationSkeleton";
-import { CheckCircleGlyph, CalendarGlyph, GiftGlyph, ImagePlaceholderGlyph } from "../components/ui/Glyphs";
+
 import { fmtFull, fmtTime, gCalFmt } from "../lib/format";
 import { formatDuration, isMultiDay, tourEndDate } from "../lib/duration";
 import type { Booking } from "../lib/types";
@@ -63,7 +63,7 @@ function SuccessContent() {
 
   if (!booking) return (
     <div className="app-container max-w-md py-16 text-center">
-      <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-[color:var(--accentSoft)] text-[color:var(--accent)]"><CheckCircleGlyph size={40} /></div>
+
       <h2 className="headline-lg mb-3">Booking Confirmed</h2>
       <p className="mb-8">Your payment was successful. Check your email for your booking details.</p>
       <Link href="/" className="btn btn-primary px-8 py-3">Back to Tours</Link>
@@ -151,7 +151,7 @@ function SuccessContent() {
       </div>
 
       <div className="glass mb-6 p-4 toast-enter">
-        <p className="text-sm font-medium !text-[color:var(--ink)]">📧 Confirmation emailed to {booking.email}</p>
+        <p className="text-sm font-medium !text-[color:var(--ink)]">Confirmation emailed to {booking.email}</p>
         <p className="mt-1 text-xs !text-[color:var(--ink-muted)]">Please check your inbox (and spam folder) for your receipt and details.</p>
       </div>
 
@@ -168,7 +168,7 @@ function SuccessContent() {
       ) : (
         (booking as any).waiver_token && (
           <div className="glass mb-6 p-4" style={{ borderLeft: "4px solid var(--warning)" }}>
-            <p className="text-sm font-semibold !text-[color:var(--ink)] mb-1">📝 Sign your waiver</p>
+            <p className="text-sm font-semibold !text-[color:var(--ink)] mb-1">Sign your waiver</p>
             <p className="text-xs !text-[color:var(--ink-muted)] mb-3">
               All participants need to complete a quick digital waiver before launch. Save time on the day — sign now.
             </p>
@@ -184,14 +184,14 @@ function SuccessContent() {
 
       {directionsText && (
         <div className="glass mb-6 p-4">
-          <p className="mb-2 text-sm font-semibold !text-[color:var(--ink)]">📍 Meeting Point</p>
+          <p className="mb-2 text-sm font-semibold !text-[color:var(--ink)]">Meeting Point</p>
           <p className="text-sm whitespace-pre-line !text-[color:var(--ink)]">{directionsText}</p>
         </div>
       )}
 
       {theme.what_to_bring && (
         <div className="glass mb-6 p-4">
-          <p className="mb-2 text-sm font-semibold !text-[color:var(--ink)]">🎒 What to Bring</p>
+          <p className="mb-2 text-sm font-semibold !text-[color:var(--ink)]">What to Bring</p>
           <p className="text-sm !text-[color:var(--ink)]">{theme.what_to_bring}</p>
         </div>
       )}
@@ -199,8 +199,8 @@ function SuccessContent() {
       <div className="space-y-3 mb-8">
         {gCalUrl && icsUrl && (
           <div className="flex gap-2">
-            <a href={gCalUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary flex-1 py-3 text-center"><CalendarGlyph size={16} className="shrink-0" /> Google Calendar</a>
-            <a href={icsUrl} className="btn btn-secondary flex-1 py-3 text-center"><CalendarGlyph size={16} className="shrink-0" /> Apple Calendar</a>
+            <a href={gCalUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary flex-1 py-3 text-center">Google Calendar</a>
+            <a href={icsUrl} className="btn btn-secondary flex-1 py-3 text-center">Apple Calendar</a>
           </div>
         )}
         <Link href="/my-bookings" className="btn btn-primary w-full py-3 text-center">View My Bookings</Link>
@@ -228,7 +228,7 @@ function SuccessContent() {
                   {t.image_url ? (
                     <img src={t.image_url} alt={t.name} className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full bg-[color:var(--accentSoft)] flex items-center justify-center text-[color:var(--accent)]"><ImagePlaceholderGlyph size={28} /></div>
+                    <div className="w-full h-full bg-[color:var(--accentSoft)] flex items-center justify-center text-[color:var(--accent)]" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -246,7 +246,7 @@ function SuccessContent() {
       <div className="glass mb-6 p-5 text-center" style={{ borderLeft: '4px solid var(--accent)' }}>
         <p className="text-sm font-semibold !text-[color:var(--ink)] mb-1">Know someone who&apos;d love this?</p>
         <p className="text-xs !text-[color:var(--ink-muted)] mb-3">Send them a gift voucher they can use anytime.</p>
-        <Link href="/voucher" className="btn btn-primary px-6 py-2 text-sm"><GiftGlyph size={16} className="shrink-0" /> Send a Gift Voucher</Link>
+        <Link href="/voucher" className="btn btn-primary px-6 py-2 text-sm">Send a Gift Voucher</Link>
       </div>
 
       <Link href="/" className="btn btn-ghost w-full text-center">Back to Tours</Link>

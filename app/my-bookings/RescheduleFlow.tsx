@@ -1,6 +1,6 @@
 "use client";
 import Button from "../components/ui/Button";
-import { CreditCardGlyph } from "../components/ui/Glyphs";
+
 import MiniCalendar from "./MiniCalendar";
 import { fmtFull, fmtTime } from "../lib/format";
 import type { Booking, Slot } from "../lib/types";
@@ -36,7 +36,7 @@ export default function RescheduleFlow({
     return (
       <div className="app-container max-w-lg page-wrap py-8 pb-28 lg:pb-8">
         <div className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[color:var(--accentSoft)] text-[color:var(--accent)]"><CreditCardGlyph size={30} /></div>
+
           <h2 className="text-xl font-bold text-[color:var(--text)] mb-2">Complete Payment</h2>
           <p className="text-sm text-[color:var(--textMuted)] mb-6">Your reschedule is confirmed. Pay the R{reschedulePaymentDiff} difference to secure your new slot.</p>
           <a href={reschedulePaymentUrl} className="inline-block w-full rounded-full py-4 text-base font-bold text-white bg-[color:var(--cta,#0f766e)] hover:opacity-90 transition-opacity text-center">

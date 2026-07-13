@@ -58,31 +58,32 @@ export default function ChatCalendar({ availableDates, onSelectDate }: CalendarP
   }
 
   return (
-    <div className="ml-9 mt-2 bg-white border border-gray-200 rounded-xl shadow-sm p-3" style={{ width: "260px" }}>
+    <div className="ml-9 mt-2 border rounded-xl shadow-sm p-3" style={{ width: "260px", backgroundColor: "var(--glass-tint-card)", borderColor: "var(--glass-border)", color: "var(--ink)" }}>
       <div className="flex items-center justify-between mb-2">
-        <button onClick={prevMonth} disabled={!canPrev} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 disabled:opacity-20 text-gray-600 text-sm">◀</button>
-        <span className="text-xs font-semibold text-gray-800">{monthName}</span>
-        <button onClick={nextMonth} disabled={!canNext} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 disabled:opacity-20 text-gray-600 text-sm">▶</button>
+        <button onClick={prevMonth} disabled={!canPrev} className="w-7 h-7 flex items-center justify-center rounded-lg disabled:opacity-20 text-sm hover:bg-[color:var(--hover-overlay)]" style={{ color: "var(--ink)" }}>◀</button>
+        <span className="text-xs font-semibold" style={{ color: "var(--ink)" }}>{monthName}</span>
+        <button onClick={nextMonth} disabled={!canNext} className="w-7 h-7 flex items-center justify-center rounded-lg disabled:opacity-20 text-sm hover:bg-[color:var(--hover-overlay)]" style={{ color: "var(--ink)" }}>▶</button>
       </div>
       <div className="grid grid-cols-7 gap-0.5 mb-1">
-        {dayNames.map(dn => <div key={dn} className="text-center text-[10px] font-medium text-gray-400 py-0.5">{dn}</div>)}
+        {dayNames.map(dn => <div key={dn} className="text-center text-[10px] font-medium py-0.5" style={{ color: "var(--ink-muted)" }}>{dn}</div>)}
       </div>
       <div className="grid grid-cols-7 gap-0.5">
         {cells.map((c, i) => {
           if (!c) return <div key={"e" + i} />;
           if (c.isPast || !c.hasSlots) {
-            return <div key={c.date} className="text-center py-1.5 text-[11px] text-gray-300 rounded-lg">{c.day}</div>;
+            return <div key={c.date} className="text-center py-1.5 text-[11px] rounded-lg" style={{ color: "var(--ink-faint)" }}>{c.day}</div>;
           }
           return (
             <button key={c.date} onClick={() => onSelectDate(c.date)}
-              className="text-center py-1.5 text-[11px] font-semibold text-gray-900 rounded-lg hover:bg-emerald-100 hover:text-emerald-700 transition-colors relative">
+              className="text-center py-1.5 text-[11px] font-semibold rounded-lg transition-colors relative hover:bg-[color:var(--hover-overlay)]"
+              style={{ color: "var(--ink)" }}>
               {c.day}
-              <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-emerald-500"></span>
+              <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "var(--accent)" }}></span>
             </button>
           );
         })}
       </div>
-      <p className="text-[10px] text-gray-400 text-center mt-2">Green dots = available dates</p>
+      <p className="text-[10px] text-center mt-2" style={{ color: "var(--ink-muted)" }}>Accent dots = available dates</p>
     </div>
   );
 }

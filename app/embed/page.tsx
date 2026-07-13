@@ -419,7 +419,15 @@ function WidgetQuick() {
             Secure checkout
           </span>
           <span className="text-[11px] text-[#8a8478]">
-            Powered by <span className="font-bold text-[#4c463e]">BookingTours</span>
+            Powered by{" "}
+            <a
+              href="https://bookingtours.co.za"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold text-[#4c463e]"
+            >
+              BookingTours
+            </a>
           </span>
         </div>
       </div>

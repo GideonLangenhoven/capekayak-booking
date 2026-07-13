@@ -29,11 +29,6 @@ function Toast({ message, type, onDismiss }: { message: string; type: "success" 
         className="glass !rounded-xl flex items-start gap-3 px-4 py-3.5"
         style={{ borderColor: `color-mix(in srgb, ${tone} 30%, transparent)` }}
       >
-        <svg className="mt-0.5 h-4 w-4 shrink-0" style={{ color: tone }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          {type === "success"
-            ? <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            : <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0 3.75h.008v.008H12v-.008zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" />}
-        </svg>
         <p className="flex-1 text-[13.5px] font-medium text-[color:var(--text)]">{message}</p>
         <button onClick={onDismiss} aria-label="Dismiss" className="-my-2 -mr-2 flex h-11 w-11 shrink-0 items-center justify-center text-[color:var(--textMuted)] transition-colors hover:text-[color:var(--text)]">
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -940,7 +935,6 @@ export default function MyBookings() {
         {actionNeeded.length > 0 && (
           <section className="mb-9">
             <div className="mb-3 flex items-center gap-2">
-              <svg className="h-4 w-4" style={{ color: "var(--danger)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
               <h2 className="text-[12px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--danger)" }}>Needs your attention</h2>
             </div>
             <div className="space-y-3">
@@ -951,9 +945,6 @@ export default function MyBookings() {
 
         {bookings.length === 0 ? (
           <div className="glass !border-dashed px-6 py-14 text-center">
-            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: "var(--accentSoft)", color: "var(--accent)" }}>
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15.5 8.5l-2 5-5 2 2-5 5-2z" /></svg>
-            </span>
             <h3 className="font-display mt-4 text-[20px] font-semibold text-[color:var(--text)]">No trips yet</h3>
             <p className="mx-auto mt-1.5 max-w-xs text-[13.5px] text-[color:var(--textMuted)]">When you book, everything lives here — tickets, waivers, changes and photos.</p>
             <Link href="/" className="btn btn-primary mt-6">Browse tours</Link>
@@ -979,9 +970,6 @@ export default function MyBookings() {
             <section className="mb-9 grid gap-3 sm:grid-cols-2">
               <div className="glass p-5">
                 <div className="flex items-center gap-2.5">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "var(--accentSoft)", color: "var(--accent)" }}>
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" /></svg>
-                  </span>
                   <h3 className="text-[14px] font-semibold text-[color:var(--text)]">Voucher balance</h3>
                 </div>
                 {!voucherResult ? (
@@ -1033,9 +1021,6 @@ export default function MyBookings() {
               <button onClick={() => setContactUsOpen(true)}
                 className="glass group p-5 text-left transition-colors hover:border-[color:var(--accent)]">
                 <div className="flex items-center gap-2.5">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "var(--accentSoft)", color: "var(--accent)" }}>
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                  </span>
                   <h3 className="text-[14px] font-semibold text-[color:var(--text)]">Need a hand?</h3>
                 </div>
                 <p className="mt-2.5 text-[12.5px] text-[color:var(--textMuted)]">
@@ -1043,7 +1028,6 @@ export default function MyBookings() {
                 </p>
                 <span className="mt-3 inline-flex items-center gap-1 text-[13px] font-semibold text-[color:var(--accent)]">
                   Contact us
-                  <svg className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
                 </span>
               </button>
             </section>
