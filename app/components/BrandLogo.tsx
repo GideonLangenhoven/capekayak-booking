@@ -2,12 +2,13 @@
    Platform provenance only: tenant branding always wins where a tenant logo exists. */
 
 export function BrandMark({ size = 28, className = "" }: { size?: number; className?: string }) {
+  const scaledSize = Math.round(size * 1.8);
   return (
     <img
       src="/brand/bt-mark.png"
       alt="BookingTours logo"
-      width={size}
-      height={size}
+      width={scaledSize}
+      height={scaledSize}
       className={className}
       style={{ objectFit: "contain" }}
     />
