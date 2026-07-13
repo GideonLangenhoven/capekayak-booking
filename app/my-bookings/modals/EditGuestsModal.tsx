@@ -1,6 +1,5 @@
 import Modal from "../Modal";
 import Button from "../../components/ui/Button";
-import { getTimeTier } from "../constants";
 import type { Booking } from "../../lib/types";
 
 interface EditGuestsModalProps {
@@ -12,6 +11,7 @@ interface EditGuestsModalProps {
   actionLoading: string | null;
   onClose: () => void;
   onSubmit: () => void;
+  refundPercent?: number;
   paymentUrl?: string;
   paymentAmount?: number;
   voucherCode: string;
@@ -30,17 +30,20 @@ interface EditGuestsModalProps {
 
 export default function EditGuestsModal({
   booking, guestQty, setGuestQty, guestExcessAction, setGuestExcessAction,
-  actionLoading, onClose, onSubmit, paymentUrl, paymentAmount,
+  actionLoading, onClose, onSubmit, refundPercent, paymentUrl, paymentAmount,
   voucherCode, setVoucherCode, voucherApplied, voucherError, onApplyVoucher, onRemoveVoucher,
   promoCode, setPromoCode, promoApplied, promoError, onApplyPromo, onRemovePromo,
 }: EditGuestsModalProps) {
   if (!booking) return <Modal open={false} onClose={onClose} title="Edit Guests"><div /></Modal>;
 
   const b = booking;
-  const tier = getTimeTier(b);
   const unitPrice = Number(b.unit_price || 0);
   const guestDiff = guestQty - b.qty;
-  const canRemove = tier === "FULL";
+  // Guests can be removed at any time now; the card refund follows the operator's
+  // cancellation policy (voucher stays full value). Backend enforces the same.
+  const canRemove = true;
+  const refundPct = refundPercent ?? 95;
+  const refundFraction = refundPct / 100;
   const maxQty = (b.slots?.capacity_total || 999) - (b.slots?.booked || 0) - (b.slots?.held || 0) + b.qty;
   const addCost = guestDiff > 0 ? guestDiff * unitPrice : 0;
 
@@ -143,19 +146,17 @@ export default function EditGuestsModal({
         {/* Remove guests: refund/voucher choice */}
         {guestDiff < 0 && (
           <div className="mb-5 space-y-2">
-            <p className="text-sm font-medium text-[color:var(--text)]">R{Math.abs(guestDiff) * unitPrice} credit:</p>
+            <p className="text-sm font-medium text-[color:var(--text)]">Credit for {Math.abs(guestDiff)} removed guest{Math.abs(guestDiff) === 1 ? "" : "s"}:</p>
             <label className="surface-muted !rounded-xl flex items-center gap-3 p-3 cursor-pointer hover:border-[color:var(--accent)] transition-colors has-[:checked]:border-[color:var(--accent)] has-[:checked]:bg-[color:var(--accentSoft)] text-sm">
               <input type="radio" value="VOUCHER" checked={guestExcessAction === "VOUCHER"} onChange={() => setGuestExcessAction("VOUCHER")} className="accent-[color:var(--accent)]" />
-              <span><strong>Voucher</strong> &middot; R{Math.abs(guestDiff) * unitPrice}</span>
+              <span><strong>Voucher</strong> &middot; R{(Math.abs(guestDiff) * unitPrice).toFixed(2)} &middot; full value</span>
             </label>
             <label className="surface-muted !rounded-xl flex items-center gap-3 p-3 cursor-pointer hover:border-[color:var(--accent)] transition-colors has-[:checked]:border-[color:var(--accent)] has-[:checked]:bg-[color:var(--accentSoft)] text-sm">
               <input type="radio" value="REFUND" checked={guestExcessAction === "REFUND"} onChange={() => setGuestExcessAction("REFUND")} className="accent-[color:var(--accent)]" />
-              <span><strong>Refund</strong> &middot; R{(Math.abs(guestDiff) * unitPrice * 0.95).toFixed(2)} (less 5%)</span>
+              <span><strong>Refund</strong> &middot; R{(Math.abs(guestDiff) * unitPrice * refundFraction).toFixed(2)} ({refundPct}% per policy)</span>
             </label>
           </div>
         )}
-
-        {!canRemove && guestQty <= b.qty && <p className="text-xs mb-4" style={{ color: "var(--warning)" }}>Cannot remove guests within 24 hours of trip.</p>}
 
         {paymentUrl ? (
           <div className="space-y-2">

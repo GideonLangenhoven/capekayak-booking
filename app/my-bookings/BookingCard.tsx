@@ -330,7 +330,7 @@ export default function BookingCard({
             )}
             {isActive && !isPast && tier === "LOCKED" && (
               <p className="flex items-center gap-2 text-[12.5px] text-[#F7F5F0]/70">
-                <IconLock /> Trip is within 12 hours — contact us for changes
+                <IconAlert /> Trip is soon — changes and refunds follow the cancellation policy
               </p>
             )}
           </div>
@@ -362,8 +362,16 @@ export default function BookingCard({
               )}
               {isActive && tier === "LOCKED" && (
                 <>
-                  <button className={heroSolid} onClick={() => onSpecialRequest(b)}>Special request</button>
+                  <button className={heroOutline} onClick={() => onEditGuests(b)}>Edit guests</button>
+                  <button className={heroOutline} onClick={() => onContactDetails(b)}>Details</button>
+                  <button className={heroOutline} onClick={() => onSpecialRequest(b)}>Request</button>
                   <button className={heroOutline} onClick={() => onContactUs(b)}>Contact us</button>
+                  {/* Cancel stays available right up to the trip — the operator's
+                      cancellation policy decides the refund (the hint below quotes it),
+                      so the button must be present to act on it. Was hidden in LOCKED,
+                      which is why a same-day booking (e.g. Velma) saw "Cancel now, get
+                      R… back" with no way to do it. */}
+                  <button className={heroQuiet + " col-span-2 sm:col-auto"} onClick={() => onCancel(b)}>Cancel</button>
                 </>
               )}
               {isCompleted && (

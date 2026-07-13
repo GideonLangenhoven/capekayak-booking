@@ -1076,6 +1076,7 @@ export default function MyBookings() {
         booking={editGuestsBooking} guestQty={guestQty} setGuestQty={setGuestQty}
         guestExcessAction={guestExcessAction} setGuestExcessAction={setGuestExcessAction}
         actionLoading={actionLoading} onClose={() => { setEditGuestsBooking(null); setGuestPaymentUrl(""); setGuestPaymentAmount(0); }} onSubmit={submitEditGuests}
+        refundPercent={editGuestsBooking ? refundCalcs[editGuestsBooking.id]?.percent : undefined}
         paymentUrl={guestPaymentUrl} paymentAmount={guestPaymentAmount}
         voucherCode={guestVoucherCode} setVoucherCode={setGuestVoucherCode}
         voucherApplied={guestVoucherApplied} voucherError={guestVoucherError}
