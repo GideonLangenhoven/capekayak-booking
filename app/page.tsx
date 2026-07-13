@@ -142,7 +142,7 @@ export default function Home() {
             : null;
           return (
             <button type="button" key={tour.id}
-              className="glass glass-hover group cursor-pointer overflow-hidden text-left active:scale-[0.98]"
+              className="glass glass-hover group cursor-pointer overflow-hidden text-left active:scale-[0.98] flex flex-col"
               style={{ borderRadius: 28 }}
               aria-label={"Book " + tour.name}
               onClick={() => router.push("/book?tour=" + tour.id)}>
