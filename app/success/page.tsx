@@ -145,7 +145,7 @@ function SuccessContent() {
           </div>
           <div className="border-t border-[color:var(--glass-border)] pt-4">
             <p className="text-xs uppercase tracking-wider !text-[color:var(--ink-muted)]">Reference</p>
-            <p className="mt-0.5 font-mono font-semibold !text-[color:var(--ink)]">{booking.id.substring(0, 8).toUpperCase()}</p>
+            <p className="mt-0.5 font-mono font-semibold !text-[color:var(--ink)]" data-shot="booking-ref">{booking.id.substring(0, 8).toUpperCase()}</p>
           </div>
         </div>
       </div>

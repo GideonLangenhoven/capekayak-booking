@@ -36,6 +36,7 @@ export function HoldCountdown({ expiresAt, onExpire }: HoldCountdownProps) {
     <div
       role="status"
       aria-live="polite"
+      data-shot="hold-timer"
       className={"flex items-center gap-3 px-5 py-3 rounded-2xl mb-6 " + (isUrgent ? "bg-red-50 text-red-900 border border-red-200" : "bg-amber-50 text-amber-900 border border-amber-200")}
     >
       <div className="flex-1 min-w-0">

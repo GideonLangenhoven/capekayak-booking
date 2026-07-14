@@ -73,6 +73,7 @@ function VoucherConfirmedContent() {
       <div className="surface-muted mb-6 p-4 toast-enter">
         <p className="text-sm font-medium text-[color:var(--text)]">Voucher details emailed to {voucher?.buyer_email}</p>
         <p className="mt-1 text-xs">Share this code with the recipient to use during online or WhatsApp booking.</p>
+        <p className="mt-2 text-xs">Don&rsquo;t see the email? Please check your <strong>spam or promotions</strong> folder.</p>
       </div>
 
       <div className="space-y-3">

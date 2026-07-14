@@ -141,7 +141,7 @@ export default function Home() {
             ? `Only ${spots} spot${spots === 1 ? "" : "s"} left this week`
             : null;
           return (
-            <button type="button" key={tour.id}
+            <button type="button" key={tour.id} data-shot="tour-card"
               className="glass glass-hover group cursor-pointer overflow-hidden text-left active:scale-[0.98] flex flex-col"
               style={{ borderRadius: 28 }}
               aria-label={"Book " + tour.name}

@@ -144,7 +144,8 @@ export default function VoucherPage() {
           <a href={paymentUrl} className="btn btn-primary px-10 py-4">
             Pay R{parsedAmount}
           </a>
-          <p className="mt-3 text-xs text-[color:var(--textMuted)]">Secure payment via Yoco, a PCI DSS compliant provider — card details never touch our servers</p>
+          <p className="mt-4 text-xs text-[color:var(--textMuted)]">Once paid, the voucher email arrives within a minute — if you don&rsquo;t see it, check your <strong>spam or promotions</strong> folder.</p>
+          <p className="mt-2 text-xs text-[color:var(--textMuted)]">Secure payment via Yoco, a PCI DSS compliant provider — card details never touch our servers</p>
         </div>
       )}
       </div>

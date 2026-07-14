@@ -9,7 +9,7 @@ import Toast from "../components/ui/Toast";
 import { useToast } from "../hooks/useToast";
 import { fmtDate, fmtTime, fmtMonth, dateKeyInTz, isSameDay, getDaysInMonth, getFirstDay } from "../lib/format";
 import type { Tour, Slot, VoucherCredit, AddOn, AppliedPromo } from "../lib/types";
-import { normalizePhone } from "../lib/phone";
+import { normalizePhone, DIAL_CODES } from "../lib/phone";
 import { HoldCountdown } from "../components/HoldCountdown";
 import { saveDraft as saveLocalDraft, clearDraft as clearLocalDraft, readValidDraft } from "@/app/lib/booking-draft";
 
@@ -37,6 +37,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [dialCode, setDialCode] = useState("+27");
   const [isCompany, setIsCompany] = useState(false);
   const [companyName, setCompanyName] = useState("");
   const [vatNumber, setVatNumber] = useState("");
@@ -103,6 +104,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     if (d.customerName) setName(d.customerName);
     if (d.customerEmail) setEmail(d.customerEmail);
     if (d.customerPhone) setPhone(d.customerPhone);
+    if (d.customerDialCode) setDialCode(d.customerDialCode);
     if (d.qty > 1) setQty(d.qty);
     if (d.marketingConsent) setMarketingOptIn(true);
     if (d.promoCode) setPromoCode(d.promoCode);
@@ -152,6 +154,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
         customerName: name,
         customerEmail: email,
         customerPhone: phone,
+        customerDialCode: dialCode,
         marketingConsent: marketingOptIn,
         promoCode,
         voucherCode,
@@ -160,7 +163,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
       });
     }, 500);
     return function () { clearTimeout(id); };
-  }, [selectedTour, selectedDate, selectedSlot, qty, name, email, phone, marketingOptIn, promoCode, voucherCode, selectedAddOns, step]);
+  }, [selectedTour, selectedDate, selectedSlot, qty, name, email, phone, dialCode, marketingOptIn, promoCode, voucherCode, selectedAddOns, step]);
 
   const IMG: Record<string, string> = {
     "Sea Kayak": "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800&h=500&fit=crop",
@@ -395,7 +398,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     }
     const bookingPayload = {
       business_id: selectedTour!.business_id, tour_id: selectedTour!.id, slot_id: selectedSlot!.id,
-      customer_name: name, phone: phone ? normalizePhone("+27", phone) : "", email: email.toLowerCase(),
+      customer_name: name, phone: phone ? normalizePhone(dialCode, phone) : "", email: email.toLowerCase(),
       qty, unit_price: effectiveUnitPrice, total_amount: finalTotal, original_total: grandTotal,
       voucher_amount_paid: effectiveVoucherCredit,
       status: "PENDING", source: embed ? "WIDGET" : "WEB",
@@ -430,7 +433,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
         p_promo_id: appliedPromo.id,
         p_customer_email: email.toLowerCase(),
         p_booking_id: booking.id,
-        p_customer_phone: phone ? normalizePhone("+27", phone) : null,
+        p_customer_phone: phone ? normalizePhone(dialCode, phone) : null,
       });
     }
 
@@ -544,7 +547,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
       const sel = selectedDate && isSameDay(date, selectedDate);
       const isToday = isSameDay(date, today);
       cells.push(
-        <button key={day} disabled={past || !has} onClick={() => { setSelectedDate(date); setSelectedSlot(null); }}
+        <button key={day} data-shot="calendar-day" disabled={past || !has} onClick={() => { setSelectedDate(date); setSelectedSlot(null); }}
           className={"relative aspect-square rounded-full flex items-center justify-center text-[15px] font-extrabold transition-all outline-none " +
             (sel ? "bg-[color:var(--accent)] text-[color:var(--ink-on-main)] shadow-md scale-105 " : "") +
             (!sel && has && !past ? "bg-[color:var(--glass-tint-card)] text-[color:var(--ink)] border border-[color:var(--glass-border)] hover:bg-[color:var(--hover-overlay)] hover:shadow-sm cursor-pointer " : "") +
@@ -557,7 +560,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     }
     const canPrev = calYear > today.getFullYear() || calMonth > today.getMonth();
     return (
-      <div className="glass p-6">
+      <div className="glass p-6" data-shot="calendar">
         <div className="flex items-center justify-between mb-6">
           <button onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); } else setCalMonth(calMonth - 1); }}
             disabled={!canPrev} className="w-10 h-10 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 rounded-full surface-muted flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)] disabled:opacity-30 transition-colors">
@@ -693,7 +696,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                       badgeText = a + " spots";
                     }
                     return (
-                      <button key={s.id} onClick={() => setSelectedSlot(s)}
+                      <button key={s.id} data-slot-id={s.id} data-slot-date={s.start_time} onClick={() => setSelectedSlot(s)}
                         aria-label={fmtTime(s.start_time, tz) + " — " + a + " spots " + (isLow ? "remaining, book soon" : "available")}
                         className={"w-full text-left rounded-[1.5rem] p-5 transition-all outline-none flex items-center gap-4 group " + (isSel ? "border-2 border-[color:var(--accent)] bg-[color:var(--accent)] text-[color:var(--ink-on-main)] shadow-lg overflow-hidden relative" : "glass !rounded-[1.5rem] hover:shadow-md")}>
                         {isSel && <div className="absolute inset-0 bg-[color:var(--main-overlay)] mix-blend-overlay"></div>}
@@ -702,7 +705,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                            <p className={"text-[18px] font-extrabold leading-tight " + (isSel ? "text-[color:var(--ink-on-main)]" : "text-[color:var(--ink)]")}>{fmtTime(s.start_time, tz)}</p>
                            <p className={"text-[12px] font-bold mt-0.5 " + (isSel ? "text-[color:var(--ink-on-main)] opacity-80" : isVeryLow ? "text-[color:var(--danger)]" : isLow ? "text-[color:var(--warning)]" : "text-[color:var(--ink-muted)]")}>{a} {a === 1 ? "spot" : "spots"} remaining</p>
                         </div>
-                        <div className="shrink-0 relative z-10">
+                        <div className="shrink-0 relative z-10" data-shot="seat-count">
                           {isSel ? (
                             <span className="bg-[color-mix(in_srgb,var(--ink-on-main)_20%,transparent)] text-[color:var(--ink-on-main)] pl-2 pr-3 py-1.5 rounded-full text-[12px] font-bold flex items-center gap-1.5 border border-[color-mix(in_srgb,var(--ink-on-main)_20%,transparent)]">
                               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
@@ -744,7 +747,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                               const percentage = Math.round((ao.price / baseTotal) * 100);
                               const contrastLabel = percentage > 0 ? ` (just ${percentage}% of booking)` : "";
                               return (
-                                <div key={ao.id} className={"rounded-[1.25rem] p-3.5 transition-all " + (isSelected ? "border-2 border-[color:var(--accent)] bg-[color:var(--accentSoft)]" : "surface-muted !rounded-[1.25rem] hover:bg-[color:var(--hover-overlay)]")}>
+                                <div key={ao.id} data-shot="addon-row" className={"rounded-[1.25rem] p-3.5 transition-all " + (isSelected ? "border-2 border-[color:var(--accent)] bg-[color:var(--accentSoft)]" : "surface-muted !rounded-[1.25rem] hover:bg-[color:var(--hover-overlay)]")}>
                                   <div className="flex items-start gap-3">
                                     <input type="checkbox" checked={isSelected} onChange={() => toggleAddOn(ao.id)}
                                       className="mt-1 w-5 h-5 shrink-0 rounded border-[color:var(--glass-border)] text-[color:var(--accent)] focus:ring-[color:var(--accent)] cursor-pointer" />
@@ -788,7 +791,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                           )}
                           <div className="border-t border-[color:var(--glass-border)] pt-3 mt-3 flex justify-between items-end">
                             <span className="text-[13px] font-extrabold uppercase tracking-widest text-[color:var(--ink-muted)]">Subtotal</span>
-                            <span className="text-2xl font-extrabold tracking-tight text-[color:var(--ink)]">R{grandTotal}</span>
+                            <span className="text-2xl font-extrabold tracking-tight text-[color:var(--ink)]" data-shot="running-total">R{grandTotal}</span>
                           </div>
                         </div>
                       </div>
@@ -845,10 +848,13 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                  </div>
                  <div>
                    <label htmlFor="book-phone" className="field-label ml-1">Phone *</label>
-                   <div className="relative">
-                     <span className="absolute left-5 top-1/2 -translate-y-1/2 text-[color:var(--ink-muted)] font-bold">+27</span>
+                   <div className="flex gap-2">
+                     <select value={dialCode} onChange={e => setDialCode(e.target.value)} aria-label="Country dial code"
+                       className="field !w-auto shrink-0 cursor-pointer !px-2.5" style={{ minWidth: "96px" }}>
+                       {DIAL_CODES.map((d, i) => <option key={d.country + i} value={d.code}>{d.flag} {d.code}</option>)}
+                     </select>
                      <input id="book-phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="71 234 5678"
-                       className="field pl-14" />
+                       className="field min-w-0 flex-1" />
                    </div>
                  </div>
                  <div className="pt-1">
@@ -881,7 +887,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                    {!appliedPromo ? (
                      <>
                        <div className="flex gap-2">
-                         <input id="book-promo" type="text" value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder="e.g. SUMMER20"
+                         <input id="book-promo" data-shot="promo-input" type="text" value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder="e.g. SUMMER20"
                            className="field flex-1 pl-4 font-bold uppercase tracking-wider placeholder:normal-case placeholder:font-medium"
                            onKeyDown={e => e.key === "Enter" && applyPromo()} />
                          <button onClick={applyPromo} className="btn btn-primary px-6">Apply</button>
@@ -972,7 +978,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                       </div>
                     ))}
                     {computedPromoDiscount > 0 && appliedPromo && (
-                      <div className="flex justify-between items-center text-[color:var(--accent-text)]">
+                      <div className="flex justify-between items-center text-[color:var(--accent-text)]" data-shot="discount-line">
                         <span className="font-medium tracking-wide">Discount ({appliedPromo.code}) {appliedPromo.discount_type === "PERCENT" ? appliedPromo.discount_value + "%" : ""}</span>
                         <span className="font-extrabold text-[15px]">−R{computedPromoDiscount}</span>
                       </div>
@@ -993,7 +999,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                   </div>
                 </div>
 
-                <button onClick={submitBooking} disabled={submitting || !name.trim() || !email.trim() || !phone.trim() || !termsAccepted}
+                <button onClick={submitBooking} data-shot="pay-button" disabled={submitting || !name.trim() || !email.trim() || !phone.trim() || !termsAccepted}
                   className="btn btn-primary w-full mt-8 !py-4 text-[15px]">
                   {submitting ? "Processing..." : finalTotal <= 0 ? "Confirm Booking ✓" : "Pay R" + finalTotal + " Total Securely →"}
                 </button>
