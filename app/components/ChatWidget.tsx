@@ -20,9 +20,35 @@ export default function ChatWidget() {
   const endRef = useRef<HTMLDivElement>(null);
   const inRef = useRef<HTMLInputElement>(null);
   const greeted = useRef(false);
+  const lastPollRef = useRef<string>("");
   useEffect(() => {
     if (typeof document !== "undefined") document.body.setAttribute("data-chat-hydrated", "1");
   }, [chatbot_avatar]);
+  // Stable per-visitor id so the operator inbox can reply to THIS visitor
+  // (not a shared "web" thread). Persisted so a page reload keeps the thread.
+  useEffect(() => {
+    let vid = localStorage.getItem("bt_chat_vid");
+    if (!vid) { vid = crypto.randomUUID(); localStorage.setItem("bt_chat_vid", vid); }
+    setSt(s => ({ ...s, vid }));
+  }, []);
+  // Live agent handoff: while a human is connected, poll for their replies and
+  // drop them into the conversation. Stops when the agent hands back to the bot.
+  useEffect(() => {
+    if (!open || !isHuman || !st.vid) return;
+    if (!lastPollRef.current) lastPollRef.current = new Date().toISOString();
+    const id = setInterval(async () => {
+      try {
+        const res = await supabase.functions.invoke("web-chat", { body: { action: "poll", state: st, since: lastPollRef.current } });
+        const d = res.data || {};
+        if (Array.isArray(d.messages) && d.messages.length) {
+          setMsgs(prev => [...prev, ...d.messages.map((m: { text: string }) => ({ role: "bot" as const, text: m.text }))]);
+          lastPollRef.current = d.messages[d.messages.length - 1].at || lastPollRef.current;
+        }
+        if (d.status && d.status !== "HUMAN") setSt(s => ({ ...s, status: d.status }));
+      } catch { /* transient — next tick retries */ }
+    }, 4000);
+    return () => clearInterval(id);
+  }, [open, isHuman, st.vid]);
 
   function handleOpenChat() {
     setOpen(true);
@@ -64,6 +90,9 @@ export default function ChatWidget() {
       const res = await supabase.functions.invoke("web-chat", { body: { messages: hist.slice(0, -1), message: msg, state: st } });
       const d = res.data || {};
       setSt(d.state || st);
+      // A human agent is handling this — their reply arrives via the poll, so
+      // don't render a bot bubble (d.reply is empty in this case).
+      if (d.human) { setTyping(false); return; }
       const delay = 800 + Math.min((d.reply || "").length * 6, 1500) + Math.random() * 500;
       setTimeout(() => { setTyping(false); setMsgs(prev => [...prev, { role: "bot", text: d.reply || "Try again?", buttons: d.buttons || null, paymentUrl: d.paymentUrl || null, calendar: d.calendar || null }]); }, delay);
     } catch {
