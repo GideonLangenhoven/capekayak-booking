@@ -14,7 +14,7 @@ export default function Footer() {
         <p className="max-w-none">{line1}</p>
         {line2 && <p className="mt-1 max-w-none">{line2}</p>}
         <p className="glass-chip mx-auto mt-4 inline-flex max-w-full items-center gap-2 px-4 py-2 text-xs">
-          <span>Secure checkout — payments processed by PCI DSS compliant providers &middot; card details never touch our servers &middot; TLS encrypted</span>
+          <span>Secure checkout: payments processed by PCI DSS compliant providers &middot; card details never touch our servers &middot; TLS encrypted</span>
         </p>
         <nav className="mt-4 flex flex-wrap justify-center gap-4">
           <a href="/terms" className="underline underline-offset-2 hover:text-[color:var(--ink)]">Terms &amp; Conditions</a>

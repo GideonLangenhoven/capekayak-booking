@@ -160,7 +160,7 @@ function WidgetQuick() {
         href={bookUrl(s, dayKey)}
         target="_blank"
         rel="noopener"
-        aria-label={`Book ${selectedTour!.name} on ${dayHeaderParts(dayKey).label} at ${time} — ${open} ${open === 1 ? "seat" : "seats"} available`}
+        aria-label={`Book ${selectedTour!.name} on ${dayHeaderParts(dayKey).label} at ${time}, ${open} ${open === 1 ? "seat" : "seats"} available`}
         className="group block rounded-xl border border-black/[0.06] bg-white/85 px-2 py-2 text-center shadow-[0_1px_2px_rgba(20,24,22,0.06)] backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:border-transparent hover:shadow-[0_10px_22px_-8px_rgba(20,24,22,0.28)] hover:ring-2 hover:ring-[color:color-mix(in_srgb,var(--accent,#125e40)_45%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent,#125e40)] active:scale-[0.97]"
       >
         <span className="block text-[13.5px] font-bold text-[#211d19]">{time}</span>
@@ -261,7 +261,7 @@ function WidgetQuick() {
               className="mt-2 origin-top animate-[btScaleIn_.32s_cubic-bezier(.16,1,.3,1)] overflow-hidden rounded-[22px] border border-white/70 bg-white/95 shadow-[0_24px_60px_-20px_rgba(20,24,22,0.4)] backdrop-blur-xl"
             >
               {tours.length === 0 && (
-                <div className="p-6 text-center text-[13.5px] text-[#8a8478]">No experiences are available right now — please check back soon.</div>
+                <div className="p-6 text-center text-[13.5px] text-[#8a8478]">No experiences are available right now. Please check back soon.</div>
               )}
               {tours.map(t => {
                 const selected = selectedTour?.id === t.id;

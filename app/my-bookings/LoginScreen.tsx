@@ -170,7 +170,7 @@ export default function LoginScreen({
   const subtitle = mode === "magic"
     ? (magicSent
       ? "If we found your account, a sign-in link is on its way."
-      : "Get a sign-in link by email — no password needed.")
+      : "Get a sign-in link by email. No password needed.")
     : (otpStep
       ? "Enter the 6-digit code we emailed you."
       : "Use the email and phone number from your booking.");
@@ -196,7 +196,7 @@ export default function LoginScreen({
               <p className="mt-4 text-sm leading-relaxed text-[color:var(--textMuted)]">
                 If a booking exists with this email, a sign-in link is on its way to{" "}
                 <span className="font-semibold text-[color:var(--text)]">{maskEmail(email)}</span>.
-                Don&apos;t forget the spam folder — you can close this page after clicking the link.
+                Don&apos;t forget the spam folder. You can close this page after clicking the link.
               </p>
               <button onClick={() => { setMagicSent(false); }} className="mt-5 py-2 text-sm font-semibold text-[color:var(--accent)] hover:underline">
                 Resend link
@@ -312,7 +312,7 @@ export default function LoginScreen({
       </div>
 
       <p className="glass-chip mx-auto mt-5 flex w-fit max-w-full items-center justify-center gap-1.5 px-4 py-2 text-center text-xs" style={{ color: "var(--ink)" }}>
-        Secure one-time sign-in for {theme.business_name || "your"} bookings — no passwords.
+        Secure one-time sign-in for {theme.business_name || "your"} bookings. No passwords.
       </p>
     </div>
   );

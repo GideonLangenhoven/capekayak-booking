@@ -560,7 +560,7 @@ export default function MyBookings() {
     try {
       const res = await callRebook({ booking_id: b.id, action: "REQUEST_CHANGE", requested_action: action });
       if (res?.email_queued) {
-        showToast("Request sent — our team has been notified by email and in their dashboard.");
+        showToast("Request sent. Our team has been notified by email and in their dashboard.");
       } else {
         showToast("Request sent! Our team will see it in their dashboard shortly.");
       }
@@ -893,7 +893,7 @@ export default function MyBookings() {
             </h1>
             {tripCount >= 2 && (
               <p className="mt-2 text-[13px] text-[color:var(--textMuted)]">
-                {tripCount} trips together{tripCount >= 5 ? " — thanks for sticking with us" : ""}
+                {tripCount} trips together{tripCount >= 5 ? ", thanks for sticking with us" : ""}
               </p>
             )}
           </div>
@@ -946,7 +946,7 @@ export default function MyBookings() {
         {bookings.length === 0 ? (
           <div className="glass !border-dashed px-6 py-14 text-center">
             <h3 className="font-display mt-4 text-[20px] font-semibold text-[color:var(--text)]">No trips yet</h3>
-            <p className="mx-auto mt-1.5 max-w-xs text-[13.5px] text-[color:var(--textMuted)]">When you book, everything lives here — tickets, waivers, changes and photos.</p>
+            <p className="mx-auto mt-1.5 max-w-xs text-[13.5px] text-[color:var(--textMuted)]">When you book, everything lives here: tickets, waivers, changes and photos.</p>
             <Link href="/" className="btn btn-primary mt-6">Browse tours</Link>
           </div>
         ) : (

@@ -162,7 +162,7 @@ function SuccessContent() {
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[color:var(--success)] text-[color:var(--ink-on-main)] text-base">✓</span>
           <div>
             <p className="text-sm font-semibold !text-[color:var(--ink)]">Waiver completed</p>
-            <p className="text-xs !text-[color:var(--ink-muted)]">Thanks — you're all set. See you on the water!</p>
+            <p className="text-xs !text-[color:var(--ink-muted)]">Thanks, you're all set. See you on the water!</p>
           </div>
         </div>
       ) : (
@@ -170,7 +170,7 @@ function SuccessContent() {
           <div className="glass mb-6 p-4" style={{ borderLeft: "4px solid var(--warning)" }}>
             <p className="text-sm font-semibold !text-[color:var(--ink)] mb-1">Sign your waiver</p>
             <p className="text-xs !text-[color:var(--ink-muted)] mb-3">
-              All participants need to complete a quick digital waiver before launch. Save time on the day — sign now.
+              All participants need to complete a quick digital waiver before launch. Save time on the day. Sign now.
             </p>
             <Link
               href={"/waiver?booking=" + booking.id + "&token=" + (booking as any).waiver_token}

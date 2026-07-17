@@ -89,7 +89,7 @@ export default function VoucherPage() {
             {amount && parsedAmount < 50 && <p className="text-xs text-red-500 mt-1">Minimum voucher amount is R50</p>}
           </div>
           <Button onClick={() => setStep("details")} disabled={!parsedAmount || parsedAmount < 50} fullWidth className="py-3.5">
-            Continue — R{parsedAmount || 0}
+            Continue: R{parsedAmount || 0}
           </Button>
         </div>
       )}
@@ -127,7 +127,7 @@ export default function VoucherPage() {
             <span className="text-2xl font-bold text-[color:var(--text)]">R{parsedAmount}</span>
           </Card>
           <Button onClick={submitVoucher} disabled={submitting || !recipientName.trim() || !buyerName.trim() || !buyerEmail.trim()} fullWidth className="py-3.5">
-            {submitting ? "Processing..." : "Purchase Voucher — R" + parsedAmount}
+            {submitting ? "Processing..." : "Purchase Voucher: R" + parsedAmount}
           </Button>
         </div>
       )}
@@ -144,8 +144,8 @@ export default function VoucherPage() {
           <a href={paymentUrl} className="btn btn-primary px-10 py-4">
             Pay R{parsedAmount}
           </a>
-          <p className="mt-4 text-xs text-[color:var(--textMuted)]">Once paid, the voucher email arrives within a minute — if you don&rsquo;t see it, check your <strong>spam or promotions</strong> folder.</p>
-          <p className="mt-2 text-xs text-[color:var(--textMuted)]">Secure payment via Yoco, a PCI DSS compliant provider — card details never touch our servers</p>
+          <p className="mt-4 text-xs text-[color:var(--textMuted)]">Once paid, the voucher email arrives within a minute. If you don&rsquo;t see it, check your <strong>spam or promotions</strong> folder.</p>
+          <p className="mt-2 text-xs text-[color:var(--textMuted)]">Secure payment via Yoco, a PCI DSS compliant provider: card details never touch our servers</p>
         </div>
       )}
       </div>

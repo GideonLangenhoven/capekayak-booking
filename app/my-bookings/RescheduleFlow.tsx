@@ -40,7 +40,7 @@ export default function RescheduleFlow({
           <h2 className="text-xl font-bold text-[color:var(--text)] mb-2">Complete Payment</h2>
           <p className="text-sm text-[color:var(--textMuted)] mb-6">Your reschedule is confirmed. Pay the R{reschedulePaymentDiff} difference to secure your new slot.</p>
           <a href={reschedulePaymentUrl} className="inline-block w-full rounded-full py-4 text-base font-bold text-white bg-[color:var(--cta,#0f766e)] hover:opacity-90 transition-opacity text-center">
-            Pay Now — R{reschedulePaymentDiff}
+            Pay Now: R{reschedulePaymentDiff}
           </a>
           <p className="text-xs text-[color:var(--textMuted)] mt-4">You will be redirected to a secure payment page.</p>
         </div>
@@ -104,7 +104,7 @@ export default function RescheduleFlow({
 
         {diff < 0 && (
           <div className="mb-5 space-y-2">
-            <p className="text-sm font-semibold text-[color:var(--text)]">R{Math.abs(diff)} credit — how would you like it?</p>
+            <p className="text-sm font-semibold text-[color:var(--text)]">R{Math.abs(diff)} credit. How would you like it?</p>
             <label className="surface-muted !rounded-xl flex items-center gap-3 p-3 cursor-pointer hover:border-[color:var(--accent)] transition-colors has-[:checked]:border-[color:var(--accent)] has-[:checked]:bg-[color:var(--accentSoft)]">
               <input type="radio" value="VOUCHER" checked={excessAction === "VOUCHER"} onChange={() => setExcessAction("VOUCHER")} className="accent-[color:var(--accent)]" />
               <div className="text-sm"><span className="font-semibold">Gift Voucher</span> <span className="text-[color:var(--textMuted)]">&middot; R{Math.abs(diff)} (full amount)</span></div>
@@ -117,7 +117,7 @@ export default function RescheduleFlow({
         )}
 
         {notEnoughSpots && (
-          <p className="mb-3 text-sm" style={{ color: "var(--danger)" }}>Only {slotSpots} {slotSpots === 1 ? "spot" : "spots"} left on this slot — reduce the guest count or pick another date.</p>
+          <p className="mb-3 text-sm" style={{ color: "var(--danger)" }}>Only {slotSpots} {slotSpots === 1 ? "spot" : "spots"} left on this slot. Reduce the guest count or pick another date.</p>
         )}
         <Button onClick={onSubmit} disabled={actionLoading === "reschedule" || notEnoughSpots} fullWidth className="py-3.5 font-semibold">
           {actionLoading === "reschedule" ? "Processing..." : diff > 0 ? "Confirm & Pay R" + diff : "Confirm Reschedule"}

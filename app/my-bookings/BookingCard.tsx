@@ -160,7 +160,7 @@ export default function BookingCard({
       : "rounded-xl p-4"}
       style={variant === "hero" ? undefined : { background: "var(--accentSoft)" }}>
       <p className={"text-[13.5px] font-semibold " + (variant === "hero" ? "text-[#F7F5F0]" : "text-[color:var(--text)]")}>
-        {String(b.cancellation_reason || "").toLowerCase().includes("weather") ? "Trip was weather-cancelled" : "Available credit"} — R{Number(b.refund_amount).toFixed(2)}
+        {String(b.cancellation_reason || "").toLowerCase().includes("weather") ? "Trip was weather-cancelled" : "Available credit"}: R{Number(b.refund_amount).toFixed(2)}
       </p>
       <p className={"mt-0.5 text-[12.5px] " + (variant === "hero" ? "text-[#F7F5F0]/75" : "text-[color:var(--textMuted)]")}>
         Pick a new date, take a voucher, or request a refund.
@@ -239,11 +239,11 @@ export default function BookingCard({
                 href={"/waiver?booking=" + b.id + "&token=" + b.waiver_token}
                 className={heroSolid + " w-full sm:w-auto" + (isUrgentWaiver ? " ring-2 ring-white/35" : "")}
               >
-                {isUrgentWaiver ? "Sign waiver — required before your trip" : "Sign your waiver"}
+                {isUrgentWaiver ? "Sign waiver (required before your trip)" : "Sign your waiver"}
               </Link>
             ) : waiverSigned ? (
               <p className="flex items-center gap-2 text-[13px] text-[#F7F5F0]/75">
-                Waiver signed — you&apos;re all set
+                Waiver signed, you&apos;re all set
               </p>
             ) : null}
 
@@ -291,12 +291,12 @@ export default function BookingCard({
              )}
              {isActive && !isPast && tier === "LIMITED" && (
                <p className="flex items-center text-[12.5px] text-[#F7F5F0]/70">
-                 Trip is within 24 hours — changes are limited
+                 Trip is within 24 hours: changes are limited
                </p>
              )}
              {isActive && !isPast && tier === "LOCKED" && (
                <p className="flex items-center text-[12.5px] text-[#F7F5F0]/70">
-                 Trip is soon — changes and refunds follow the cancellation policy
+                 Trip is soon: changes and refunds follow the cancellation policy
                </p>
              )}
           </div>
@@ -403,7 +403,7 @@ export default function BookingCard({
               className="flex w-full items-center justify-center rounded-[10px] px-3 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 sm:inline-flex sm:w-auto sm:py-1.5 sm:text-[12.5px]"
               style={{ background: isUrgentWaiver ? "var(--danger)" : "var(--warning)" }}
             >
-              {isUrgentWaiver ? "Sign waiver now — required" : "Sign your waiver"}
+              {isUrgentWaiver ? "Sign waiver now (required)" : "Sign your waiver"}
             </Link>
           )}
 
@@ -448,17 +448,17 @@ export default function BookingCard({
           )}
           {isCancelled && b.converted_to_voucher_id && (
             <p className="flex items-center text-[12.5px] font-semibold" style={{ color: "var(--accent)" }}>
-              Converted to voucher — check your email
+              Converted to voucher. Check your email
             </p>
           )}
           {isActive && !isPast && tier === "LIMITED" && (
             <p className="flex items-center text-[12.5px] font-semibold" style={{ color: "var(--warning)" }}>
-              Trip within 24h — changes limited
+              Trip within 24h: changes limited
             </p>
           )}
           {isActive && !isPast && tier === "LOCKED" && (
             <p className="flex items-center text-[12.5px] font-semibold" style={{ color: "var(--danger)" }}>
-              Trip within 12h — contact us for changes
+              Trip within 12h: contact us for changes
             </p>
           )}
         </div>

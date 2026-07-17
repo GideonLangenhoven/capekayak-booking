@@ -537,7 +537,7 @@ export default function ComboBookingPage() {
                   className="btn btn-primary w-full mt-5 !py-3.5">
                   {submitting ? "Processing..." : "Pay R" + comboTotal}
                 </button>
-                <p className="surface-muted !rounded-full px-4 py-2 text-xs text-[color:var(--ink-muted)] text-center mt-3">Secure payment via Paysafe, a PCI DSS compliant provider — card details never touch our servers</p>
+                <p className="surface-muted !rounded-full px-4 py-2 text-xs text-[color:var(--ink-muted)] text-center mt-3">Secure payment via Paysafe, a PCI DSS compliant provider: card details never touch our servers</p>
               </div>
             </div>
           </div>

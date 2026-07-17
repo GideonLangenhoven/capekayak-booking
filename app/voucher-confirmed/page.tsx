@@ -3,11 +3,13 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createVoucherSupabase } from "../lib/supabase";
+import { useTheme } from "../components/ThemeProvider";
 import ConfirmationSkeleton from "../components/skeletons/ConfirmationSkeleton";
 
 
 function VoucherConfirmedContent() {
   const params = useSearchParams();
+  const theme = useTheme();
   const code = params.get("code");
   const [voucher, setVoucher] = useState<{
     code: string; value: number; tour_name: string; recipient_name: string;
@@ -17,14 +19,16 @@ function VoucherConfirmedContent() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!code) { setLoading(false); return; }
+    if (!code || !theme.id) { if (!code) setLoading(false); return; }
     (async () => {
-      const voucherSupabase = createVoucherSupabase(code);
+      // RLS requires the tenant header alongside the voucher code — vouchers
+      // are only readable in the context of the operator that issued them.
+      const voucherSupabase = createVoucherSupabase(code, theme.id);
       const { data } = await voucherSupabase.from("vouchers").select("*").eq("code", code).single();
       setVoucher(data);
       setLoading(false);
     })();
-  }, [code]);
+  }, [code, theme.id]);
 
   if (loading) return <ConfirmationSkeleton />;
 

@@ -123,9 +123,9 @@ function WaiverContent() {
     if (participantDobs.some(d => !isCompleteDob(d))) { setError("Please enter a date of birth for every guest."); return; }
     if (!participantLiability.every(Boolean)) { setError("Each guest must individually accept the liability terms."); return; }
     if (!acceptRisk) { setError("Please accept all required confirmations."); return; }
-    if (hasMinor && !guardianConsent) { setError("A minor is listed — please confirm you are the parent/legal guardian."); return; }
+    if (hasMinor && !guardianConsent) { setError("A minor is listed. Please confirm you are the parent/legal guardian."); return; }
     if (hasMinor && (!guardianName.trim() || !guardianIdNumber.trim() || !guardianSignature.trim())) {
-      setError("A minor is listed — please complete the parent/guardian countersignature section.");
+      setError("A minor is listed. Please complete the parent/guardian countersignature section.");
       return;
     }
 
@@ -225,7 +225,7 @@ function WaiverContent() {
           <div className="rounded-3xl border border-[color:var(--border)] bg-[color:var(--card)] overflow-hidden shadow-lg" style={WAIVER_FIXED_THEME}>
             <div className="bg-gradient-to-br from-[#0f172a] to-[#134e4a] text-white p-8">
               <h1 className="text-3xl font-bold mb-2 !text-white">Waiver signed</h1>
-              <p className="!text-white/80">Thank you — your waiver has been recorded and attached to your booking.</p>
+              <p className="!text-white/80">Thank you. Your waiver has been recorded and attached to your booking.</p>
             </div>
             <div className="p-8">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
@@ -292,11 +292,11 @@ function WaiverContent() {
             <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--bg)] p-5 mb-6 max-h-80 overflow-y-auto text-sm leading-relaxed text-[color:var(--textMuted)]">
               <p className="font-bold text-base text-[color:var(--text)] mb-3">Indemnity, Assumption of Risk &amp; Release of Liability</p>
               <p className="mb-2"><strong>1. Nature of Activity &amp; Inherent Risks</strong><br/>
-              I understand that adventure and outdoor activities — including but not limited to kayaking, paddling, hiking, water-based excursions, and associated transfers — involve inherent risks and dangers that cannot be eliminated. These include, without limitation: adverse or unpredictable weather and sea conditions; collision with vessels, rocks, or other obstacles; capsizing or falling into water; exhaustion; hypothermia; marine wildlife encounters; equipment failure; and the physical demands of the activity. I voluntarily and knowingly accept these risks.</p>
+              I understand that adventure and outdoor activities, including but not limited to kayaking, paddling, hiking, water-based excursions, and associated transfers, involve inherent risks and dangers that cannot be eliminated. These include, without limitation: adverse or unpredictable weather and sea conditions; collision with vessels, rocks, or other obstacles; capsizing or falling into water; exhaustion; hypothermia; marine wildlife encounters; equipment failure; and the physical demands of the activity. I voluntarily and knowingly accept these risks.</p>
               <p className="mb-2"><strong>2. Assumption of Risk</strong><br/>
               I freely and voluntarily accept and assume all risks of injury, loss, damage, or death arising from my participation and the participation of the guests listed on this booking, whether caused by the negligence of the operator, its employees, guides, or agents, or by any other cause. I acknowledge that no assurance of safety has been given to me.</p>
               <p className="mb-2"><strong>3. Release and Indemnity</strong><br/>
-              In consideration of being permitted to participate, I hereby release, indemnify and hold harmless the operator, its owners, directors, employees, guides, contractors and agents (collectively &quot;the Operator&quot;) from any and all claims, actions, damages, liability, costs and expenses — including legal fees — arising from or relating to my participation or the participation of any guest on this booking, even if such loss or damage arises from the Operator&apos;s negligence, to the fullest extent permitted by applicable law.</p>
+              In consideration of being permitted to participate, I hereby release, indemnify and hold harmless the operator, its owners, directors, employees, guides, contractors and agents (collectively &quot;the Operator&quot;) from any and all claims, actions, damages, liability, costs and expenses, including legal fees, arising from or relating to my participation or the participation of any guest on this booking, even if such loss or damage arises from the Operator&apos;s negligence, to the fullest extent permitted by applicable law.</p>
               <p className="mb-2"><strong>4. Medical Fitness</strong><br/>
               I confirm that I and all guests on this booking are in good physical health and are not aware of any medical condition, disability, or impairment that would increase the risk of participation or endanger themselves or others. I accept full responsibility for disclosing any relevant medical information to the Operator&apos;s guides before the activity commences. I authorise the Operator to seek emergency medical treatment on my behalf or on behalf of any guest if deemed necessary, and I accept responsibility for any associated costs.</p>
               <p className="mb-2"><strong>5. Compliance with Instructions</strong><br/>
@@ -325,7 +325,7 @@ function WaiverContent() {
               </div>
               <div>
                 <label htmlFor="waiver-id" className="block text-sm font-semibold mb-1">
-                  SA ID number or passport number <span className="font-normal text-[color:var(--textMuted)]">(optional — strengthens identity verification)</span>
+                  SA ID number or passport number <span className="font-normal text-[color:var(--textMuted)]">(optional: strengthens identity verification)</span>
                 </label>
                 <input id="waiver-id" type="text" value={idNumber} onChange={e => setIdNumber(e.target.value)}
                   placeholder="e.g. 8001015009087 or A12345678" autoComplete="off"

@@ -135,7 +135,7 @@ export default function EditGuestsModal({
                 </>
               ) : (
                 <div className="flex items-center justify-between p-2 border rounded-lg text-sm" style={{ background: "color-mix(in srgb, var(--success) 10%, transparent)", borderColor: "color-mix(in srgb, var(--success) 30%, transparent)" }}>
-                  <span className="font-semibold" style={{ color: "var(--success)" }}>{promoApplied.code} &mdash; {promoApplied.discount_type === "PERCENT" ? promoApplied.discount_value + "% off" : "R" + promoApplied.discount_value + " off"}</span>
+                  <span className="font-semibold" style={{ color: "var(--success)" }}>{promoApplied.code}: {promoApplied.discount_type === "PERCENT" ? promoApplied.discount_value + "% off" : "R" + promoApplied.discount_value + " off"}</span>
                   <button onClick={onRemovePromo} className="min-h-11 px-2 text-xs sm:min-h-0" style={{ color: "var(--danger)" }}>Remove</button>
                 </div>
               )}
@@ -165,7 +165,7 @@ export default function EditGuestsModal({
               style={{ backgroundColor: "var(--accent, #14b8a6)" }}>
               Pay R{paymentAmount ?? finalCost} now
             </a>
-            <p className="text-xs text-center text-[color:var(--textMuted)]">Your extra guest{guestDiff > 1 ? "s are" : " is"} held for 15 minutes. The booking updates automatically once payment completes — you can close this after paying.</p>
+            <p className="text-xs text-center text-[color:var(--textMuted)]">Your extra guest{guestDiff > 1 ? "s are" : " is"} held for 15 minutes. The booking updates automatically once payment completes. You can close this after paying.</p>
           </div>
         ) : (
           <Button onClick={onSubmit} disabled={guestQty === b.qty || actionLoading === "guests"} fullWidth className="py-3">

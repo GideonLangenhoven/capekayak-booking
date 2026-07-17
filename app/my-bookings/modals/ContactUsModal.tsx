@@ -22,7 +22,7 @@ export default function ContactUsModal({ open, businessName, email, phone, whats
     <Modal open={open} onClose={onClose} title="Contact us">
       <div className="space-y-3">
         <p className="text-sm text-[color:var(--textMuted)]">
-          Get in touch with {businessName || "our team"} — we usually reply fast.
+          Get in touch with {businessName || "our team"}. We usually reply fast.
         </p>
 
         {whatsapp && waDigits && (

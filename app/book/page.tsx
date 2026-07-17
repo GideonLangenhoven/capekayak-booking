@@ -314,8 +314,10 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     const code = voucherCode.toUpperCase().replace(/\s/g, "");
     if (code.length !== 8) { setVoucherError("Codes are 8 characters"); return; }
     if (vouchers.some(v => v.code === code)) { setVoucherError("Already applied"); return; }
-    const { data } = await createVoucherSupabase(code).from("vouchers").select("*").eq("code", code).single();
-    if (!data) { setVoucherError("Code not found"); return; }
+    // Vouchers are operator-specific — scope the lookup to this tenant (the
+    // RLS policy also requires the x-tenant-business-id header to match).
+    const { data } = await createVoucherSupabase(code, theme.id).from("vouchers").select("*").eq("code", code).eq("business_id", theme.id).single();
+    if (!data) { setVoucherError("Code not valid for this operator"); return; }
     if (data.status === "REDEEMED") { setVoucherError("Already redeemed"); return; }
     if (data.status !== "ACTIVE") { setVoucherError("Not valid"); return; }
     if (data.expires_at && new Date(data.expires_at) < new Date()) { setVoucherError("Expired"); return; }
@@ -697,7 +699,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                     }
                     return (
                       <button key={s.id} data-slot-id={s.id} data-slot-date={s.start_time} onClick={() => setSelectedSlot(s)}
-                        aria-label={fmtTime(s.start_time, tz) + " — " + a + " spots " + (isLow ? "remaining, book soon" : "available")}
+                        aria-label={fmtTime(s.start_time, tz) + ", " + a + " spots " + (isLow ? "remaining, book soon" : "available")}
                         className={"w-full text-left rounded-[1.5rem] p-5 transition-all outline-none flex items-center gap-4 group " + (isSel ? "border-2 border-[color:var(--accent)] bg-[color:var(--accent)] text-[color:var(--ink-on-main)] shadow-lg overflow-hidden relative" : "glass !rounded-[1.5rem] hover:shadow-md")}>
                         {isSel && <div className="absolute inset-0 bg-[color:var(--main-overlay)] mix-blend-overlay"></div>}
 
@@ -924,7 +926,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                            <span className="text-[14px] text-[color:var(--ink)] font-extrabold font-mono tracking-widest">
                              {v.code}
                              <span className="font-sans text-[color:var(--success)] tracking-normal ml-2">
-                               — R{b?.applied ?? v.value} applied{b && b.leftover > 0 ? ` · R${b.leftover} remaining` : ""}
+                               : R{b?.applied ?? v.value} applied{b && b.leftover > 0 ? ` · R${b.leftover} remaining` : ""}
                              </span>
                            </span>
                          </div>
@@ -1008,7 +1010,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                 </div>
                 <div className="mt-4 space-y-2 text-[12px] text-[color:var(--ink-muted)]">
                   <div className="flex items-center gap-2">
-                    <span>Card details handled directly by Yoco — never touch our servers</span>
+                    <span>Card details handled directly by Yoco and never touch our servers</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span>Processed by a PCI DSS compliant provider over encrypted TLS</span>

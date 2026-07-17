@@ -66,9 +66,9 @@ export default function PopiaPage() {
         Under South Africa's POPIA (and GDPR for EU residents), you can ask us to:
       </p>
       <ul className="text-sm text-[color:var(--textMuted)] mb-6 list-disc pl-5 space-y-1">
-        <li><strong>Access</strong> — receive a copy of all personal information we hold about you.</li>
-        <li><strong>Correct</strong> — update incorrect or outdated details on your record.</li>
-        <li><strong>Delete</strong> — anonymise your personal information. Financial records are preserved with anonymised identifiers as required by law.</li>
+        <li><strong>Access</strong>: receive a copy of all personal information we hold about you.</li>
+        <li><strong>Correct</strong>: update incorrect or outdated details on your record.</li>
+        <li><strong>Delete</strong>: anonymise your personal information. Financial records are preserved with anonymised identifiers as required by law.</li>
       </ul>
 
       {status === "sent" ? (
