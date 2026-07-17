@@ -31,6 +31,27 @@ export default function ChatWidget() {
     if (!vid) { vid = crypto.randomUUID(); localStorage.setItem("bt_chat_vid", vid); }
     setSt(s => ({ ...s, vid }));
   }, []);
+  // Resume a live-agent thread after reload/page navigation: HUMAN status only
+  // lives in React state, so a remount would silently stop polling and the
+  // visitor would never see agent replies sent while they were away. One-shot
+  // check that restores the status and pulls the last 24h of agent replies.
+  useEffect(() => {
+    if (!open || !st.vid || isHuman || lastPollRef.current) return;
+    (async () => {
+      try {
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const res = await supabase.functions.invoke("web-chat", { body: { action: "poll", state: st, since } });
+        const d = res.data || {};
+        if (d.status === "HUMAN") {
+          const missed = Array.isArray(d.messages) ? d.messages : [];
+          if (missed.length) setMsgs(prev => [...prev, ...missed.map((m: { text: string }) => ({ role: "bot" as const, text: m.text }))]);
+          lastPollRef.current = missed.length ? (missed[missed.length - 1].at || new Date().toISOString()) : new Date().toISOString();
+          setSt(s => ({ ...s, status: "HUMAN" }));
+        }
+      } catch { /* stay in bot mode; next send() restores HUMAN via d.human */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, st.vid]);
   // Live agent handoff: while a human is connected, poll for their replies and
   // drop them into the conversation. Stops when the agent hands back to the bot.
   useEffect(() => {
@@ -146,7 +167,7 @@ export default function ChatWidget() {
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <button aria-label="New chat" onClick={() => { setMsgs([]); setSt({ step: "IDLE" }); greeted.current = false; setTimeout(() => { greeted.current = true; setTyping(true); setTimeout(() => { setTyping(false); setMsgs([{ role: "bot", text: "Hi there! How can I help?" }]); }, 900 + Math.random() * 500); }, 400); }} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[color:var(--hover-overlay)]" style={{ color: "var(--ink-muted)" }} title="New chat"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+              <button aria-label="New chat" onClick={() => { setMsgs([]); setSt({ step: "IDLE", vid: st.vid }); greeted.current = false; setTimeout(() => { greeted.current = true; setTyping(true); setTimeout(() => { setTyping(false); setMsgs([{ role: "bot", text: "Hi there! How can I help?" }]); }, 900 + Math.random() * 500); }, 400); }} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[color:var(--hover-overlay)]" style={{ color: "var(--ink-muted)" }} title="New chat"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
               <button aria-label="Close chat" onClick={() => setOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[color:var(--hover-overlay)]" style={{ color: "var(--ink-muted)" }} title="Close">✕</button>
             </div>
           </div>
