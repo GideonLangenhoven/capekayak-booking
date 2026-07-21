@@ -70,7 +70,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <meta name="theme-color" content="#0F2B1F" />
       </head>
       <body className={`${font.className} ${display.variable}`} suppressHydrationWarning>
-        <ThemeProvider initialBusinessId={tenant?.id ?? null}>
+        <ThemeProvider initialBusinessId={tenant?.id ?? null} initialTheme={tenant}>
           <GlassBackdrop />
           <Header />
           <main className="min-h-[calc(100dvh-12rem)]">{children}</main>

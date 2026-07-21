@@ -1003,7 +1003,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
 
                 <button onClick={submitBooking} data-shot="pay-button" disabled={submitting || !name.trim() || !email.trim() || !phone.trim() || !termsAccepted}
                   className="btn btn-primary w-full mt-8 !py-4 text-[15px]">
-                  {submitting ? "Processing..." : finalTotal <= 0 ? "Confirm Booking ✓" : "Pay R" + finalTotal + " Total Securely →"}
+                  {submitting ? "Processing..." : finalTotal <= 0 ? "Confirm Booking ✓" : "Pay R" + finalTotal + " now →"}
                 </button>
                 <div className="surface-muted !rounded-full flex items-center justify-center gap-2 mt-4 px-4 py-2 text-[11px] font-bold text-[color:var(--ink-muted)] uppercase tracking-widest">
                   Yoco Secure Payment

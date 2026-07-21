@@ -162,16 +162,21 @@ async function resolveBusiness(initialBusinessId?: string | null): Promise<Theme
   return defaults;
 }
 
-export default function ThemeProvider({ children, initialBusinessId }: { children: React.ReactNode; initialBusinessId?: string | null }) {
-  const [theme, setTheme] = useState<ThemeData>(defaults);
+export default function ThemeProvider({ children, initialBusinessId, initialTheme }: { children: React.ReactNode; initialBusinessId?: string | null; initialTheme?: Record<string, unknown> | null }) {
+  // Server-resolved theme row (layout fetches it with the tenant lookup it
+  // already does) — themed first paint, no client theme round-trip blocking
+  // every page's data queries.
+  const [theme, setTheme] = useState<ThemeData>(() => (initialTheme ? toTheme(initialTheme) : defaults));
 
   useEffect(() => {
-    (async () => {
-      const resolved = await resolveBusiness(initialBusinessId);
-      if (resolved) {
-        setTheme(resolved);
-      }
-    })();
+    if (!initialTheme) {
+      (async () => {
+        const resolved = await resolveBusiness(initialBusinessId);
+        if (resolved) {
+          setTheme(resolved);
+        }
+      })();
+    }
     // Load dotlottie script for animated avatars
     if (!document.getElementById("dotlottie-script")) {
       const script = document.createElement("script");

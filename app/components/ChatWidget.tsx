@@ -16,6 +16,8 @@ export default function ChatWidget() {
   const isHuman = st.status === "HUMAN";
   const adminName = String(st.admin_name || "");
   const [showJoined, setShowJoined] = useState(false);
+  const [showRating, setShowRating] = useState(false);
+  const [rated, setRated] = useState(false);
   const prevHumanRef = useRef(false);
   const endRef = useRef<HTMLDivElement>(null);
   const inRef = useRef<HTMLInputElement>(null);
@@ -66,9 +68,12 @@ export default function ChatWidget() {
           lastPollRef.current = d.messages[d.messages.length - 1].at || lastPollRef.current;
         }
         if (d.status && d.status !== "HUMAN") setSt(s => ({ ...s, status: d.status }));
+        // Agent ended the chat — show the star picker.
+        if (d.rate && !rated) setShowRating(true);
       } catch { /* transient — next tick retries */ }
     }, 4000);
     return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, isHuman, st.vid]);
 
   function handleOpenChat() {
@@ -115,27 +120,21 @@ export default function ChatWidget() {
       // don't render a bot bubble (d.reply is empty in this case).
       if (d.human) { setTyping(false); return; }
       const delay = 800 + Math.min((d.reply || "").length * 6, 1500) + Math.random() * 500;
-      setTimeout(() => { setTyping(false); setMsgs(prev => [...prev, { role: "bot", text: d.reply || "Try again?", buttons: d.buttons || null, paymentUrl: d.paymentUrl || null, calendar: d.calendar || null }]); }, delay);
+      setTimeout(() => { setTyping(false); setMsgs(prev => [...prev, { role: "bot", text: d.reply || "Try again?", buttons: d.buttons || null, paymentUrl: d.paymentUrl || null, calendar: d.calendar || null }]); if (d.rate && !rated) setShowRating(true); }, delay);
     } catch {
       setTimeout(() => { setTyping(false); setMsgs(prev => [...prev, { role: "bot", text: "Sorry, try that again?" }]); }, 800);
     }
+  }
+  async function submitRating(n: number) {
+    setShowRating(false);
+    setRated(true);
+    setMsgs(prev => [...prev, { role: "bot", text: "Thanks for your feedback! 🙏" }]);
+    try { await supabase.functions.invoke("web-chat", { body: { action: "rate", rating: n, state: st } }); } catch { /* rating is best-effort */ }
   }
   return (
     <>
       {!open && (
         <div className="fixed bottom-6 right-6 chat-launcher-lift z-50 flex flex-col items-center">
-          <style>{`
-            @keyframes blurFadeInOut {
-              0%   { opacity:0; transform:translateX(-50%) scale(1.15); }
-              20%, 75% { opacity:1; transform:translateX(-50%) scale(1); }
-              100% { opacity:0; transform:translateX(-50%) scale(0.85); }
-            }
-          `}</style>
-          {/* Label sits on a glass capsule — text never floats on raw backdrop */}
-          <span
-            className="glass-chip absolute -top-11 left-1/2 hidden whitespace-nowrap px-3.5 py-1.5 text-sm font-semibold sm:inline"
-            style={{ animation: "blurFadeInOut 3s ease-in-out infinite", color: "var(--ink)" }}
-          >Book here</span>
           {chatbot_avatar ? (
             <button aria-label="Open chat" onClick={handleOpenChat} className="glass-chip h-[52px] w-[52px] overflow-hidden !rounded-full p-0 transition-transform hover:scale-105 md:h-20 md:w-20">
               {/* @ts-expect-error dotlottie-wc is a web component */}
@@ -167,7 +166,7 @@ export default function ChatWidget() {
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <button aria-label="New chat" onClick={() => { setMsgs([]); setSt({ step: "IDLE", vid: st.vid }); greeted.current = false; setTimeout(() => { greeted.current = true; setTyping(true); setTimeout(() => { setTyping(false); setMsgs([{ role: "bot", text: "Hi there! How can I help?" }]); }, 900 + Math.random() * 500); }, 400); }} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[color:var(--hover-overlay)]" style={{ color: "var(--ink-muted)" }} title="New chat"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+              <button aria-label="New chat" onClick={() => { setMsgs([]); setSt({ step: "IDLE", vid: st.vid }); setShowRating(false); setRated(false); greeted.current = false; setTimeout(() => { greeted.current = true; setTyping(true); setTimeout(() => { setTyping(false); setMsgs([{ role: "bot", text: "Hi there! How can I help?" }]); }, 900 + Math.random() * 500); }, 400); }} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[color:var(--hover-overlay)]" style={{ color: "var(--ink-muted)" }} title="New chat"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
               <button aria-label="Close chat" onClick={() => setOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[color:var(--hover-overlay)]" style={{ color: "var(--ink-muted)" }} title="Close">✕</button>
             </div>
           </div>
@@ -207,6 +206,17 @@ export default function ChatWidget() {
               </div>
             ))}
             {showJoined && (<div className="text-center text-xs my-2 animate-in fade-in duration-300" style={{ color: "var(--ink-muted)" }}>A team member just joined this chat.</div>)}
+            {showRating && !rated && (
+              <div className="flex flex-col items-center gap-2 my-3" style={{ animation: "su .2s ease-out" }}>
+                <p className="text-xs" style={{ color: "var(--ink-muted)" }}>How would you rate this chat?</p>
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button key={n} aria-label={`${n} star${n > 1 ? "s" : ""}`} onClick={() => submitRating(n)}
+                      className="text-2xl leading-none transition-transform hover:scale-125" style={{ color: "var(--accent)" }}>★</button>
+                  ))}
+                </div>
+              </div>
+            )}
             {typing && (
               <div className="flex justify-start" style={{ animation: "su .15s ease-out" }}>
 
