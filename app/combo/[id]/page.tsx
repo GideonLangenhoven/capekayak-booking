@@ -269,6 +269,13 @@ export default function ComboBookingPage() {
       setBookingRefA((data.booking_a_id || "").substring(0, 8).toUpperCase());
       setBookingRefB((data.booking_b_id || "").substring(0, 8).toUpperCase());
 
+      // Manual-settlement model: the primary operator collects the full amount
+      // via their own Yoco account — hosted checkout page, so just redirect.
+      if (data.provider === "yoco" && data.redirect_url) {
+        window.location.href = data.redirect_url;
+        return;
+      }
+
       // Launch Paysafe checkout overlay
       const paysafeCheckout = (window as PaysafeWindow).paysafe?.checkout;
       if (paysafeReady && paysafeCheckout) {
