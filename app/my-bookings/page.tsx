@@ -772,6 +772,9 @@ export default function MyBookings() {
       const res = await callRebook({ booking_id: b.id, action: "CLAIM_CREDIT", credit_action: creditAction });
       if (creditAction === "VOUCHER") {
         showToast("Voucher issued! Code: " + (res.voucher_code || "Check your email") + " for R" + Number(b.refund_amount).toFixed(2));
+      } else if (res.voucher_code && Number(res.refund_amount || 0) > 0) {
+        // Split-tender booking — cash portion refunded, voucher portion reissued.
+        showToast("Refund of R" + Number(res.refund_amount).toFixed(2) + " requested (5-10 business days). The R" + Number(res.voucher_amount || 0).toFixed(2) + " you paid by voucher is back as voucher " + res.voucher_code + ".");
       } else if (res.voucher_code) {
         // Voucher-paid booking — cash refunds aren't possible, the backend
         // issued a credit voucher instead.
