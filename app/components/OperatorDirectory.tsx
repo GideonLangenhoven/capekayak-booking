@@ -65,7 +65,7 @@ export default function OperatorDirectory() {
     (async () => {
       const [opsRes, cfgRes] = await Promise.all([
         supabase.from("operator_directory").select("*").order("name", { ascending: true }),
-        supabase.from("platform_settings").select("value").eq("key", "directory").maybeSingle(),
+        supabase.from("platform_public_settings").select("value").eq("key", "directory").maybeSingle(),
       ]);
       setOperators(((opsRes.data || []) as DirectoryOperator[]).filter((o) => o.tour_count > 0));
       setConfig((cfgRes.data?.value as DirectoryConfig) || {});
