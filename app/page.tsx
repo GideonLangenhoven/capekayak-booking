@@ -6,6 +6,7 @@ import { formatDuration } from "./lib/duration";
 import { useRouter } from "next/navigation";
 import SectionHeader from "./components/ui/SectionHeader";
 import { useTheme } from "./components/ThemeProvider";
+import OperatorDirectory from "./components/OperatorDirectory";
 import { readValidDraft, clearDraft, draftResumeUrl, type BookingDraft } from "@/app/lib/booking-draft";
 
 const TOUR_IMAGES: Record<string, string> = {
@@ -85,6 +86,10 @@ export default function Home() {
       setLoading(false);
     })();
   }, [tenantSupabase, theme.id]);
+
+  // No tenant for this host (bare booking domain) — render the central
+  // operator directory instead of an empty storefront.
+  if (!theme.id) return <OperatorDirectory />;
 
   if (loading) return (
     <div className="app-container page-wrap">
