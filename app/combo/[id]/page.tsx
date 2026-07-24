@@ -1,10 +1,10 @@
 "use client";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { createTenantSupabase } from "../../lib/supabase";
 import { useTheme } from "../../components/ThemeProvider";
 import { fmtDate, fmtTime, fmtMonth, dateKeyInTz, isSameDay, getDaysInMonth, getFirstDay } from "../../lib/format";
-import type { ComboOffer, Slot } from "../../lib/types";
+import type { Slot, Tour } from "../../lib/types";
 import { formatDuration } from "../../lib/duration";
 import { normalizePhone } from "../../lib/phone";
 
@@ -25,29 +25,39 @@ type PaysafeWindow = Window & {
   paysafe?: { checkout?: PaysafeCheckout };
 };
 
+type OfferWithItems = {
+  id: string;
+  name: string;
+  description?: string | null;
+  combo_price: number;
+  original_price: number;
+  currency?: string;
+  items?: Array<{ id: string; tour_id: string; business_id: string; position: number; tours: Tour | null }>;
+  tour_a?: Tour | null;
+  tour_b?: Tour | null;
+};
+
+// One selectable leg per tour in the combo (2 for classic combos, up to 10)
+type Leg = {
+  itemId: string | null;
+  tour: Tour | null;
+  slots: Slot[];
+  date: Date | null;
+  slot: Slot | null;
+  calMonth: number;
+  calYear: number;
+};
+
 export default function ComboBookingPage() {
   const { id: comboId } = useParams<{ id: string }>();
   const theme = useTheme();
   const tenantSupabase = useMemo(() => createTenantSupabase(theme.id), [theme.id]);
   const tz = theme.timezone || "Africa/Johannesburg";
 
-  const [combo, setCombo] = useState<ComboOffer | null>(null);
+  const [combo, setCombo] = useState<OfferWithItems | null>(null);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<"slots" | "details" | "payment">("slots");
-
-  // Tour A calendar state
-  const [slotsA, setSlotsA] = useState<Slot[]>([]);
-  const [dateA, setDateA] = useState<Date | null>(null);
-  const [slotA, setSlotA] = useState<Slot | null>(null);
-  const [calMonthA, setCalMonthA] = useState(new Date().getMonth());
-  const [calYearA, setCalYearA] = useState(new Date().getFullYear());
-
-  // Tour B calendar state
-  const [slotsB, setSlotsB] = useState<Slot[]>([]);
-  const [dateB, setDateB] = useState<Date | null>(null);
-  const [slotB, setSlotB] = useState<Slot | null>(null);
-  const [calMonthB, setCalMonthB] = useState(new Date().getMonth());
-  const [calYearB, setCalYearB] = useState(new Date().getFullYear());
+  const [legs, setLegs] = useState<Leg[]>([]);
 
   // Customer details
   const [qty, setQty] = useState(1);
@@ -58,32 +68,56 @@ export default function ComboBookingPage() {
 
   // Payment state
   const [submitting, setSubmitting] = useState(false);
-  const [comboBookingId, setComboBookingId] = useState("");
-  const [bookingRefA, setBookingRefA] = useState("");
-  const [bookingRefB, setBookingRefB] = useState("");
+  const [bookingRefs, setBookingRefs] = useState<string[]>([]);
   const [paysafeReady, setPaysafeReady] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "processing" | "success" | "failed">("idle");
   const [paymentError, setPaymentError] = useState("");
   const [soldOutMsg, setSoldOutMsg] = useState("");
 
-  // Load combo offer
+  function patchLeg(idx: number, patch: Partial<Leg>) {
+    setLegs((ls) => ls.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
+  }
+
+  const loadLegSlots = useCallback(async (idx: number, tourId: string) => {
+    const now = new Date();
+    const cutoff = new Date(now.getTime() + BOOKING_CUTOFF_MINUTES * 60 * 1000);
+    const later = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+    const { data } = await tenantSupabase.from("slots").select("*").eq("tour_id", tourId).eq("status", "OPEN")
+      .gt("start_time", cutoff.toISOString()).lt("start_time", later.toISOString()).order("start_time", { ascending: true });
+    const open = ((data || []) as unknown as Slot[]).filter((s) => s.capacity_total - s.booked - (s.held || 0) > 0);
+    setLegs((ls) => ls.map((l, i) => {
+      if (i !== idx) return l;
+      const first = open[0] ? new Date(open[0].start_time) : new Date();
+      return { ...l, slots: open, calMonth: first.getMonth(), calYear: first.getFullYear() };
+    }));
+  }, [tenantSupabase]);
+
+  // Load combo offer + build one leg per tour
   useEffect(() => {
     if (!comboId || !theme.id) return;
     (async () => {
       const { data } = await tenantSupabase.from("combo_offers")
-        .select("*, tour_a:tours!combo_offers_tour_a_id_fkey(id, name, image_url, duration_minutes, base_price_per_person, business_id), tour_b:tours!combo_offers_tour_b_id_fkey(id, name, image_url, duration_minutes, base_price_per_person, business_id)")
+        .select("*, items:combo_offer_items(id, tour_id, business_id, position, tours:tours(id, name, image_url, duration_minutes, base_price_per_person, business_id)), tour_a:tours!combo_offers_tour_a_id_fkey(id, name, image_url, duration_minutes, base_price_per_person, business_id), tour_b:tours!combo_offers_tour_b_id_fkey(id, name, image_url, duration_minutes, base_price_per_person, business_id)")
         .eq("id", comboId)
         .eq("active", true)
         .single();
       if (data) {
-        const offer = data as unknown as ComboOffer;
+        const offer = data as unknown as OfferWithItems;
         setCombo(offer);
-        loadSlots(offer.tour_a.id, setSlotsA);
-        loadSlots(offer.tour_b.id, setSlotsB);
+        const sortedItems = (offer.items || []).slice().sort((a, b) => (a.position || 0) - (b.position || 0));
+        const now = new Date();
+        const built: Leg[] = sortedItems.length >= 2
+          ? sortedItems.map((it) => ({ itemId: it.id, tour: it.tours, slots: [], date: null, slot: null, calMonth: now.getMonth(), calYear: now.getFullYear() }))
+          : [
+              { itemId: null, tour: offer.tour_a || null, slots: [], date: null, slot: null, calMonth: now.getMonth(), calYear: now.getFullYear() },
+              { itemId: null, tour: offer.tour_b || null, slots: [], date: null, slot: null, calMonth: now.getMonth(), calYear: now.getFullYear() },
+            ];
+        setLegs(built);
+        built.forEach((leg, i) => { if (leg.tour?.id) loadLegSlots(i, leg.tour.id); });
       }
       setLoading(false);
     })();
-  }, [tenantSupabase, comboId, theme.id]);
+  }, [tenantSupabase, comboId, theme.id, loadLegSlots]);
 
   // Load Paysafe SDK
   useEffect(() => {
@@ -96,78 +130,31 @@ export default function ComboBookingPage() {
     document.head.appendChild(s);
   }, []);
 
-  async function loadSlots(tourId: string, setter: (s: Slot[]) => void) {
-    const now = new Date();
-    const cutoff = new Date(now.getTime() + BOOKING_CUTOFF_MINUTES * 60 * 1000);
-    const later = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
-    const { data } = await tenantSupabase.from("slots").select("*").eq("tour_id", tourId).eq("status", "OPEN")
-      .gt("start_time", cutoff.toISOString()).lt("start_time", later.toISOString()).order("start_time", { ascending: true });
-    setter(((data || []) as unknown as Slot[]).filter((s) => s.capacity_total - s.booked - (s.held || 0) > 0));
-  }
-
-  useEffect(() => {
-    if (slotsA.length > 0) {
-      const first = new Date(slotsA[0].start_time);
-      setCalMonthA(first.getMonth());
-      setCalYearA(first.getFullYear());
-    }
-  }, [slotsA]);
-
-  useEffect(() => {
-    if (slotsB.length > 0) {
-      const first = new Date(slotsB[0].start_time);
-      setCalMonthB(first.getMonth());
-      setCalYearB(first.getFullYear());
-    }
-  }, [slotsB]);
-
-  const availDatesA = useMemo(() => {
-    const ds = new Set<string>();
-    slotsA.forEach(s => ds.add(dateKeyInTz(s.start_time, tz)));
-    return ds;
-  }, [slotsA, tz]);
-
-  const availDatesB = useMemo(() => {
-    const ds = new Set<string>();
-    slotsB.forEach(s => ds.add(dateKeyInTz(s.start_time, tz)));
-    return ds;
-  }, [slotsB, tz]);
-
-  const daySlotsA = useMemo(() => {
-    if (!dateA) return [];
-    return slotsA.filter(s => isSameDay(new Date(s.start_time), dateA));
-  }, [slotsA, dateA]);
-
-  const daySlotsB = useMemo(() => {
-    if (!dateB) return [];
-    return slotsB.filter(s => isSameDay(new Date(s.start_time), dateB));
-  }, [slotsB, dateB]);
-
   const comboTotal = combo ? combo.combo_price * qty : 0;
-  const availA = slotA ? slotA.capacity_total - slotA.booked - (slotA.held || 0) : 10;
-  const availB = slotB ? slotB.capacity_total - slotB.booked - (slotB.held || 0) : 10;
-  const maxQty = Math.min(availA, availB);
+  const allSelected = legs.length >= 2 && legs.every((l) => l.slot);
+  const maxQty = legs.reduce((m, l) => {
+    if (!l.slot) return m;
+    return Math.min(m, l.slot.capacity_total - l.slot.booked - (l.slot.held || 0));
+  }, 10);
 
-  function renderCalendar(
-    calYear: number, calMonth: number,
-    setCalYear: (y: number) => void, setCalMonth: (m: number) => void,
-    availDates: Set<string>, selectedDate: Date | null,
-    setSelectedDate: (d: Date) => void, setSelectedSlot: (s: Slot | null) => void
-  ) {
+  function renderCalendar(idx: number) {
+    const leg = legs[idx];
+    const availDates = new Set<string>();
+    leg.slots.forEach((s) => availDates.add(dateKeyInTz(s.start_time, tz)));
     const today = new Date(); today.setHours(0, 0, 0, 0);
-    const dim = getDaysInMonth(calYear, calMonth);
-    const fd = getFirstDay(calYear, calMonth);
+    const dim = getDaysInMonth(leg.calYear, leg.calMonth);
+    const fd = getFirstDay(leg.calYear, leg.calMonth);
     const cells = [];
     for (let i = 0; i < fd; i++) cells.push(<div key={"e" + i} />);
     for (let day = 1; day <= dim; day++) {
-      const date = new Date(calYear, calMonth, day);
-      const k = calYear + "-" + calMonth + "-" + day;
+      const date = new Date(leg.calYear, leg.calMonth, day);
+      const k = leg.calYear + "-" + leg.calMonth + "-" + day;
       const has = availDates.has(k);
       const past = date < today;
-      const sel = selectedDate && isSameDay(date, selectedDate);
+      const sel = leg.date && isSameDay(date, leg.date);
       const isToday = isSameDay(date, today);
       cells.push(
-        <button key={day} disabled={past || !has} onClick={() => { setSelectedDate(date); setSelectedSlot(null); }}
+        <button key={day} disabled={past || !has} onClick={() => patchLeg(idx, { date, slot: null })}
           className={"relative aspect-square rounded-full flex items-center justify-center text-sm font-medium transition-all " +
             (sel ? "bg-[color:var(--accent)] text-[color:var(--ink-on-main)] shadow-lg scale-105 " : "") +
             (!sel && has && !past ? "bg-[color:var(--glass-tint-card)] text-[color:var(--ink)] hover:bg-[color:var(--hover-overlay)] border border-[color:var(--glass-border)] cursor-pointer " : "") +
@@ -178,14 +165,14 @@ export default function ComboBookingPage() {
         </button>
       );
     }
-    const canPrev = calYear > today.getFullYear() || calMonth > today.getMonth();
+    const canPrev = leg.calYear > today.getFullYear() || leg.calMonth > today.getMonth();
     return (
       <div>
         <div className="flex items-center justify-between mb-4">
-          <button onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); } else setCalMonth(calMonth - 1); }}
+          <button onClick={() => { if (leg.calMonth === 0) patchLeg(idx, { calMonth: 11, calYear: leg.calYear - 1 }); else patchLeg(idx, { calMonth: leg.calMonth - 1 }); }}
             disabled={!canPrev} className="w-9 h-9 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 rounded-full surface-muted flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)] disabled:opacity-30">&larr;</button>
-          <h3 className="text-lg font-semibold text-[color:var(--ink)]">{fmtMonth(new Date(calYear, calMonth))}</h3>
-          <button onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1); } else setCalMonth(calMonth + 1); }}
+          <h3 className="text-lg font-semibold text-[color:var(--ink)]">{fmtMonth(new Date(leg.calYear, leg.calMonth))}</h3>
+          <button onClick={() => { if (leg.calMonth === 11) patchLeg(idx, { calMonth: 0, calYear: leg.calYear + 1 }); else patchLeg(idx, { calMonth: leg.calMonth + 1 }); }}
             className="w-9 h-9 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 rounded-full surface-muted flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)]">&rarr;</button>
         </div>
         <div className="grid grid-cols-7 gap-1 mb-2">
@@ -200,15 +187,17 @@ export default function ComboBookingPage() {
     );
   }
 
-  function renderSlots(daySlots: Slot[], selectedSlot: Slot | null, setSelectedSlot: (s: Slot) => void) {
+  function renderSlots(idx: number) {
+    const leg = legs[idx];
+    const daySlots = leg.date ? leg.slots.filter((s) => isSameDay(new Date(s.start_time), leg.date as Date)) : [];
     if (daySlots.length === 0) return <div className="text-center py-8 text-[color:var(--ink-muted)]"><p>No available slots.</p></div>;
     return (
       <div className="space-y-2">
         {daySlots.map((s: Slot) => {
           const a = s.capacity_total - s.booked - (s.held || 0);
-          const isSel = selectedSlot?.id === s.id;
+          const isSel = leg.slot?.id === s.id;
           return (
-            <button key={s.id} onClick={() => setSelectedSlot(s)}
+            <button key={s.id} onClick={() => patchLeg(idx, { slot: s })}
               className={"w-full text-left rounded-2xl p-3 transition-all " + (isSel ? "border-2 border-[color:var(--accent)] bg-[color:var(--accent)] text-[color:var(--ink-on-main)] shadow-lg" : "glass !rounded-2xl hover:shadow-md")}>
               <div className="flex items-center justify-between">
                 <div>
@@ -225,22 +214,33 @@ export default function ComboBookingPage() {
     );
   }
 
+  function refreshAllSlots() {
+    legs.forEach((leg, i) => {
+      if (leg.tour?.id) loadLegSlots(i, leg.tour.id);
+      patchLeg(i, { slot: null });
+    });
+  }
+
   async function submitComboBooking() {
     if (!name.trim() || !email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
-    if (!slotA || !slotB || !combo) return;
+    if (!combo || !allSelected) return;
     setSubmitting(true);
     setSoldOutMsg("");
     setPaymentError("");
 
     try {
-      // Call create-paysafe-checkout to create both bookings + combo record
+      // slot_ids maps offer item → chosen slot (N-party); slot_a/b keep older
+      // edge-function builds working for classic 2-tour combos.
+      const slotIds: Record<string, string> = {};
+      legs.forEach((leg) => { if (leg.itemId && leg.slot) slotIds[leg.itemId] = leg.slot.id; });
       const res = await fetch(SU + "/functions/v1/create-paysafe-checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + SK },
         body: JSON.stringify({
           combo_offer_id: combo.id,
-          slot_a_id: slotA.id,
-          slot_b_id: slotB.id,
+          slot_ids: slotIds,
+          slot_a_id: legs[0]?.slot?.id,
+          slot_b_id: legs[1]?.slot?.id,
           qty,
           customer_name: name,
           customer_email: email.toLowerCase(),
@@ -250,14 +250,10 @@ export default function ComboBookingPage() {
       const data = await res.json();
 
       if (!res.ok || data.error) {
-        if (data.error?.includes("capacity") || data.error?.includes("sold out")) {
+        if (data.error?.includes("capacity") || data.error?.includes("taken") || data.error?.includes("sold out")) {
           setSoldOutMsg(data.error || "A slot just sold out. Please select different times.");
           setStep("slots");
-          if (combo) {
-            loadSlots(combo.tour_a.id, setSlotsA);
-            loadSlots(combo.tour_b.id, setSlotsB);
-          }
-          setSlotA(null); setSlotB(null);
+          refreshAllSlots();
         } else {
           setPaymentError(data.error || "Something went wrong. Please try again.");
         }
@@ -265,9 +261,8 @@ export default function ComboBookingPage() {
         return;
       }
 
-      setComboBookingId(data.combo_booking_id);
-      setBookingRefA((data.booking_a_id || "").substring(0, 8).toUpperCase());
-      setBookingRefB((data.booking_b_id || "").substring(0, 8).toUpperCase());
+      const ids: string[] = Array.isArray(data.booking_ids) ? data.booking_ids : [data.booking_a_id, data.booking_b_id].filter(Boolean);
+      setBookingRefs(ids.map((id: string) => String(id).substring(0, 8).toUpperCase()));
 
       // Manual-settlement model: the primary operator collects the full amount
       // via their own Yoco account — hosted checkout page, so just redirect.
@@ -276,7 +271,7 @@ export default function ComboBookingPage() {
         return;
       }
 
-      // Launch Paysafe checkout overlay
+      // Launch Paysafe checkout overlay (2-tour combos with SplitPay configured)
       const paysafeCheckout = (window as PaysafeWindow).paysafe?.checkout;
       if (paysafeReady && paysafeCheckout) {
         const totalCents = Math.round(comboTotal * 100);
@@ -347,7 +342,7 @@ export default function ComboBookingPage() {
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[color:var(--accent)]" /></div>;
 
-  if (!combo) return (
+  if (!combo || legs.length < 2) return (
     <div className="max-w-lg mx-auto px-4 py-16 text-center">
 
       <h2 className="text-2xl font-bold text-[color:var(--ink)] mb-3">Combo Not Available</h2>
@@ -356,9 +351,8 @@ export default function ComboBookingPage() {
     </div>
   );
 
-  const tourA = combo.tour_a;
-  const tourB = combo.tour_b;
   const savings = combo.original_price - combo.combo_price;
+  const tourNamesLine = legs.map((l) => l.tour?.name).filter(Boolean).join(" + ");
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -372,7 +366,7 @@ export default function ComboBookingPage() {
             <div key={x.l} className="flex items-center flex-1">
               <div className="flex items-center gap-2 flex-1">
                 <div className={"w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all " + (active ? "bg-[color:var(--accent)] text-[color:var(--ink-on-main)]" : "bg-[color:var(--hover-overlay)] text-[color:var(--ink-muted)]")}>
-                  {active && i < ci ? "\u2713" : i + 1}
+                  {active && i < ci ? "✓" : i + 1}
                 </div>
                 <span className={"text-sm hidden sm:block " + (active ? "text-[color:var(--ink)] font-medium" : "text-[color:var(--ink-muted)]")}>{x.l}</span>
               </div>
@@ -387,7 +381,7 @@ export default function ComboBookingPage() {
 
         <div className="flex-1">
           <h3 className="font-semibold text-lg text-[color:var(--ink)]">{combo.name}</h3>
-          <p className="text-[color:var(--ink-muted)] text-sm">{tourA?.name} + {tourB?.name}</p>
+          <p className="text-[color:var(--ink-muted)] text-sm">{tourNamesLine}</p>
         </div>
         <div className="text-right">
           <div className="font-bold text-lg text-[color:var(--ink)]">R{combo.combo_price}<span className="text-xs font-normal text-[color:var(--ink-muted)]">/pp</span></div>
@@ -411,47 +405,28 @@ export default function ComboBookingPage() {
             </div>
           )}
 
-          {/* Tour A */}
-          <div className="mb-10">
-            <div className="flex items-center gap-3 mb-4">
-              <span className="w-7 h-7 bg-[color:var(--accent)] text-[color:var(--ink-on-main)] rounded-full flex items-center justify-center text-xs font-bold">1</span>
-              <h2 className="text-xl font-bold text-[color:var(--ink)]">{tourA?.name}</h2>
-              <span className="text-sm text-[color:var(--ink-muted)]">{formatDuration(tourA?.duration_minutes)}</span>
-            </div>
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                {renderCalendar(calYearA, calMonthA, setCalYearA, setCalMonthA, availDatesA, dateA, setDateA, setSlotA)}
+          {legs.map((leg, idx) => (
+            <div key={leg.itemId || idx} className="mb-10">
+              <div className="flex items-center gap-3 mb-4">
+                <span className="w-7 h-7 bg-[color:var(--accent)] text-[color:var(--ink-on-main)] rounded-full flex items-center justify-center text-xs font-bold">{idx + 1}</span>
+                <h2 className="text-xl font-bold text-[color:var(--ink)]">{leg.tour?.name}</h2>
+                <span className="text-sm text-[color:var(--ink-muted)]">{formatDuration(leg.tour?.duration_minutes)}</span>
               </div>
-              <div>
-                <h3 className="text-base font-semibold mb-3">{dateA ? "Times for " + fmtDate(dateA.toISOString(), tz) : "Select a date"}</h3>
-                {!dateA ? (
-                  <div className="text-center py-8 text-[color:var(--ink-muted)]"><p className="text-sm">Tap a date to see times.</p></div>
-                ) : renderSlots(daySlotsA, slotA, setSlotA)}
+              <div className="grid md:grid-cols-2 gap-6">
+                <div>
+                  {renderCalendar(idx)}
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold mb-3">{leg.date ? "Times for " + fmtDate(leg.date.toISOString(), tz) : "Select a date"}</h3>
+                  {!leg.date ? (
+                    <div className="text-center py-8 text-[color:var(--ink-muted)]"><p className="text-sm">Tap a date to see times.</p></div>
+                  ) : renderSlots(idx)}
+                </div>
               </div>
             </div>
-          </div>
+          ))}
 
-          {/* Tour B */}
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-4">
-              <span className="w-7 h-7 bg-[color:var(--accent)] text-[color:var(--ink-on-main)] rounded-full flex items-center justify-center text-xs font-bold">2</span>
-              <h2 className="text-xl font-bold text-[color:var(--ink)]">{tourB?.name}</h2>
-              <span className="text-sm text-[color:var(--ink-muted)]">{formatDuration(tourB?.duration_minutes)}</span>
-            </div>
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                {renderCalendar(calYearB, calMonthB, setCalYearB, setCalMonthB, availDatesB, dateB, setDateB, setSlotB)}
-              </div>
-              <div>
-                <h3 className="text-base font-semibold mb-3">{dateB ? "Times for " + fmtDate(dateB.toISOString(), tz) : "Select a date"}</h3>
-                {!dateB ? (
-                  <div className="text-center py-8 text-[color:var(--ink-muted)]"><p className="text-sm">Tap a date to see times.</p></div>
-                ) : renderSlots(daySlotsB, slotB, setSlotB)}
-              </div>
-            </div>
-          </div>
-
-          {slotA && slotB && (
+          {allSelected && (
             <button onClick={() => setStep("details")}
               className="btn btn-primary w-full mt-4 !py-3.5">
               Continue &rarr;
@@ -509,24 +484,17 @@ export default function ComboBookingPage() {
               <div className="glass-sheet !rounded-[20px] p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sticky top-6">
                 <h3 className="font-bold mb-4">Combo Summary</h3>
                 <div className="space-y-3 text-sm">
-                  <div className="pb-3 border-b border-[color:var(--glass-border)]">
-                    <p className="font-semibold text-[color:var(--ink)]">{tourA?.name}</p>
-                    <div className="flex justify-between text-[color:var(--ink-muted)] mt-1">
-                      <span>Date</span><span className="font-medium text-[color:var(--ink)]">{slotA && fmtDate(slotA.start_time, tz)}</span>
+                  {legs.map((leg, idx) => (
+                    <div key={leg.itemId || idx} className="pb-3 border-b border-[color:var(--glass-border)]">
+                      <p className="font-semibold text-[color:var(--ink)]">{leg.tour?.name}</p>
+                      <div className="flex justify-between text-[color:var(--ink-muted)] mt-1">
+                        <span>Date</span><span className="font-medium text-[color:var(--ink)]">{leg.slot && fmtDate(leg.slot.start_time, tz)}</span>
+                      </div>
+                      <div className="flex justify-between text-[color:var(--ink-muted)] mt-0.5">
+                        <span>Time</span><span className="font-medium text-[color:var(--ink)]">{leg.slot && fmtTime(leg.slot.start_time, tz)}</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between text-[color:var(--ink-muted)] mt-0.5">
-                      <span>Time</span><span className="font-medium text-[color:var(--ink)]">{slotA && fmtTime(slotA.start_time, tz)}</span>
-                    </div>
-                  </div>
-                  <div className="pb-3 border-b border-[color:var(--glass-border)]">
-                    <p className="font-semibold text-[color:var(--ink)]">{tourB?.name}</p>
-                    <div className="flex justify-between text-[color:var(--ink-muted)] mt-1">
-                      <span>Date</span><span className="font-medium text-[color:var(--ink)]">{slotB && fmtDate(slotB.start_time, tz)}</span>
-                    </div>
-                    <div className="flex justify-between text-[color:var(--ink-muted)] mt-0.5">
-                      <span>Time</span><span className="font-medium text-[color:var(--ink)]">{slotB && fmtTime(slotB.start_time, tz)}</span>
-                    </div>
-                  </div>
+                  ))}
                   <div className="flex justify-between"><span className="text-[color:var(--ink-muted)]">Guests</span><span className="font-medium">{qty}</span></div>
                   <div className="border-t border-[color:var(--glass-border)] pt-3">
                     <div className="flex justify-between"><span className="text-[color:var(--ink-muted)]">Combo price &times; {qty}</span><span>R{comboTotal}</span></div>
@@ -544,7 +512,7 @@ export default function ComboBookingPage() {
                   className="btn btn-primary w-full mt-5 !py-3.5">
                   {submitting ? "Processing..." : "Pay R" + comboTotal}
                 </button>
-                <p className="surface-muted !rounded-full px-4 py-2 text-xs text-[color:var(--ink-muted)] text-center mt-3">Secure payment via Paysafe, a PCI DSS compliant provider: card details never touch our servers</p>
+                <p className="surface-muted !rounded-full px-4 py-2 text-xs text-[color:var(--ink-muted)] text-center mt-3">Secure payment via a PCI DSS compliant provider: card details never touch our servers</p>
               </div>
             </div>
           </div>
@@ -568,27 +536,20 @@ export default function ComboBookingPage() {
             <>
 
               <h2 className="text-3xl font-bold mb-3 text-[color:var(--ink)]">Combo Booked!</h2>
-              <p className="text-[color:var(--ink-muted)] mb-8">Both adventures are confirmed. Check your email for details.</p>
+              <p className="text-[color:var(--ink-muted)] mb-8">All your adventures are confirmed. Check your email for details.</p>
 
-              <div className="glass p-6 text-left mb-4 space-y-3">
-                <h4 className="font-bold text-sm text-[color:var(--ink)] mb-2">{tourA?.name}</h4>
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between"><span className="text-[color:var(--ink-muted)]">Reference</span><span className="font-mono font-bold">{bookingRefA}</span></div>
-                  <div className="flex justify-between"><span className="text-[color:var(--ink-muted)]">Date</span><span className="font-medium">{slotA && fmtDate(slotA.start_time, tz)}</span></div>
-                  <div className="flex justify-between"><span className="text-[color:var(--ink-muted)]">Time</span><span className="font-medium">{slotA && fmtTime(slotA.start_time, tz)}</span></div>
+              {legs.map((leg, idx) => (
+                <div key={leg.itemId || idx} className="glass p-6 text-left mb-4 space-y-3">
+                  <h4 className="font-bold text-sm text-[color:var(--ink)] mb-2">{leg.tour?.name}</h4>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between"><span className="text-[color:var(--ink-muted)]">Reference</span><span className="font-mono font-bold">{bookingRefs[idx] || ""}</span></div>
+                    <div className="flex justify-between"><span className="text-[color:var(--ink-muted)]">Date</span><span className="font-medium">{leg.slot && fmtDate(leg.slot.start_time, tz)}</span></div>
+                    <div className="flex justify-between"><span className="text-[color:var(--ink-muted)]">Time</span><span className="font-medium">{leg.slot && fmtTime(leg.slot.start_time, tz)}</span></div>
+                  </div>
                 </div>
-              </div>
+              ))}
 
-              <div className="glass p-6 text-left mb-8 space-y-3">
-                <h4 className="font-bold text-sm text-[color:var(--ink)] mb-2">{tourB?.name}</h4>
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between"><span className="text-[color:var(--ink-muted)]">Reference</span><span className="font-mono font-bold">{bookingRefB}</span></div>
-                  <div className="flex justify-between"><span className="text-[color:var(--ink-muted)]">Date</span><span className="font-medium">{slotB && fmtDate(slotB.start_time, tz)}</span></div>
-                  <div className="flex justify-between"><span className="text-[color:var(--ink-muted)]">Time</span><span className="font-medium">{slotB && fmtTime(slotB.start_time, tz)}</span></div>
-                </div>
-              </div>
-
-              <div className="bg-[color-mix(in_srgb,var(--warning)_14%,transparent)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] rounded-2xl p-5 text-left mb-8">
+              <div className="bg-[color-mix(in_srgb,var(--warning)_14%,transparent)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] rounded-2xl p-5 text-left mb-8 mt-8">
                 <div className="flex justify-between text-sm">
                   <span className="text-[color:var(--warning)] font-semibold">Combo Total Paid</span>
                   <span className="font-bold text-[color:var(--ink)]">R{comboTotal}</span>
