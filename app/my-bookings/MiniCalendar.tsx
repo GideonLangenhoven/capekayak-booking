@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { fmtFull, fmtTime, dateKey } from "../lib/format";
+import { rescheduleUnitPrice } from "../lib/pricing";
 import type { Slot } from "../lib/types";
 
 export default function MiniCalendar({ slots, onSelect }: { slots: Slot[]; onSelect: (slot: Slot) => void }) {
@@ -67,7 +68,7 @@ export default function MiniCalendar({ slots, onSelect }: { slots: Slot[]; onSel
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-semibold text-[color:var(--text)]">{sl.tours?.name}</p>
-                    <p className="text-sm text-[color:var(--textMuted)] mt-0.5">{fmtTime(sl.start_time)} &middot; {avail} spots left &middot; R{sl.price_per_person_override ?? sl.tours?.base_price_per_person}/pp</p>
+                    <p className="text-sm text-[color:var(--textMuted)] mt-0.5">{fmtTime(sl.start_time)} &middot; {avail} spots left &middot; R{rescheduleUnitPrice(sl, sl.tours?.base_price_per_person)}/pp</p>
                   </div>
                   <svg className="w-5 h-5 text-[color:var(--textMuted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                 </div>

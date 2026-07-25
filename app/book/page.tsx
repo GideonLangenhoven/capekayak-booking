@@ -10,6 +10,7 @@ import { useToast } from "../hooks/useToast";
 import { fmtDate, fmtTime, fmtMonth, dateKeyInTz, isSameDay, getDaysInMonth, getFirstDay } from "../lib/format";
 import type { Tour, Slot, VoucherCredit, AddOn, AppliedPromo } from "../lib/types";
 import { normalizePhone, DIAL_CODES } from "../lib/phone";
+import { BOOKING_CUTOFF_MINUTES } from "../lib/pricing";
 import { HoldCountdown } from "../components/HoldCountdown";
 import { saveDraft as saveLocalDraft, clearDraft as clearLocalDraft, readValidDraft } from "@/app/lib/booking-draft";
 
@@ -204,8 +205,6 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     })();
   }, [tenantSupabase, theme.id]);
 
-  const BOOKING_CUTOFF_MINUTES = 60;
-
   async function loadSlots(tid: string) {
     const now = new Date();
     const cutoff = new Date(now.getTime() + BOOKING_CUTOFF_MINUTES * 60 * 1000);
@@ -253,7 +252,10 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     : selectedTour
       ? Number(selectedTour.base_price_per_person || 0)
       : 0;
-  const isPeakPrice = !!(selectedSlot && selectedSlot.price_per_person_override != null
+  // A last-minute slot also carries an override, so it must win over the Peak
+  // badge. The override check keeps a stale flag from rendering a broken price.
+  const isLastMinute = !!selectedSlot?.last_minute_at && selectedSlot?.price_per_person_override != null;
+  const isPeakPrice = !isLastMinute && !!(selectedSlot && selectedSlot.price_per_person_override != null
     && Number(selectedSlot.price_per_person_override) !== Number(selectedTour?.base_price_per_person || 0));
   const baseTotal = effectiveUnitPrice * qty;
   const addOnsTotal = useMemo(() => {
@@ -648,7 +650,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                  <h3 className="font-extrabold text-[16px] text-[color:var(--ink)] leading-tight">{selectedTour?.name}</h3>
                  <p className="text-[color:var(--ink-muted)] text-[12px] font-bold mt-0.5">
                    {formatDuration(selectedTour?.duration_minutes)} &middot; {selectedSlot
-                     ? <>R{effectiveUnitPrice} per person{isPeakPrice ? <span className="ml-1 inline-block rounded-full bg-[color-mix(in_srgb,var(--warning)_18%,transparent)] text-[color:var(--warning)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider">Peak</span> : null}</>
+                     ? <>{isLastMinute ? <span className="mr-1 line-through text-[color:var(--ink-faint)]">R{selectedTour?.base_price_per_person}</span> : null}R{effectiveUnitPrice} per person{isPeakPrice ? <span className="ml-1 inline-block rounded-full bg-[color-mix(in_srgb,var(--warning)_18%,transparent)] text-[color:var(--warning)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider">Peak</span> : null}{isLastMinute ? <span className="ml-1 inline-block rounded-full bg-[color-mix(in_srgb,var(--success)_18%,transparent)] text-[color:var(--success)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider">Last minute</span> : null}</>
                      : <>From R{selectedTour?.base_price_per_person} per person</>}
                  </p>
                </div>
@@ -704,7 +706,9 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                         {isSel && <div className="absolute inset-0 bg-[color:var(--main-overlay)] mix-blend-overlay"></div>}
 
                         <div className="flex-1 min-w-0 relative z-10">
-                           <p className={"text-[18px] font-extrabold leading-tight " + (isSel ? "text-[color:var(--ink-on-main)]" : "text-[color:var(--ink)]")}>{fmtTime(s.start_time, tz)}</p>
+                           <p className={"text-[18px] font-extrabold leading-tight " + (isSel ? "text-[color:var(--ink-on-main)]" : "text-[color:var(--ink)]")}>{fmtTime(s.start_time, tz)}
+                             {s.last_minute_at && s.price_per_person_override != null ? <span className="ml-2 align-middle inline-block rounded-full bg-[color-mix(in_srgb,var(--success)_18%,transparent)] text-[color:var(--success)] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider">R{s.price_per_person_override} last minute</span> : null}
+                           </p>
                            <p className={"text-[12px] font-bold mt-0.5 " + (isSel ? "text-[color:var(--ink-on-main)] opacity-80" : isVeryLow ? "text-[color:var(--danger)]" : isLow ? "text-[color:var(--warning)]" : "text-[color:var(--ink-muted)]")}>{a} {a === 1 ? "spot" : "spots"} remaining</p>
                         </div>
                         <div className="shrink-0 relative z-10" data-shot="seat-count">

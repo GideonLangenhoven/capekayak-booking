@@ -22,6 +22,7 @@ export interface Slot {
   booked: number;
   held: number;
   price_per_person_override?: number | null;
+  last_minute_at?: string | null;
   tours?: Pick<Tour, "name" | "base_price_per_person">;
 }
 

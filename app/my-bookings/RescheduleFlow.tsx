@@ -3,6 +3,7 @@ import Button from "../components/ui/Button";
 
 import MiniCalendar from "./MiniCalendar";
 import { fmtFull, fmtTime } from "../lib/format";
+import { rescheduleUnitPrice } from "../lib/pricing";
 import type { Booking, Slot } from "../lib/types";
 
 interface RescheduleFlowProps {
@@ -52,7 +53,7 @@ export default function RescheduleFlow({
   if (rebookConfirmSlot) {
     const qty = isClaim ? rescheduleQty : rescheduling.qty;
     const slotSpots = rebookConfirmSlot.capacity_total - rebookConfirmSlot.booked - (rebookConfirmSlot.held || 0);
-    const unitPrice = rebookConfirmSlot.price_per_person_override ?? rebookConfirmSlot.tours!.base_price_per_person;
+    const unitPrice = rescheduleUnitPrice(rebookConfirmSlot, rebookConfirmSlot.tours!.base_price_per_person);
     const newTotal = unitPrice * qty;
     const diff = newTotal - Number(rescheduling.total_amount);
     const refundFactor = isClaim ? 1 : 0.95;

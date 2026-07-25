@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { createTenantSupabase } from "./lib/supabase";
 import { formatDuration } from "./lib/duration";
+import { fmtDate, fmtTime } from "./lib/format";
+import { BOOKING_CUTOFF_MINUTES } from "./lib/pricing";
 import { useRouter } from "next/navigation";
 import SectionHeader from "./components/ui/SectionHeader";
 import { useTheme } from "./components/ThemeProvider";
@@ -18,6 +20,7 @@ const TOUR_IMAGES: Record<string, string> = {
 export default function Home() {
   const theme = useTheme();
   const tenantSupabase = useMemo(() => createTenantSupabase(theme.id), [theme.id]);
+  const tz = theme.timezone || "Africa/Johannesburg";
   const router = useRouter();
   const [tours, setTours] = useState<any[]>([]);
   const [comboOffers, setComboOffers] = useState<any[]>([]);
@@ -25,6 +28,7 @@ export default function Home() {
   const [spotsThisWeek, setSpotsThisWeek] = useState<Record<string, number>>({});
   const [totalBookings, setTotalBookings] = useState(0);
   const [reviewStats, setReviewStats] = useState<Record<string, { avg: number; count: number }>>({});
+  const [deals, setDeals] = useState<any[]>([]);
   const [draft, setDraft] = useState<BookingDraft | null>(null);
 
   useEffect(() => { setDraft(readValidDraft()); }, []);
@@ -35,7 +39,7 @@ export default function Home() {
       const now = new Date();
       const weekEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-      const [toursRes, combosRes, slotsRes, bookingsRes, rvStatsRes] = await Promise.all([
+      const [toursRes, combosRes, slotsRes, bookingsRes, rvStatsRes, dealsRes] = await Promise.all([
         tenantSupabase.from("tours").select("*").eq("business_id", theme.id).eq("active", true).order("sort_order", { ascending: true }),
         // Offers this tenant participates in (any leg, incl. 3+ party combos)
         tenantSupabase.from("combo_offer_items").select("combo_offer_id").eq("business_id", theme.id),
@@ -52,6 +56,17 @@ export default function Home() {
         tenantSupabase.from("tour_review_stats")
           .select("tour_id, avg_rating, review_count")
           .eq("business_id", theme.id),
+        // Last-minute deals: slots the cron has repriced (see apply_last_minute_deals).
+        // Only advertise what the booking flow will actually sell — same cutoff.
+        tenantSupabase.from("slots")
+          .select("id, tour_id, start_time, price_per_person_override, capacity_total, booked, held, tours(name, base_price_per_person, hidden, active)")
+          .eq("business_id", theme.id)
+          .eq("status", "OPEN")
+          .not("last_minute_at", "is", null)
+          .not("price_per_person_override", "is", null)
+          .gt("start_time", new Date(now.getTime() + BOOKING_CUTOFF_MINUTES * 60 * 1000).toISOString())
+          .order("start_time", { ascending: true })
+          .limit(20),
       ]);
 
       const activeTours = (toursRes.data || []).filter((t: any) => !t.hidden);
@@ -82,6 +97,15 @@ export default function Home() {
         if (rs.review_count > 0) rvMap[rs.tour_id] = { avg: Number(rs.avg_rating), count: rs.review_count };
       }
       setReviewStats(rvMap);
+
+      // Supabase types the joined tour as an array; it is one row per slot.
+      setDeals((dealsRes.data || [])
+        .map((s) => ({ ...s, tour: (Array.isArray(s.tours) ? s.tours[0] : s.tours) as { name: string; base_price_per_person: number; hidden: boolean | null; active: boolean | null } | undefined }))
+        .filter((s) =>
+          s.tour && s.tour.active !== false && !s.tour.hidden
+          && (s.capacity_total || 0) - (s.booked || 0) - (s.held || 0) > 0
+        )
+        .slice(0, 4));
 
       setLoading(false);
     })();
@@ -137,6 +161,38 @@ export default function Home() {
       </div>
 
 
+
+      {deals.length > 0 && (
+        <div className="glass mb-8 px-5 py-4" style={{ borderRadius: 28 }}>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide" style={{ background: "var(--accent)", color: "var(--ink-on-main)" }}>
+              Last minute
+            </span>
+            <p className="text-[14px] font-semibold" style={{ color: "var(--ink)" }}>
+              {deals.length === 1 ? "1 departure" : deals.length + " departures"} leaving soon at a reduced rate
+            </p>
+          </div>
+          <div className="mt-3 flex flex-col gap-2">
+            {deals.map((d) => (
+              <button type="button" key={d.id}
+                className="glass-chip flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition-shadow hover:shadow-md"
+                aria-label={"Book " + d.tour.name + " on " + fmtDate(d.start_time, tz) + " at the last-minute rate"}
+                onClick={() => router.push("/book?tour=" + d.tour_id + "&slot=" + d.id + "&date=" + encodeURIComponent(d.start_time))}>
+                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold" style={{ color: "var(--ink)" }}>
+                  {d.tour.name}
+                  <span className="ml-2 font-normal" style={{ color: "var(--ink-muted)" }}>
+                    {fmtDate(d.start_time, tz)} at {fmtTime(d.start_time, tz)}
+                  </span>
+                </span>
+                <span className="shrink-0 text-[13px] font-bold" style={{ color: "var(--ink)" }}>
+                  <span className="mr-1.5 font-normal line-through" style={{ color: "var(--ink-faint)" }}>R{d.tour.base_price_per_person}</span>
+                  R{d.price_per_person_override}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {tours.length === 0 && !loading && (
         <div className="col-span-1 md:col-span-3 py-12 text-center text-[color:var(--textMuted)]">
