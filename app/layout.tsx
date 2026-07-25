@@ -63,6 +63,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // hand its id to the client so ThemeProvider theming works from a shared
   // deployment without a baked NEXT_PUBLIC_BUSINESS_ID.
   const tenant = await getRequestTenant();
+  // Bare booking domain (no tenant) renders the central operator directory,
+  // which brings its own nav and footer. The tenant chrome would otherwise
+  // stack a second sticky header on top of it and link to storefront routes
+  // that cannot work without a business_id.
+  const chrome = Boolean(tenant);
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -71,13 +76,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body className={`${font.className} ${display.variable}`} suppressHydrationWarning>
         <ThemeProvider initialBusinessId={tenant?.id ?? null} initialTheme={tenant}>
-          <GlassBackdrop />
-          <Header />
+          {chrome && <GlassBackdrop />}
+          {chrome && <Header />}
           <main className="min-h-[calc(100dvh-12rem)]">{children}</main>
-          <Footer />
-          <BottomNav />
+          {chrome && <Footer />}
+          {chrome && <BottomNav />}
           <CookieBanner />
-          <ChatWidget />
+          {chrome && <ChatWidget />}
         </ThemeProvider>
         <script
           dangerouslySetInnerHTML={{

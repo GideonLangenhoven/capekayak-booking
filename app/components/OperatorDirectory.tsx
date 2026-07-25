@@ -4,11 +4,12 @@ import { supabase } from "../lib/supabase";
 
 // Central BookingTours landing page — a directory of every live operator,
 // modelled on intrepidtravel.com's component structure: utility strip → sticky
-// nav → full-bleed left-aligned photo hero with search panel → accent review
-// strip → operator card rail (image-top cards, "From R X" price row) → why-us
-// icon grid → destination photo tiles → recruitment band → dark footer.
-// Flat, confident blocks in the BookingTours brand (pine / paper / amber);
-// copy and colours are super-admin-editable via platform_public_settings.
+// nav → full-bleed photo hero carousel with search panel → accent review strip
+// → three-column value band → operator card rail (image-top cards, "From R X"
+// price row) → why-us grid → ways-to-travel tiles → destination photo tiles →
+// recruitment band → multi-column dark footer.
+// Flat, confident blocks on the violet -> aquamarine palette; copy and the
+// accent colour are super-admin-editable via platform_public_settings.
 
 type DirectoryOperator = {
   id: string;
@@ -55,12 +56,90 @@ export const DIRECTORY_DEFAULTS: Required<DirectoryConfig> = {
   footer_note: "BookingTours gives independent operators a booking site, payments, WhatsApp and a place in this directory.",
 };
 
-// BookingTours brand (docs/BRAND.md): pine / paper / amber
-const PINE = "#0F2B1F";
-const PINE_DEEP = "#0A2018";
-const PAPER = "#F7F5F0";
-const INK = "#1A241F";
-const AMBER = "#D9A441";
+// Directory palette: the violet → aquamarine ramp.
+//   Royal Violet #7400B8 · Indigo Bloom #6930C3 · Slate Indigo #5E60CE
+//   Blue Energy #5390D9 · Fresh Sky #4EA8DE · Sky Surge #48BFE3
+//   Strong Cyan #56CFE1 · Pearl Aqua #64DFDF · Turquoise #72EFDD · Aquamarine #80FFDB
+// Deep violets carry the dark surfaces, the aqua end carries the accents.
+// PAPER and INK are derived tints — the ramp supplies no neutral, and a page
+// needs a background and a body colour that hold AA against it.
+// Note this is directory-only; tenant storefronts keep their own themes.
+const PRIMARY = "#6930C3"; // Indigo Bloom — primary (buttons, prices, headings)
+const VIOLET = "#7400B8"; // Royal Violet — deepest surface
+const PAPER = "#F6F3FC"; // derived: violet-tinted paper
+const INK = "#1E1233"; // derived: violet-black body text
+const ACCENT = "#72EFDD"; // Turquoise — default accent
+const SURFACE_ALT = "#EDE7FA"; // derived: tinted band behind "what sets us apart"
+// Both stops stay deep on purpose: turquoise headings sit on this gradient and
+// only clear AA (5.37:1 at the lightest stop) while it stays in the violets.
+// Slate Indigo #5E60CE as the end stop drops them to 3.74:1.
+const DEEP_GRAD = `linear-gradient(135deg, ${VIOLET} 0%, ${PRIMARY} 100%)`;
+
+// Stock photography (Unsplash CDN, hotlink-permitted). Every id below was
+// fetched and eyeballed before being placed — the subject matches the slot it
+// fills. Operator-supplied photos always win; these only fill empty slots so
+// the page never falls back to a flat colour tile.
+const stock = (id: string, w = 900) => `https://images.unsplash.com/${id}?w=${w}&q=80&auto=format&fit=crop`;
+const PHOTO = {
+  capeTown: "photo-1580060839134-75a5edca2e99", // Table Mountain / Cape Town aerial
+  coast: "photo-1506929562872-bb421503ef21", // turquoise bay with boats
+  hike: "photo-1526772662000-3f88f10405ff", // hiker at a summit cairn
+  hikeAlt: "photo-1551632811-561732d1e306", // trekker, mountain pass
+  dive: "photo-1544551763-46a013bb70d5", // scuba diver in a shoal
+  skydive: "photo-1521673252667-e05da380b252", // skydiver in freefall
+  wine: "photo-1560493676-04071c5f467b", // vineyard rows at sunrise
+  cycle: "photo-1517649763962-0c623066013b", // road cycling peloton
+  raft: "photo-1530866495561-507c9faab2ed", // whitewater rafting
+  boat: "photo-1476514525535-07fb3b4ae5f1", // bow of a boat on open water
+  canyon: "photo-1484318571209-661cf29a69c3", // Blyde River Canyon
+  mountain: "photo-1470071459604-3b5ec3a7fe05", // misty green mountains
+  safari: "photo-1516426122078-c23e76319801", // game vehicle at sunset
+  giraffe: "photo-1523805009345-7448845a9e53", // giraffe on the savanna
+};
+
+// Hero carousel — Intrepid runs three rotating full-bleed slides with dots.
+const HERO_SLIDES = [
+  { photo: PHOTO.capeTown, kicker: "Southern Africa" },
+  { photo: PHOTO.coast, kicker: "On the water" },
+  { photo: PHOTO.hike, kicker: "On foot" },
+];
+
+// "Ways to travel" tiles. `match` is tested against operator name, tagline and
+// location, so a tile only appears when it actually returns operators — no
+// dead ends while the directory is still filling up.
+const WAYS: Array<{ label: string; photo: string; match: RegExp }> = [
+  { label: "Paddling & kayaking", photo: PHOTO.boat, match: /kayak|paddl|canoe|sup\b/i },
+  { label: "Diving & snorkelling", photo: PHOTO.dive, match: /div|snorkel|reef|padi/i },
+  { label: "Hiking & trekking", photo: PHOTO.hikeAlt, match: /hik|trek|climb|summit|alpine|trail/i },
+  { label: "Wildlife & safari", photo: PHOTO.safari, match: /safari|wildlife|game|big five|bird/i },
+  { label: "Skydiving & air", photo: PHOTO.skydive, match: /skydiv|parachut|paraglid|kite|air\b/i },
+  { label: "Wine & food routes", photo: PHOTO.wine, match: /wine|vineyard|winelands|food|tast/i },
+  { label: "Rafting & whitewater", photo: PHOTO.raft, match: /raft|whitewater|river|rapid/i },
+  { label: "Cycling & biking", photo: PHOTO.cycle, match: /cycl|bike|biking|mtb/i },
+];
+
+// Stock imagery for well-known Southern African locations, used only when no
+// operator in that location has uploaded a photo yet.
+const LOCATION_PHOTOS: Array<[RegExp, string]> = [
+  [/cape town|sea point|camps bay|table mountain|atlantic seaboard|hout bay/i, PHOTO.capeTown],
+  [/winelands|stellenbosch|franschhoek|paarl|constantia/i, PHOTO.wine],
+  [/garden route|knysna|plettenberg|hermanus|mossel/i, PHOTO.coast],
+  [/drakensberg|berg|maloti|lesotho/i, PHOTO.mountain],
+  [/kruger|mpumalanga|limpopo|blyde|panorama/i, PHOTO.canyon],
+  [/namibia|swakopmund|sossusvlei|desert|kalahari/i, PHOTO.giraffe],
+  [/durban|zululand|kwazulu|st lucia|sodwana/i, PHOTO.dive],
+];
+
+// Deterministic so a given operator keeps the same filler photo between renders.
+const FILLER = [PHOTO.coast, PHOTO.mountain, PHOTO.canyon, PHOTO.boat, PHOTO.hikeAlt, PHOTO.safari];
+function fillerFor(id: string) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return FILLER[h % FILLER.length];
+}
+function locationPhoto(name: string) {
+  return (LOCATION_PHOTOS.find(([re]) => re.test(name)) || [null, PHOTO.coast])[1] as string;
+}
 
 function operatorUrl(op: DirectoryOperator) {
   const url = (op.booking_site_url || "").replace(/\/+$/, "");
@@ -77,6 +156,7 @@ export default function OperatorDirectory() {
   const [config, setConfig] = useState<DirectoryConfig>({});
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [slide, setSlide] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -95,7 +175,7 @@ export default function OperatorDirectory() {
     () => ({ ...DIRECTORY_DEFAULTS, ...Object.fromEntries(Object.entries(config).filter(([, v]) => v !== "" && v != null)) }),
     [config],
   );
-  const accent = cfg.accent || AMBER;
+  const accent = cfg.accent || ACCENT;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -117,12 +197,28 @@ export default function OperatorDirectory() {
     return Object.values(byLoc);
   }, [operators]);
 
+  // Only surface a way-to-travel tile that actually matches live operators.
+  const ways = useMemo(
+    () =>
+      WAYS.map((w) => ({
+        ...w,
+        count: operators.filter((o) => w.match.test(`${o.business_name || ""} ${o.name || ""} ${o.business_tagline || ""} ${o.location_phrase || ""}`)).length,
+      })).filter((w) => w.count > 0),
+    [operators],
+  );
+
   const totalExperiences = operators.reduce((s, o) => s + o.tour_count, 0);
+
+  // Auto-advance the hero, matching Intrepid's rotating banner.
+  useEffect(() => {
+    const t = setInterval(() => setSlide((s) => (s + 1) % HERO_SLIDES.length), 6500);
+    return () => clearInterval(t);
+  }, []);
 
   return (
     <div className="min-h-screen" style={{ background: PAPER, color: INK }}>
       {/* ── Utility strip ── */}
-      <div style={{ background: PINE_DEEP }} className="px-4 py-2">
+      <div style={{ background: VIOLET }} className="px-4 py-2">
         <div className="mx-auto flex max-w-6xl items-center justify-between text-[11px] text-white/70">
           <span className="truncate">{cfg.eyebrow}</span>
           <a href="#for-operators" className="shrink-0 font-semibold text-white/90 hover:text-white">For operators</a>
@@ -132,18 +228,19 @@ export default function OperatorDirectory() {
       {/* ── Main nav ── */}
       <header className="sticky top-0 z-40 border-b border-black/5 px-4" style={{ background: PAPER }}>
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between">
-          <a href="/" className="font-display text-xl font-black tracking-tight" style={{ color: PINE }}>
+          <a href="/" className="font-display text-xl font-black tracking-tight" style={{ color: PRIMARY }}>
             bookingtours
           </a>
           <nav className="flex items-center gap-5 text-[13px] font-semibold">
             <a href="#operators" className="hover:underline">Operators</a>
-            <a href="#destinations" className="hidden sm:inline hover:underline">Destinations</a>
-            <a href="#why" className="hidden sm:inline hover:underline">Why book here</a>
+            <a href="#ways" className="hidden sm:inline hover:underline">Ways to travel</a>
+            <a href="#destinations" className="hidden md:inline hover:underline">Destinations</a>
+            <a href="#why" className="hidden md:inline hover:underline">Why book here</a>
             <button
               onClick={() => searchRef.current?.focus()}
               aria-label="Search"
               className="rounded-full px-3.5 py-1.5 text-[12px] font-bold text-white"
-              style={{ background: PINE }}
+              style={{ background: PRIMARY }}
             >
               Search
             </button>
@@ -151,12 +248,23 @@ export default function OperatorDirectory() {
         </div>
       </header>
 
-      {/* ── Hero: full-bleed photo, left-aligned type + search panel ── */}
-      <section className="relative">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={cfg.hero_image_url} alt="" className="absolute inset-0 h-full w-full object-cover" />
-        <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, rgba(10,25,18,0.72) 0%, rgba(10,25,18,0.35) 55%, rgba(10,25,18,0.15) 100%)" }} />
-        <div className="relative mx-auto flex min-h-[520px] max-w-6xl flex-col justify-center px-4 py-20">
+      {/* ── Hero: rotating full-bleed photo slides + search panel ── */}
+      <section className="relative" aria-roledescription="carousel" aria-label="Featured adventures">
+        {HERO_SLIDES.map((s, i) => (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={s.photo}
+            // The first slide honours the super-admin hero override so existing
+            // platform_public_settings keep working.
+            src={i === 0 && cfg.hero_image_url !== DIRECTORY_DEFAULTS.hero_image_url ? cfg.hero_image_url : stock(s.photo, 2000)}
+            alt=""
+            aria-hidden
+            className="absolute inset-0 h-full w-full object-cover transition-opacity duration-1000"
+            style={{ opacity: i === slide ? 1 : 0 }}
+          />
+        ))}
+        <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, rgba(24,6,45,0.82) 0%, rgba(24,6,45,0.48) 55%, rgba(24,6,45,0.20) 100%)" }} />
+        <div className="relative mx-auto flex min-h-[560px] max-w-6xl flex-col justify-center px-4 py-20">
           <p className="text-[12px] font-bold uppercase tracking-[0.2em]" style={{ color: accent }}>{cfg.eyebrow}</p>
           <h1 className="font-display mt-3 max-w-2xl text-4xl font-black leading-[1.05] text-white sm:text-6xl">
             {cfg.headline}
@@ -174,10 +282,22 @@ export default function OperatorDirectory() {
             <a
               href="#operators"
               className="flex shrink-0 items-center px-7 text-[13px] font-bold uppercase tracking-wide text-white"
-              style={{ background: PINE }}
+              style={{ background: PRIMARY }}
             >
               Search
             </a>
+          </div>
+          <div className="mt-10 flex items-center gap-2">
+            {HERO_SLIDES.map((s, i) => (
+              <button
+                key={s.photo}
+                onClick={() => setSlide(i)}
+                aria-label={`Show slide ${i + 1} of ${HERO_SLIDES.length}: ${s.kicker}`}
+                aria-current={i === slide}
+                className="h-2 rounded-full transition-all"
+                style={{ width: i === slide ? 32 : 10, background: i === slide ? accent : "rgba(255,255,255,0.45)" }}
+              />
+            ))}
           </div>
         </div>
       </section>
@@ -185,12 +305,28 @@ export default function OperatorDirectory() {
       {/* ── Review / trust strip ── */}
       <section className="px-4 py-4" style={{ background: accent }}>
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2">
-          <p className="text-[14px] font-bold" style={{ color: PINE_DEEP }}>
+          <p className="text-[14px] font-bold" style={{ color: VIOLET }}>
             <span aria-hidden className="mr-2">★★★★★</span>{cfg.review_strip}
           </p>
-          <p className="text-[13px] font-semibold" style={{ color: PINE_DEEP }}>
+          <p className="text-[13px] font-semibold" style={{ color: VIOLET }}>
             {operators.length} operator{operators.length === 1 ? "" : "s"} · {totalExperiences} experience{totalExperiences === 1 ? "" : "s"}
           </p>
+        </div>
+      </section>
+
+      {/* ── Three-column value band (Intrepid's slot directly under the hero) ── */}
+      <section className="px-4 py-12">
+        <div className="mx-auto grid max-w-6xl gap-8 text-center sm:grid-cols-3 sm:text-left">
+          {[
+            { big: `${totalExperiences} experience${totalExperiences === 1 ? "" : "s"}`, small: `across ${operators.length} independent operator${operators.length === 1 ? "" : "s"} in Southern Africa` },
+            { big: "Small independent crews", small: "the people who answer your booking are the people who take you out" },
+            { big: "Every rand goes direct", small: "no agency middleman, no commission markup on the price you see" },
+          ].map((v) => (
+            <div key={v.big} className="border-t-2 pt-4" style={{ borderColor: accent }}>
+              <p className="font-display text-[19px] font-black leading-snug" style={{ color: PRIMARY }}>{v.big}</p>
+              <p className="mt-2 text-[14px] leading-relaxed opacity-70">{v.small}</p>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -198,7 +334,7 @@ export default function OperatorDirectory() {
       <section id="operators" className="mx-auto max-w-6xl px-4 py-14">
         <div className="flex items-end justify-between">
           <div>
-            <p className="text-[12px] font-bold uppercase tracking-[0.2em]" style={{ color: PINE }}>Book direct</p>
+            <p className="text-[12px] font-bold uppercase tracking-[0.2em]" style={{ color: PRIMARY }}>Book direct</p>
             <h2 className="font-display mt-1 text-3xl font-black sm:text-4xl" style={{ color: INK }}>Our operators</h2>
           </div>
           {query && <button onClick={() => setQuery("")} className="text-[13px] font-semibold underline">Clear search</button>}
@@ -206,7 +342,7 @@ export default function OperatorDirectory() {
 
         {loading ? (
           <div className="flex items-center justify-center py-24">
-            <div className="h-8 w-8 animate-spin rounded-full border-b-2" style={{ borderColor: PINE }} />
+            <div className="h-8 w-8 animate-spin rounded-full border-b-2" style={{ borderColor: PRIMARY }} />
           </div>
         ) : filtered.length === 0 ? (
           <div className="mx-auto max-w-md rounded-lg bg-white p-10 text-center shadow-sm">
@@ -221,16 +357,14 @@ export default function OperatorDirectory() {
               return (
                 <a key={op.id} href={operatorUrl(op)} className="group block overflow-hidden rounded-lg bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl">
                   <div className="relative h-48 overflow-hidden">
-                    {op.hero_image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={op.hero_image_url} alt={displayName} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-5xl font-black text-white" style={{ background: PINE }}>
-                        {displayName.charAt(0)}
-                      </div>
-                    )}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={op.hero_image_url || stock(fillerFor(op.id))}
+                      alt={displayName}
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
                     {loc && (
-                      <span className="absolute left-3 top-3 rounded px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-white" style={{ background: PINE_DEEP }}>
+                      <span className="absolute left-3 top-3 rounded px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-white" style={{ background: VIOLET }}>
                         {loc}
                       </span>
                     )}
@@ -249,11 +383,11 @@ export default function OperatorDirectory() {
                       {op.from_price != null ? (
                         <p className="text-[13px]">
                           <span className="opacity-60">From </span>
-                          <span className="text-[16px] font-black" style={{ color: PINE }}>R{Math.round(Number(op.from_price))}</span>
+                          <span className="text-[16px] font-black" style={{ color: PRIMARY }}>R{Math.round(Number(op.from_price))}</span>
                           <span className="opacity-60"> pp</span>
                         </p>
                       ) : <span />}
-                      <span className="text-[12px] font-bold uppercase tracking-wide transition-transform group-hover:translate-x-0.5" style={{ color: PINE }}>
+                      <span className="text-[12px] font-bold uppercase tracking-wide transition-transform group-hover:translate-x-0.5" style={{ color: PRIMARY }}>
                         {cfg.cta_label} →
                       </span>
                     </div>
@@ -267,13 +401,13 @@ export default function OperatorDirectory() {
 
       {/* ── Why book with BookingTours ── */}
       {cfg.value_props.length > 0 && (
-        <section id="why" className="px-4 py-14" style={{ background: "#EFEBE2" }}>
+        <section id="why" className="px-4 py-14" style={{ background: SURFACE_ALT }}>
           <div className="mx-auto max-w-6xl">
             <h2 className="font-display text-3xl font-black sm:text-4xl" style={{ color: INK }}>What sets our operators apart</h2>
             <div className="mt-8 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
               {cfg.value_props.map((vp, i) => (
                 <div key={i}>
-                  <span className="flex h-11 w-11 items-center justify-center rounded-full text-lg font-black" style={{ background: accent, color: PINE_DEEP }}>
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full text-lg font-black" style={{ background: accent, color: VIOLET }}>
                     {i + 1}
                   </span>
                   <p className="mt-4 font-display text-[17px] font-black" style={{ color: INK }}>{vp.title}</p>
@@ -285,8 +419,38 @@ export default function OperatorDirectory() {
         </section>
       )}
 
-      {/* ── Destination tiles ── */}
-      {destinations.length > 0 && (
+      {/* ── Ways to travel ── */}
+      {ways.length > 1 && (
+        <section id="ways" className="mx-auto max-w-6xl px-4 py-14">
+          <div>
+            <p className="text-[12px] font-bold uppercase tracking-[0.2em]" style={{ color: PRIMARY }}>Find your thing</p>
+            <h2 className="font-display mt-1 text-3xl font-black sm:text-4xl" style={{ color: INK }}>Ways to travel</h2>
+          </div>
+          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {ways.map((w) => (
+              <a
+                key={w.label}
+                href="#operators"
+                onClick={() => setQuery(w.label.split(" ")[0])}
+                className="group relative block h-56 overflow-hidden rounded-lg shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={stock(w.photo)} alt={w.label} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
+                <div className="absolute bottom-4 left-4 right-4">
+                  <p className="font-display text-xl font-black text-white">{w.label}</p>
+                  <p className="mt-0.5 text-[12px] font-semibold text-white/80">
+                    {w.count} operator{w.count === 1 ? "" : "s"}
+                  </p>
+                </div>
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── Destination tiles (a lone tile reads as a broken grid) ── */}
+      {destinations.length > 1 && (
         <section id="destinations" className="mx-auto max-w-6xl px-4 py-14">
           <h2 className="font-display text-3xl font-black sm:text-4xl" style={{ color: INK }}>Where do you want to go?</h2>
           <div className="mt-8 grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
@@ -297,12 +461,13 @@ export default function OperatorDirectory() {
                 onClick={() => setQuery(d.name)}
                 className="group relative block h-40 overflow-hidden rounded-lg shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl"
               >
-                {d.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={d.image} alt={d.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                ) : (
-                  <div className="h-full w-full" style={{ background: PINE }} />
-                )}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={d.image || stock(locationPhoto(d.name))}
+                  alt={d.name}
+                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
                 <div className="absolute bottom-3 left-3 right-3">
                   <p className="font-display text-lg font-black text-white">{d.name}</p>
@@ -315,20 +480,70 @@ export default function OperatorDirectory() {
       )}
 
       {/* ── Operator recruitment band ── */}
-      <section id="for-operators" className="px-4 py-16" style={{ background: PINE }}>
+      <section id="for-operators" className="px-4 py-16" style={{ background: DEEP_GRAD }}>
         <div className="mx-auto max-w-3xl text-center">
           <h2 className="font-display text-3xl font-black text-white sm:text-4xl">Run tours? Get listed.</h2>
           <p className="mx-auto mt-4 max-w-xl text-[15px] leading-relaxed text-white/80">{cfg.footer_note}</p>
         </div>
       </section>
 
-      {/* ── Footer ── */}
-      <footer className="px-4 py-10" style={{ background: PINE_DEEP }}>
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
-          <span className="font-display text-lg font-black text-white">bookingtours</span>
-          <p className="text-[12px] text-white/60">
-            {operators.length} independent operators · Southern Africa · Powered by BookingTours
-          </p>
+      {/* ── Footer: multi-column, Intrepid-style ── */}
+      <footer className="px-4 pt-14 pb-10" style={{ background: DEEP_GRAD }}>
+        <div className="mx-auto max-w-6xl">
+          <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <span className="font-display text-xl font-black text-white">bookingtours</span>
+              <p className="mt-3 max-w-xs text-[13px] leading-relaxed text-white/60">
+                The home of independent tour operators across Southern Africa. Every trip on this page is run by the operator you book with.
+              </p>
+            </div>
+            {[
+              {
+                heading: "Explore",
+                links: [
+                  { label: "All operators", href: "#operators" },
+                  { label: "Ways to travel", href: "#ways" },
+                  { label: "Destinations", href: "#destinations" },
+                  { label: "Why book here", href: "#why" },
+                ],
+              },
+              {
+                heading: "For operators",
+                links: [
+                  { label: "Get listed", href: "#for-operators" },
+                  { label: "About BookingTours", href: "https://bookingtours.co.za" },
+                ],
+              },
+              {
+                heading: "Legal",
+                links: [
+                  { label: "Terms & Conditions", href: "/terms" },
+                  { label: "Privacy Policy", href: "/privacy" },
+                  { label: "Cookies Policy", href: "/cookies" },
+                  { label: "Privacy Request", href: "/popia" },
+                ],
+              },
+            ].map((col) => (
+              <div key={col.heading}>
+                <p className="text-[12px] font-bold uppercase tracking-[0.18em]" style={{ color: accent }}>{col.heading}</p>
+                <ul className="mt-4 space-y-2.5">
+                  {col.links.map((l) => (
+                    <li key={l.label}>
+                      <a href={l.href} className="text-[13px] text-white/70 transition-colors hover:text-white">{l.label}</a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+          <div className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-6">
+            <p className="text-[12px] text-white/50">
+              {operators.length} independent operator{operators.length === 1 ? "" : "s"} · Southern Africa · Powered by BookingTours
+            </p>
+            <p className="text-[12px] text-white/50">
+              Payments processed by PCI DSS compliant providers · card details never touch our servers
+            </p>
+          </div>
         </div>
       </footer>
     </div>
