@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { PHOTO, WAYS, haystack } from "../lib/directory-ways";
 
 // Central BookingTours landing page — a directory of every live operator,
 // modelled on intrepidtravel.com's component structure: utility strip → sticky
@@ -75,47 +76,17 @@ const SURFACE_ALT = "#EDE7FA"; // derived: tinted band behind "what sets us apar
 // Slate Indigo #5E60CE as the end stop drops them to 3.74:1.
 const DEEP_GRAD = `linear-gradient(135deg, ${VIOLET} 0%, ${PRIMARY} 100%)`;
 
-// Stock photography (Unsplash CDN, hotlink-permitted). Every id below was
-// fetched and eyeballed before being placed — the subject matches the slot it
-// fills. Operator-supplied photos always win; these only fill empty slots so
-// the page never falls back to a flat colour tile.
+// Stock photography (Unsplash CDN, hotlink-permitted). Every id in PHOTO
+// (../lib/directory-ways) was fetched and eyeballed before being placed — the
+// subject matches the slot it fills. Operator-supplied photos always win;
+// these only fill empty slots so the page never falls back to a flat tile.
 const stock = (id: string, w = 900) => `https://images.unsplash.com/${id}?w=${w}&q=80&auto=format&fit=crop`;
-const PHOTO = {
-  capeTown: "photo-1580060839134-75a5edca2e99", // Table Mountain / Cape Town aerial
-  coast: "photo-1506929562872-bb421503ef21", // turquoise bay with boats
-  hike: "photo-1526772662000-3f88f10405ff", // hiker at a summit cairn
-  hikeAlt: "photo-1551632811-561732d1e306", // trekker, mountain pass
-  dive: "photo-1544551763-46a013bb70d5", // scuba diver in a shoal
-  skydive: "photo-1521673252667-e05da380b252", // skydiver in freefall
-  wine: "photo-1560493676-04071c5f467b", // vineyard rows at sunrise
-  cycle: "photo-1517649763962-0c623066013b", // road cycling peloton
-  raft: "photo-1530866495561-507c9faab2ed", // whitewater rafting
-  boat: "photo-1476514525535-07fb3b4ae5f1", // bow of a boat on open water
-  canyon: "photo-1484318571209-661cf29a69c3", // Blyde River Canyon
-  mountain: "photo-1470071459604-3b5ec3a7fe05", // misty green mountains
-  safari: "photo-1516426122078-c23e76319801", // game vehicle at sunset
-  giraffe: "photo-1523805009345-7448845a9e53", // giraffe on the savanna
-};
 
 // Hero carousel — Intrepid runs three rotating full-bleed slides with dots.
 const HERO_SLIDES = [
   { photo: PHOTO.capeTown, kicker: "Southern Africa" },
   { photo: PHOTO.coast, kicker: "On the water" },
   { photo: PHOTO.hike, kicker: "On foot" },
-];
-
-// "Ways to travel" tiles. `match` is tested against operator name, tagline and
-// location, so a tile only appears when it actually returns operators — no
-// dead ends while the directory is still filling up.
-const WAYS: Array<{ label: string; photo: string; match: RegExp }> = [
-  { label: "Paddling & kayaking", photo: PHOTO.boat, match: /kayak|paddl|canoe|sup\b/i },
-  { label: "Diving & snorkelling", photo: PHOTO.dive, match: /div|snorkel|reef|padi/i },
-  { label: "Hiking & trekking", photo: PHOTO.hikeAlt, match: /hik|trek|climb|summit|alpine|trail/i },
-  { label: "Wildlife & safari", photo: PHOTO.safari, match: /safari|wildlife|game|big five|bird/i },
-  { label: "Skydiving & air", photo: PHOTO.skydive, match: /skydiv|parachut|paraglid|kite|air\b/i },
-  { label: "Wine & food routes", photo: PHOTO.wine, match: /wine|vineyard|winelands|food|tast/i },
-  { label: "Rafting & whitewater", photo: PHOTO.raft, match: /raft|whitewater|river|rapid/i },
-  { label: "Cycling & biking", photo: PHOTO.cycle, match: /cycl|bike|biking|mtb/i },
 ];
 
 // Stock imagery for well-known Southern African locations, used only when no
@@ -156,7 +127,9 @@ export default function OperatorDirectory() {
   const [config, setConfig] = useState<DirectoryConfig>({});
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [way, setWay] = useState<string | null>(null);
   const [slide, setSlide] = useState(0);
+  const [autoPlay, setAutoPlay] = useState(true);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -178,12 +151,15 @@ export default function OperatorDirectory() {
   const accent = cfg.accent || ACCENT;
 
   const filtered = useMemo(() => {
+    const active = WAYS.find((w) => w.label === way);
+    if (active) return operators.filter((o) => active.match.test(haystack(o)));
     const q = query.trim().toLowerCase();
     if (!q) return operators;
-    return operators.filter((o) =>
-      [o.business_name, o.name, o.business_tagline, o.location_phrase]
-        .some((f) => (f || "").toLowerCase().includes(q)));
-  }, [operators, query]);
+    return operators.filter((o) => haystack(o).toLowerCase().includes(q));
+  }, [operators, query, way]);
+
+  const selectWay = (label: string) => { setWay(label); setQuery(""); };
+  const clearFilters = () => { setWay(null); setQuery(""); };
 
   const destinations = useMemo(() => {
     const byLoc: Record<string, { name: string; image: string | null; count: number }> = {};
@@ -200,20 +176,21 @@ export default function OperatorDirectory() {
   // Only surface a way-to-travel tile that actually matches live operators.
   const ways = useMemo(
     () =>
-      WAYS.map((w) => ({
-        ...w,
-        count: operators.filter((o) => w.match.test(`${o.business_name || ""} ${o.name || ""} ${o.business_tagline || ""} ${o.location_phrase || ""}`)).length,
-      })).filter((w) => w.count > 0),
+      WAYS.map((w) => ({ ...w, count: operators.filter((o) => w.match.test(haystack(o))).length }))
+        .filter((w) => w.count > 0),
     [operators],
   );
 
   const totalExperiences = operators.reduce((s, o) => s + o.tour_count, 0);
 
-  // Auto-advance the hero, matching Intrepid's rotating banner.
+  // Auto-advance the hero, matching Intrepid's rotating banner. WCAG 2.2.2
+  // wants a way to stop motion that starts on its own and runs past 5s: the
+  // dots stop it for good, and reduced-motion never starts it.
   useEffect(() => {
+    if (!autoPlay || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const t = setInterval(() => setSlide((s) => (s + 1) % HERO_SLIDES.length), 6500);
     return () => clearInterval(t);
-  }, []);
+  }, [autoPlay]);
 
   return (
     <div className="min-h-screen" style={{ background: PAPER, color: INK }}>
@@ -274,7 +251,7 @@ export default function OperatorDirectory() {
             <input
               ref={searchRef}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => { setQuery(e.target.value); setWay(null); }}
               placeholder={cfg.search_placeholder}
               className="w-full px-5 py-4 text-[15px] outline-none"
               style={{ color: INK }}
@@ -291,7 +268,7 @@ export default function OperatorDirectory() {
             {HERO_SLIDES.map((s, i) => (
               <button
                 key={s.photo}
-                onClick={() => setSlide(i)}
+                onClick={() => { setSlide(i); setAutoPlay(false); }}
                 aria-label={`Show slide ${i + 1} of ${HERO_SLIDES.length}: ${s.kicker}`}
                 aria-current={i === slide}
                 className="h-2 rounded-full transition-all"
@@ -337,7 +314,11 @@ export default function OperatorDirectory() {
             <p className="text-[12px] font-bold uppercase tracking-[0.2em]" style={{ color: PRIMARY }}>Book direct</p>
             <h2 className="font-display mt-1 text-3xl font-black sm:text-4xl" style={{ color: INK }}>Our operators</h2>
           </div>
-          {query && <button onClick={() => setQuery("")} className="text-[13px] font-semibold underline">Clear search</button>}
+          {(query || way) && (
+            <button onClick={clearFilters} className="text-[13px] font-semibold underline">
+              {way ? `Clear "${way}"` : "Clear search"}
+            </button>
+          )}
         </div>
 
         {loading ? (
@@ -431,7 +412,7 @@ export default function OperatorDirectory() {
               <a
                 key={w.label}
                 href="#operators"
-                onClick={() => setQuery(w.label.split(" ")[0])}
+                onClick={() => selectWay(w.label)}
                 className="group relative block h-56 overflow-hidden rounded-lg shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -458,7 +439,7 @@ export default function OperatorDirectory() {
               <a
                 key={d.name}
                 href="#operators"
-                onClick={() => setQuery(d.name)}
+                onClick={() => { setQuery(d.name); setWay(null); }}
                 className="group relative block h-40 overflow-hidden rounded-lg shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
