@@ -80,7 +80,10 @@ const DEEP_GRAD = `linear-gradient(135deg, ${VIOLET} 0%, ${PRIMARY} 100%)`;
 // (../lib/directory-ways) was fetched and eyeballed before being placed — the
 // subject matches the slot it fills. Operator-supplied photos always win;
 // these only fill empty slots so the page never falls back to a flat tile.
-const stock = (id: string, w = 900) => `https://images.unsplash.com/${id}?w=${w}&q=80&auto=format&fit=crop`;
+const stock = (id: string, w = 900) => `https://images.unsplash.com/${id}?w=${w}&q=${w > 400 ? 68 : 60}&auto=format&fit=crop`;
+// 2000px at q80 cost 2.4MB across the three slides and left the hero a flat
+// colour on a slow connection. 1600 at q68 is the same picture at a third of it.
+const HERO_W = 1600;
 
 // Hero carousel — Intrepid runs three rotating full-bleed slides with dots.
 const HERO_SLIDES = [
@@ -226,21 +229,31 @@ export default function OperatorDirectory() {
       </header>
 
       {/* ── Hero: rotating full-bleed photo slides + search panel ── */}
-      <section className="relative" aria-roledescription="carousel" aria-label="Featured adventures">
+      {/* Solid brand fill so the block reads as intentional, not blank, on the
+          first paint before any photo has arrived. */}
+      <section className="relative" style={{ background: VIOLET }} aria-roledescription="carousel" aria-label="Featured adventures">
         {HERO_SLIDES.map((s, i) => (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             key={s.photo}
             // The first slide honours the super-admin hero override so existing
             // platform_public_settings keep working.
-            src={i === 0 && cfg.hero_image_url !== DIRECTORY_DEFAULTS.hero_image_url ? cfg.hero_image_url : stock(s.photo, 2000)}
+            src={i === 0 && cfg.hero_image_url !== DIRECTORY_DEFAULTS.hero_image_url ? cfg.hero_image_url : stock(s.photo, HERO_W)}
             alt=""
             aria-hidden
+            // All three slides sit in the viewport, so lazy loading will not
+            // defer them — priority is what decides which photo paints first.
+            // Undifferentiated, the browser raced 2.4MB and the hero stayed a
+            // flat colour for seconds on a slow connection.
+            fetchPriority={i === 0 ? "high" : "low"}
+            decoding={i === 0 ? "sync" : "async"}
             className="absolute inset-0 h-full w-full object-cover transition-opacity duration-1000"
             style={{ opacity: i === slide ? 1 : 0 }}
           />
         ))}
-        <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, rgba(24,6,45,0.82) 0%, rgba(24,6,45,0.48) 55%, rgba(24,6,45,0.20) 100%)" }} />
+        {/* Heavy enough over the text column to hold white at AA, and light
+            enough past it that the photograph is actually the hero. */}
+        <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, rgba(24,6,45,0.80) 0%, rgba(24,6,45,0.42) 45%, rgba(24,6,45,0.06) 100%)" }} />
         <div className="relative mx-auto flex min-h-[560px] max-w-6xl flex-col justify-center px-4 py-20">
           <p className="text-[12px] font-bold uppercase tracking-[0.2em]" style={{ color: accent }}>{cfg.eyebrow}</p>
           <h1 className="font-display mt-3 max-w-2xl text-4xl font-black leading-[1.05] text-white sm:text-6xl">
@@ -264,16 +277,29 @@ export default function OperatorDirectory() {
               Search
             </a>
           </div>
-          <div className="mt-10 flex items-center gap-2">
+          {/* Slide picker as photo thumbnails rather than dots — the hero then
+              shows the adventure imagery outright instead of hiding two thirds
+              of it behind an abstract control. */}
+          <div className="mt-10 flex items-center gap-3">
             {HERO_SLIDES.map((s, i) => (
               <button
                 key={s.photo}
                 onClick={() => { setSlide(i); setAutoPlay(false); }}
-                aria-label={`Show slide ${i + 1} of ${HERO_SLIDES.length}: ${s.kicker}`}
+                aria-label={`Show ${s.kicker} (slide ${i + 1} of ${HERO_SLIDES.length})`}
                 aria-current={i === slide}
-                className="h-2 rounded-full transition-all"
-                style={{ width: i === slide ? 32 : 10, background: i === slide ? accent : "rgba(255,255,255,0.45)" }}
-              />
+                className="group relative h-14 w-20 shrink-0 overflow-hidden rounded-md transition-all sm:h-16 sm:w-24"
+                style={{
+                  outline: i === slide ? `2px solid ${accent}` : "2px solid rgba(255,255,255,0.35)",
+                  outlineOffset: 2,
+                  opacity: i === slide ? 1 : 0.65,
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={stock(s.photo, 240)} alt="" aria-hidden loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-1.5 pb-1 pt-3 text-left text-[10px] font-bold leading-tight text-white">
+                  {s.kicker}
+                </span>
+              </button>
             ))}
           </div>
         </div>
