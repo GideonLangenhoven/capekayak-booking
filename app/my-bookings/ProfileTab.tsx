@@ -1,13 +1,15 @@
 "use client";
 import { useState } from "react";
+import type { User } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import Button from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
+import type { Customer } from "../lib/types";
 
 type Props = {
-  customer: any;
-  user: any;
-  onUpdate: (next: any) => void;
+  customer: Customer | null;
+  user: User | null;
+  onUpdate: (next: Customer) => void;
   onSignOut: () => void;
 };
 
@@ -38,12 +40,12 @@ export default function ProfileTab({ customer, user, onUpdate, onSignOut }: Prop
           date_of_birth: dob || null,
           marketing_consent: marketingConsent,
         })
-        .eq("id", customer.id);
+        .eq("id", customer!.id);
       if (err) throw err;
-      onUpdate({ ...customer, name: (name || "").trim(), phone: cleanPhone, date_of_birth: dob, marketing_consent: marketingConsent });
+      onUpdate({ ...customer!, name: (name || "").trim(), phone: cleanPhone, date_of_birth: dob, marketing_consent: marketingConsent });
       setSavedAt(Date.now());
-    } catch (err: any) {
-      setError(err?.message || "Couldn't save. Try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't save. Try again.");
     } finally {
       setSaving(false);
     }
@@ -53,7 +55,7 @@ export default function ProfileTab({ customer, user, onUpdate, onSignOut }: Prop
     setEmailMsg(null);
     setError(null);
     const trimmed = emailDraft.trim().toLowerCase();
-    if (!trimmed || trimmed === user.email) {
+    if (!trimmed || trimmed === user?.email) {
       setEmailMsg("That's already your current email.");
       return;
     }

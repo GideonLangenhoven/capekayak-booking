@@ -10,6 +10,7 @@ import SectionHeader from "./components/ui/SectionHeader";
 import { useTheme } from "./components/ThemeProvider";
 import OperatorDirectory from "./components/OperatorDirectory";
 import { readValidDraft, clearDraft, draftResumeUrl, type BookingDraft } from "@/app/lib/booking-draft";
+import type { Tour, Slot } from "./lib/types";
 
 const TOUR_IMAGES: Record<string, string> = {
   "Sea Kayak": "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=600&h=400&fit=crop",
@@ -17,21 +18,30 @@ const TOUR_IMAGES: Record<string, string> = {
   "Private Tour": "https://images.unsplash.com/photo-1472745942893-4b9f730c7668?w=600&h=400&fit=crop",
 };
 
+type ComboTourRef = { id: string; name: string; image_url: string | null; duration_minutes: number };
+type ComboItem = { id: string; tour_id: string; business_id: string; position: number | null; label: string | null; tours: ComboTourRef | null };
+type ComboOfferRow = { id: string; name: string; description: string | null; combo_price: number; original_price: number; items: ComboItem[] };
+type DealSlot = Pick<Slot, "id" | "tour_id" | "start_time" | "price_per_person_override" | "capacity_total" | "booked" | "held"> & {
+  // Non-optional: the deals list is filtered to entries with a tour before storage.
+  tour: { name: string; base_price_per_person: number; hidden: boolean | null; active: boolean | null };
+};
+
 export default function Home() {
   const theme = useTheme();
   const tenantSupabase = useMemo(() => createTenantSupabase(theme.id), [theme.id]);
   const tz = theme.timezone || "Africa/Johannesburg";
   const router = useRouter();
-  const [tours, setTours] = useState<any[]>([]);
-  const [comboOffers, setComboOffers] = useState<any[]>([]);
+  const [tours, setTours] = useState<Tour[]>([]);
+  const [comboOffers, setComboOffers] = useState<ComboOfferRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [spotsThisWeek, setSpotsThisWeek] = useState<Record<string, number>>({});
   const [totalBookings, setTotalBookings] = useState(0);
   const [reviewStats, setReviewStats] = useState<Record<string, { avg: number; count: number }>>({});
-  const [deals, setDeals] = useState<any[]>([]);
-  const [draft, setDraft] = useState<BookingDraft | null>(null);
-
-  useEffect(() => { setDraft(readValidDraft()); }, []);
+  const [deals, setDeals] = useState<DealSlot[]>([]);
+  // Lazy-initialized from localStorage (impure, so must happen once here, not
+  // re-derived on every render) — reading it inline avoids the effect having
+  // to synchronously setState before any async gap.
+  const [draft, setDraft] = useState<BookingDraft | null>(() => readValidDraft());
 
   useEffect(() => {
     if (!theme.id) return;
@@ -69,17 +79,17 @@ export default function Home() {
           .limit(20),
       ]);
 
-      const activeTours = (toursRes.data || []).filter((t: any) => !t.hidden);
+      const activeTours = ((toursRes.data || []) as unknown as Tour[]).filter((t) => !t.hidden);
       setTours(activeTours);
 
-      const comboIds = [...new Set((combosRes.data || []).map((r: any) => r.combo_offer_id))];
+      const comboIds = [...new Set(((combosRes.data || []) as { combo_offer_id: string }[]).map((r) => r.combo_offer_id))];
       if (comboIds.length > 0) {
         const offersRes = await tenantSupabase.from("combo_offers")
           .select("*, items:combo_offer_items(id, tour_id, business_id, position, label, tours:tours(id, name, image_url, duration_minutes))")
           .in("id", comboIds)
           .eq("active", true)
           .order("sort_order", { ascending: true });
-        setComboOffers(offersRes.data || []);
+        setComboOffers((offersRes.data || []) as unknown as ComboOfferRow[]);
       } else {
         setComboOffers([]);
       }
@@ -105,7 +115,7 @@ export default function Home() {
           s.tour && s.tour.active !== false && !s.tour.hidden
           && (s.capacity_total || 0) - (s.booked || 0) - (s.held || 0) > 0
         )
-        .slice(0, 4));
+        .slice(0, 4) as DealSlot[]);
 
       setLoading(false);
     })();
@@ -274,13 +284,13 @@ export default function Home() {
             {comboOffers.map((combo) => {
               const comboTours = (combo.items || [])
                 .slice()
-                .sort((a: any, b: any) => (a.position || 0) - (b.position || 0))
-                .map((i: any) => i.tours)
+                .sort((a, b) => (a.position || 0) - (b.position || 0))
+                .map((i) => i.tours)
                 .filter(Boolean);
               const tourA = comboTours[0];
               const tourB = comboTours[1];
               const extraCount = Math.max(0, comboTours.length - 2);
-              const totalDuration = comboTours.reduce((s: number, t: any) => s + (t?.duration_minutes || 0), 0);
+              const totalDuration = comboTours.reduce((s, t) => s + (t?.duration_minutes || 0), 0);
               const savings = combo.original_price - combo.combo_price;
               return (
                 <button type="button" key={combo.id} className="relative w-full max-w-[380px] mx-auto group cursor-pointer text-left" aria-label={"Book combo: " + combo.name}
@@ -289,14 +299,14 @@ export default function Home() {
                     {/* Dual image strip */}
                     <div className="flex h-[180px]">
                       <div className="w-1/2 relative overflow-hidden">
-                        <Image src={tourA?.image_url || TOUR_IMAGES[tourA?.name] || TOUR_IMAGES["Sea Kayak"]} alt={tourA?.name || "Tour"}
+                        <Image src={tourA?.image_url || TOUR_IMAGES[tourA?.name || ""] || TOUR_IMAGES["Sea Kayak"]} alt={tourA?.name || "Tour"}
                           fill sizes="190px" className="object-cover" />
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3">
                           <p className="text-white text-xs font-semibold truncate">{tourA?.name}</p>
                         </div>
                       </div>
                       <div className="w-1/2 relative overflow-hidden border-l" style={{ borderColor: "var(--glass-border)" }}>
-                        <Image src={tourB?.image_url || TOUR_IMAGES[tourB?.name] || TOUR_IMAGES["Sea Kayak"]} alt={tourB?.name || "Tour"}
+                        <Image src={tourB?.image_url || TOUR_IMAGES[tourB?.name || ""] || TOUR_IMAGES["Sea Kayak"]} alt={tourB?.name || "Tour"}
                           fill sizes="190px" className="object-cover" />
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3">
                           <p className="text-white text-xs font-semibold truncate">{tourB?.name}{extraCount > 0 ? ` +${extraCount} more` : ""}</p>

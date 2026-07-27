@@ -70,7 +70,7 @@ function toTheme(row: Record<string, unknown> | null): ThemeData {
   const t: ThemeData = { ...defaults };
   for (const key of Object.keys(defaults) as (keyof ThemeData)[]) {
     if (key in row && row[key] !== undefined) {
-      (t as any)[key] = row[key];
+      t[key] = row[key] as string | null;
     }
   }
   return t;

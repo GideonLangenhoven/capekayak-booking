@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
         },
       });
     }
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: "Image processing failed" }, { status: 500 });
   }
 }

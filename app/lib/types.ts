@@ -11,6 +11,7 @@ export interface Tour {
   active?: boolean;
   meeting_point?: string | null;
   what_to_bring?: string | null;
+  description?: string | null;
 }
 
 export interface Slot {
@@ -126,6 +127,19 @@ export interface AddOn {
   description: string;
   price: number;
   image_url: string | null;
+}
+
+export interface Customer {
+  id: string;
+  email: string | null;
+  name: string | null;
+  phone: string | null;
+  date_of_birth: string | null;
+  marketing_consent: boolean | null;
+  total_bookings: number | null;
+  total_spent: number | null;
+  first_booking_at: string | null;
+  created_at: string | null;
 }
 
 export interface AppliedPromo {

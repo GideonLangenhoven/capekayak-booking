@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { CalendarDate } from "../lib/types";
 
 type CalendarProps = {
@@ -19,13 +19,18 @@ export default function ChatCalendar({ availableDates, onSelectDate }: CalendarP
   const [viewMonth, setViewMonth] = useState(now.getMonth());
   const [viewYear, setViewYear] = useState(now.getFullYear());
 
-  useEffect(() => {
+  // Jump the view to the first available month whenever availableDates
+  // changes — tracked during render (React's documented pattern for
+  // "adjust state when a prop changes") instead of an effect.
+  const [prevAvailableDates, setPrevAvailableDates] = useState(availableDates);
+  if (availableDates !== prevAvailableDates) {
+    setPrevAvailableDates(availableDates);
     if (availableDates.length > 0) {
       const parts = availableDates[0].date.split("-");
       setViewYear(parseInt(parts[0], 10));
       setViewMonth(parseInt(parts[1], 10) - 1);
     }
-  }, [availableDates]);
+  }
 
   const availSet = new Set(availableDates.map(d => d.date));
 

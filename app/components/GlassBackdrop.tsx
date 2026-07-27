@@ -18,13 +18,20 @@ export default function GlassBackdrop() {
   // backdrop would paint over the host site.
   const isEmbed = pathname.startsWith("/embed");
 
-  useEffect(() => {
-    if (!theme.id || isEmbed) return;
-    // Operator-uploaded background wins; first active tour photo is the fallback.
-    if (theme.hero_image && theme.hero_image.trim()) {
+  // Operator-uploaded background wins immediately — a pure derivation from
+  // theme, tracked during render (not an effect) since it needs no async work.
+  const [prevHeroKey, setPrevHeroKey] = useState<string | null>(null);
+  const heroKey = `${theme.id || ""}|${theme.hero_image || ""}|${isEmbed}`;
+  if (heroKey !== prevHeroKey) {
+    setPrevHeroKey(heroKey);
+    if (!isEmbed && theme.id && theme.hero_image && theme.hero_image.trim()) {
       setImageUrl(theme.hero_image.trim());
-      return;
     }
+  }
+
+  useEffect(() => {
+    // First active tour photo is the fallback when there's no operator background.
+    if (!theme.id || isEmbed || (theme.hero_image && theme.hero_image.trim())) return;
     let cancelled = false;
     (async () => {
       const supabase = createTenantSupabase(theme.id);

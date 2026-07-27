@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { createTenantSupabase, createVoucherSupabase } from "../lib/supabase";
 import { useTheme } from "../components/ThemeProvider";
 import Button from "../components/ui/Button";
@@ -22,15 +22,19 @@ export default function VoucherPage() {
   const [step, setStep] = useState<"amount" | "details" | "pay">("amount");
   const [submitting, setSubmitting] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !theme.id);
   const { toast, showToast, dismissToast } = useToast();
 
   const presets = [250, 500, 750, 1000, 1500, 2000];
   const parsedAmount = Number(amount) || 0;
 
-  useEffect(() => {
+  // Stop waiting once ThemeProvider resolves the tenant — a pure derivation
+  // from theme.id, tracked during render instead of an effect.
+  const [prevThemeId, setPrevThemeId] = useState(theme.id);
+  if (theme.id !== prevThemeId) {
+    setPrevThemeId(theme.id);
     if (theme.id) setLoading(false);
-  }, [theme.id]);
+  }
 
   async function submitVoucher() {
     if (!parsedAmount || parsedAmount < 50 || !buyerName.trim() || !buyerEmail.trim() || !recipientName.trim()) return;
@@ -106,7 +110,7 @@ export default function VoucherPage() {
             <Input id="voucher-recipient" type="text" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} placeholder="Recipient's name" />
           </div>
           <div>
-            <label htmlFor="voucher-recipient-email" className="field-label">Recipient's Email (optional)</label>
+            <label htmlFor="voucher-recipient-email" className="field-label">Recipient&apos;s Email (optional)</label>
             <Input id="voucher-recipient-email" type="email" value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} placeholder="Send the gift straight to them" />
             <p className="mt-1 text-xs" style={{ color: "var(--textMuted)" }}>Leave blank to receive the voucher yourself and share it with {recipientName || "them"}.</p>
           </div>

@@ -33,7 +33,7 @@ function WaiverContent() {
     slots?: { start_time: string };
   } | null>(null);
   const [business, setBusiness] = useState<{ id: string; name: string; business_name?: string; timezone?: string } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => Boolean(bookingId && token));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -71,7 +71,7 @@ function WaiverContent() {
   const hasMinor = participantDobs.some(d => isCompleteDob(d) && calcAge(d) < 18);
 
   useEffect(() => {
-    if (!bookingId || !token) { setLoading(false); return; }
+    if (!bookingId || !token) return;
     (async () => {
       const scopedSupabase = createScopedSupabase({ "x-booking-id": bookingId, "x-booking-waiver-token": token });
       const { data: b } = await scopedSupabase.from("bookings")

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useMemo, useCallback } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { createTenantSupabase } from "../../lib/supabase";
 import { useTheme } from "../../components/ThemeProvider";
@@ -267,6 +268,7 @@ export default function ComboBookingPage() {
       // Manual-settlement model: the primary operator collects the full amount
       // via their own Yoco account — hosted checkout page, so just redirect.
       if (data.provider === "yoco" && data.redirect_url) {
+        // eslint-disable-next-line react-hooks/immutability -- browser navigation in a click-handler callback, not a render/effect mutation
         window.location.href = data.redirect_url;
         return;
       }
@@ -347,7 +349,7 @@ export default function ComboBookingPage() {
 
       <h2 className="text-2xl font-bold text-[color:var(--ink)] mb-3">Combo Not Available</h2>
       <p className="text-[color:var(--ink-muted)] mb-8">This combo package may have been removed or is currently unavailable.</p>
-      <a href="/" className="btn btn-primary px-8 py-3">Browse Tours</a>
+      <Link href="/" className="btn btn-primary px-8 py-3">Browse Tours</Link>
     </div>
   );
 
@@ -392,7 +394,7 @@ export default function ComboBookingPage() {
       {/* STEP 1: Select Dates */}
       {step === "slots" && (
         <div>
-          <a href="/" className="text-sm text-[color:var(--ink-muted)] mb-6 hover:text-[color:var(--ink)] inline-block">&larr; Back to tours</a>
+          <Link href="/" className="text-sm text-[color:var(--ink-muted)] mb-6 hover:text-[color:var(--ink)] inline-block">&larr; Back to tours</Link>
 
           {soldOutMsg && (
             <div className="mb-4 p-4 bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] rounded-2xl flex items-center gap-3">
@@ -559,7 +561,7 @@ export default function ComboBookingPage() {
                 )}
               </div>
 
-              <a href="/" className="btn btn-primary w-full">Browse More Tours</a>
+              <Link href="/" className="btn btn-primary w-full">Browse More Tours</Link>
             </>
           )}
 

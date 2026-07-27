@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 export default function ErrorPage({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
@@ -15,12 +16,12 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
         >
           Try Again
         </button>
-        <a
+        <Link
           href="/"
           className="px-5 py-2.5 text-sm font-medium rounded-lg border border-[color:var(--border)] text-[color:var(--text)] hover:bg-[color:var(--surface2)] transition-colors"
         >
           Back to Tours
-        </a>
+        </Link>
       </div>
     </div>
   );

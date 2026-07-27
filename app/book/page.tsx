@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState, useRef, Suspense, useMemo } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import type { PostgrestError } from "@supabase/supabase-js";
 import { createTenantSupabase, createVoucherSupabase, supabase } from "../lib/supabase";
 import { formatDuration } from "../lib/duration";
 import { useTheme } from "../components/ThemeProvider";
@@ -8,11 +10,21 @@ import BookingFlowSkeleton from "../components/skeletons/BookingFlowSkeleton";
 import Toast from "../components/ui/Toast";
 import { useToast } from "../hooks/useToast";
 import { fmtDate, fmtTime, fmtMonth, dateKeyInTz, isSameDay, getDaysInMonth, getFirstDay } from "../lib/format";
-import type { Tour, Slot, VoucherCredit, AddOn, AppliedPromo } from "../lib/types";
+import type { Tour, Slot, VoucherCredit, AddOn, AppliedPromo, Booking } from "../lib/types";
 import { normalizePhone, DIAL_CODES } from "../lib/phone";
 import { BOOKING_CUTOFF_MINUTES } from "../lib/pricing";
 import { HoldCountdown } from "../components/HoldCountdown";
 import { saveDraft as saveLocalDraft, clearDraft as clearLocalDraft, readValidDraft } from "@/app/lib/booking-draft";
+
+type ReviewItem = {
+  id: string;
+  rating: number;
+  comment: string | null;
+  reviewer_name: string | null;
+  reviewer_avatar_url: string | null;
+  source: string | null;
+  submitted_at: string;
+};
 
 export function BookingFlow({ embed = false }: { embed?: boolean }) {
   const params = useSearchParams();
@@ -63,7 +75,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   const [waiverUrl, setWaiverUrl] = useState("");
   const [draftBookingId, setDraftBookingId] = useState<string | null>(null);
   const [holdExpiresAt, setHoldExpiresAt] = useState<Date | null>(null);
-  const [reviews, setReviews] = useState<any[]>([]);
+  const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const { toast, showToast, dismissToast } = useToast();
   const draftSlotId = params.get("slot");
   const draftDate = params.get("date");
@@ -75,6 +87,11 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   // draft from a previous customer on a shared browser would leak their PII
   // into a fresh visitor's form (POPIA risk). Slot/date selection is still
   // pulled from the URL because those are not PII.
+  // One-time draft/URL hydration once the tour + slots are ready. This must
+  // stay an effect: it reads localStorage, clears it, and stamps a
+  // Date.now()-based hold expiry — all impure operations React's render-purity
+  // rule forbids in the component body. hydratedRef guards it to fire once.
+  /* eslint-disable react-hooks/set-state-in-effect -- impure (localStorage + Date.now()) one-time hydration, cannot run in render */
   useEffect(() => {
     if (hydratedRef.current || !selectedTour || allSlots.length === 0) return;
     hydratedRef.current = true;
@@ -115,6 +132,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
       setSelectedAddOns(ao);
     }
   }, [selectedTour, allSlots, draftSlotId, draftDate, params]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Auto-fill from authenticated customer session — PII-gated.
   // Without ?resume=1, a previous customer's session on a shared browser
@@ -172,6 +190,15 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     "Private Tour": "https://images.unsplash.com/photo-1472745942893-4b9f730c7668?w=800&h=500&fit=crop",
   };
 
+  async function loadSlots(tid: string) {
+    const now = new Date();
+    const cutoff = new Date(now.getTime() + BOOKING_CUTOFF_MINUTES * 60 * 1000);
+    const later = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+    const { data } = await tenantSupabase.from("slots").select("*").eq("tour_id", tid).eq("status", "OPEN")
+      .gt("start_time", cutoff.toISOString()).lt("start_time", later.toISOString()).order("start_time", { ascending: true });
+    setAllSlots(((data || []) as unknown as Slot[]).filter((s) => s.capacity_total - s.booked - (s.held || 0) > 0));
+  }
+
   useEffect(() => {
     if (!theme.id) return; // wait for ThemeProvider to resolve business id
     (async () => {
@@ -201,18 +228,9 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
         .select("id, rating, comment, reviewer_name, reviewer_avatar_url, source, submitted_at")
         .eq("business_id", theme.id).eq("status", "APPROVED").not("rating", "is", null)
         .order("submitted_at", { ascending: false }).limit(20);
-      setReviews(data || []);
+      setReviews((data || []) as ReviewItem[]);
     })();
   }, [tenantSupabase, theme.id]);
-
-  async function loadSlots(tid: string) {
-    const now = new Date();
-    const cutoff = new Date(now.getTime() + BOOKING_CUTOFF_MINUTES * 60 * 1000);
-    const later = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
-    const { data } = await tenantSupabase.from("slots").select("*").eq("tour_id", tid).eq("status", "OPEN")
-      .gt("start_time", cutoff.toISOString()).lt("start_time", later.toISOString()).order("start_time", { ascending: true });
-    setAllSlots(((data || []) as unknown as Slot[]).filter((s) => s.capacity_total - s.booked - (s.held || 0) > 0));
-  }
 
   const availDates = useMemo(() => {
     const ds = new Set<string>();
@@ -220,22 +238,24 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     return ds;
   }, [allSlots, tz]);
 
-  useEffect(() => {
+  // Both blocks below only need to react to allSlots loading in — track the
+  // previous reference during render (React's documented pattern for
+  // "adjust state when a prop changes") instead of an effect.
+  const [prevAllSlots, setPrevAllSlots] = useState(allSlots);
+  if (allSlots !== prevAllSlots) {
+    setPrevAllSlots(allSlots);
     if (allSlots.length > 0) {
       const first = new Date(allSlots[0].start_time);
       setCalMonth(first.getMonth());
       setCalYear(first.getFullYear());
     }
-  }, [allSlots]);
-
-  // Smart Defaults: auto-select the first available date and slot if not already set.
-  useEffect(() => {
+    // Smart Defaults: auto-select the first available date and slot if not already set.
     if (allSlots.length > 0 && !selectedDate && !selectedSlot && !params.get("slot") && !params.get("date")) {
       const firstSlot = allSlots[0];
       setSelectedDate(new Date(firstSlot.start_time));
       setSelectedSlot(firstSlot);
     }
-  }, [allSlots, selectedDate, selectedSlot, params]);
+  }
 
   const daySlots = useMemo(() => {
     if (!selectedDate) return [];
@@ -288,11 +308,13 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   // Per-voucher applied / remaining breakdown for the "R200 applied · R400 remaining" copy.
   const voucherBreakdown = useMemo(() => {
     let remaining = afterPromoTotal;
-    return vouchers.map((v) => {
+    const rows: { code: string; value: number; applied: number; leftover: number }[] = [];
+    for (const v of vouchers) {
       const applied = Math.min(v.value, Math.max(0, remaining));
       remaining = Math.max(0, remaining - applied);
-      return { code: v.code, value: v.value, applied, leftover: Math.max(0, v.value - applied) };
-    });
+      rows.push({ code: v.code, value: v.value, applied, leftover: Math.max(0, v.value - applied) });
+    }
+    return rows;
   }, [vouchers, afterPromoTotal]);
   const avail = selectedSlot ? selectedSlot.capacity_total - selectedSlot.booked - (selectedSlot.held || 0) : 10;
 
@@ -412,7 +434,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
       customer_vat_number: isCompany && vatNumber.trim() ? vatNumber.trim() : null,
       ...promoInsertFields,
     };
-    let booking: any; let error: any;
+    let booking: Booking | null; let error: PostgrestError | null;
     if (draftBookingId) {
       const res = await supabase.from("bookings").update(bookingPayload).eq("id", draftBookingId).select().single();
       booking = res.data; error = res.error;
@@ -595,9 +617,9 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
 
       <h2 className="text-2xl font-bold text-[color:var(--ink)] mb-3">This tour is no longer available</h2>
       <p className="text-[color:var(--ink-muted)] mb-8">The tour you are looking for may have been removed or is currently unavailable. Check out our current adventures!</p>
-      <a href="/" className="btn btn-primary px-8 py-3">
+      <Link href="/" className="btn btn-primary px-8 py-3">
         Browse Available Tours
-      </a>
+      </Link>
     </div>
   );
 
@@ -641,9 +663,9 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
           )}
           
           <div className="text-center mb-10 w-full flex flex-col items-center justify-center">
-             {!embed && <a href="/" className="glass-chip inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-bold text-[color:var(--ink-muted)] transition-colors mb-6 hover:shadow-md">
+             {!embed && <Link href="/" className="glass-chip inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-bold text-[color:var(--ink-muted)] transition-colors mb-6 hover:shadow-md">
                Back to tours
-             </a>}
+             </Link>}
              {/* Only render once the tour row is loaded — "0 min · From R" placeholders read as broken */}
              {selectedTour && <div className="glass-chip inline-flex items-center gap-4 p-2 pr-6 mb-2">
                <div className="text-left">
@@ -1076,7 +1098,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
 
               <div className="w-full flex flex-col gap-3">
                 <a href="/my-bookings" target={embed ? "_blank" : undefined} className="btn btn-primary w-full !py-4 text-[15px]">Manage this booking</a>
-                {!embed && <a href="/" className="btn btn-secondary w-full !py-4 text-[15px]">Browse other tours</a>}
+                {!embed && <Link href="/" className="btn btn-secondary w-full !py-4 text-[15px]">Browse other tours</Link>}
               </div>
             </div>
           ) : (

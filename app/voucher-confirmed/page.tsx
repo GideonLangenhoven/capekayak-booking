@@ -16,10 +16,10 @@ function VoucherConfirmedContent() {
     gift_message?: string | null; buyer_name: string; buyer_email: string;
     expires_at?: string | null;
   } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => Boolean(code));
 
   useEffect(() => {
-    if (!code || !theme.id) { if (!code) setLoading(false); return; }
+    if (!code || !theme.id) return;
     (async () => {
       // RLS requires the tenant header alongside the voucher code — vouchers
       // are only readable in the context of the operator that issued them.

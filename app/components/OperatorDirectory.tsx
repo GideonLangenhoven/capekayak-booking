@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { supabase } from "../lib/supabase";
 import { PHOTO, WAYS, DESTINATIONS, haystack, stock } from "../lib/directory-ways";
 
@@ -222,9 +223,9 @@ export default function OperatorDirectory({ presetWaySlug, presetDestinationSlug
       {/* ── Main nav ── */}
       <header className="sticky top-0 z-40 border-b border-black/5 px-4" style={{ background: PAPER }}>
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between">
-          <a href="/" className="font-display text-xl font-black tracking-tight" style={{ color: PRIMARY }}>
+          <Link href="/" className="font-display text-xl font-black tracking-tight" style={{ color: PRIMARY }}>
             bookingtours
-          </a>
+          </Link>
           <nav className="flex items-center gap-5 text-[13px] font-semibold">
             <a href="#operators" className="hover:underline">Operators</a>
             <a href="#ways" className="hidden sm:inline hover:underline">Ways to travel</a>

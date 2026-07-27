@@ -1,11 +1,12 @@
 "use client";
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import type { User } from "@supabase/supabase-js";
 import { createScopedSupabase, createTenantSupabase, createVoucherSupabase, supabase } from "../lib/supabase";
 import Link from "next/link";
 import { normalizePhone } from "../lib/phone";
 import { useTheme } from "../components/ThemeProvider";
 import { getTimeTier, getHrsBefore } from "./constants";
-import type { Booking, Slot, BookingLog } from "../lib/types";
+import type { Booking, Slot, BookingLog, Customer } from "../lib/types";
 
 import LoginScreen from "./LoginScreen";
 import RescheduleFlow from "./RescheduleFlow";
@@ -148,8 +149,8 @@ export default function MyBookings() {
   const [activeTab, setActiveTab] = useState<"trips" | "profile">("trips");
 
   // Profile
-  const [customer, setCustomer] = useState<any>(null);
-  const [authUser, setAuthUser] = useState<any>(null);
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [authUser, setAuthUser] = useState<User | null>(null);
 
   // C14: Payment polling
   const [paymentPending, setPaymentPending] = useState<string | null>(null);

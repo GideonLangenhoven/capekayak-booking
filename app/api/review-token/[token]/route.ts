@@ -32,8 +32,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
 
   return NextResponse.json({
     id: data.id,
-    tourName: (data.tours as any)?.name || null,
-    businessName: (data.businesses as any)?.business_name || null,
+    tourName: (data.tours as unknown as { name: string | null } | null)?.name || null,
+    businessName: (data.businesses as unknown as { business_name: string | null } | null)?.business_name || null,
     reviewerName: data.reviewer_name,
   });
 }

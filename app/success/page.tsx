@@ -8,7 +8,7 @@ import ConfirmationSkeleton from "../components/skeletons/ConfirmationSkeleton";
 
 import { fmtFull, fmtTime, gCalFmt } from "../lib/format";
 import { formatDuration, isMultiDay, tourEndDate } from "../lib/duration";
-import type { Booking } from "../lib/types";
+import type { Booking, Tour } from "../lib/types";
 import { clearDraft as clearLocalDraft } from "../lib/booking-draft";
 
 function SuccessContent() {
@@ -17,8 +17,8 @@ function SuccessContent() {
   const tenantSupabase = useMemo(() => createTenantSupabase(theme.id), [theme.id]);
   const ref = params.get("ref");
   const [booking, setBooking] = useState<Booking | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [otherTours, setOtherTours] = useState<any[]>([]);
+  const [loading, setLoading] = useState(() => Boolean(ref));
+  const [otherTours, setOtherTours] = useState<Tour[]>([]);
 
   // Defence-in-depth: a successful booking means the customer is done with
   // this device's draft. Clear localStorage so the next visitor on a shared
@@ -26,7 +26,7 @@ function SuccessContent() {
   useEffect(() => { clearLocalDraft(); }, []);
 
   useEffect(() => {
-    if (!ref) { setLoading(false); return; }
+    if (!ref) return;
     (async () => {
       const scopedSupabase = createScopedSupabase({
         "x-booking-success-token": ref,
@@ -48,7 +48,7 @@ function SuccessContent() {
           .eq("active", true)
           .neq("id", tourObj.id)
           .limit(3);
-        setOtherTours((tours || []).filter((t: any) => !t.hidden));
+        setOtherTours(((tours || []) as unknown as Tour[]).filter((t) => !t.hidden));
       }
 
       setLoading(false);
@@ -162,18 +162,18 @@ function SuccessContent() {
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[color:var(--success)] text-[color:var(--ink-on-main)] text-base">✓</span>
           <div>
             <p className="text-sm font-semibold !text-[color:var(--ink)]">Waiver completed</p>
-            <p className="text-xs !text-[color:var(--ink-muted)]">Thanks, you're all set. See you on the water!</p>
+            <p className="text-xs !text-[color:var(--ink-muted)]">Thanks, you&apos;re all set. See you on the water!</p>
           </div>
         </div>
       ) : (
-        (booking as any).waiver_token && (
+        booking.waiver_token && (
           <div className="glass mb-6 p-4" style={{ borderLeft: "4px solid var(--warning)" }}>
             <p className="text-sm font-semibold !text-[color:var(--ink)] mb-1">Sign your waiver</p>
             <p className="text-xs !text-[color:var(--ink-muted)] mb-3">
               All participants need to complete a quick digital waiver before launch. Save time on the day. Sign now.
             </p>
             <Link
-              href={"/waiver?booking=" + booking.id + "&token=" + (booking as any).waiver_token}
+              href={"/waiver?booking=" + booking.id + "&token=" + booking.waiver_token}
               className="btn btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm"
             >
               Sign Waiver Now →
