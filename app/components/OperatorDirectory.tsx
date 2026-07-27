@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { PHOTO, WAYS, haystack, stock } from "../lib/directory-ways";
+import { PHOTO, WAYS, DESTINATIONS, haystack, stock } from "../lib/directory-ways";
 
 // Central BookingTours landing page — a directory of every live operator,
 // modelled on intrepidtravel.com's component structure: utility strip → sticky
@@ -90,27 +90,12 @@ const HERO_SLIDES = [
   { photo: PHOTO.hike, kicker: "On foot" },
 ];
 
-// Stock imagery for well-known Southern African locations, used only when no
-// operator in that location has uploaded a photo yet.
-const LOCATION_PHOTOS: Array<[RegExp, string]> = [
-  [/cape town|sea point|camps bay|table mountain|atlantic seaboard|hout bay/i, PHOTO.capeTown],
-  [/winelands|stellenbosch|franschhoek|paarl|constantia/i, PHOTO.wine],
-  [/garden route|knysna|plettenberg|hermanus|mossel/i, PHOTO.coast],
-  [/drakensberg|berg|maloti|lesotho/i, PHOTO.mountain],
-  [/kruger|mpumalanga|limpopo|blyde|panorama/i, PHOTO.canyon],
-  [/namibia|swakopmund|sossusvlei|desert|kalahari/i, PHOTO.giraffe],
-  [/durban|zululand|kwazulu|st lucia|sodwana/i, PHOTO.dive],
-];
-
 // Deterministic so a given operator keeps the same filler photo between renders.
 const FILLER = [PHOTO.coast, PHOTO.mountain, PHOTO.canyon, PHOTO.boat, PHOTO.hikeAlt, PHOTO.safari];
 function fillerFor(id: string) {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
   return FILLER[h % FILLER.length];
-}
-function locationPhoto(name: string) {
-  return (LOCATION_PHOTOS.find(([re]) => re.test(name)) || [null, PHOTO.coast])[1] as string;
 }
 
 function operatorUrl(op: DirectoryOperator) {
@@ -123,7 +108,21 @@ function cleanLocation(loc: string | null) {
   return (loc || "").replace(/^(in|at|on)\s+/i, "").trim();
 }
 
-export default function OperatorDirectory() {
+// Optional overrides used by the dedicated /directory/destinations/[slug] and
+// /directory/activities/[slug] SEO landing pages, which render this same
+// component pre-scoped to one region or activity plus their own copy/H1.
+// Slugs, not the RegExp itself — a RegExp can't cross the Server->Client
+// Component boundary those pages render this from (not RSC-serializable).
+// Left undefined, behaviour is unchanged from the plain /directory page.
+type OperatorDirectoryProps = {
+  presetWaySlug?: string;
+  presetDestinationSlug?: string;
+  eyebrow?: string;
+  headline?: string;
+  subheadline?: string;
+};
+
+export default function OperatorDirectory({ presetWaySlug, presetDestinationSlug, eyebrow, headline, subheadline }: OperatorDirectoryProps = {}) {
   const [operators, setOperators] = useState<DirectoryOperator[]>([]);
   const [config, setConfig] = useState<DirectoryConfig>({});
   const [loading, setLoading] = useState(true);
@@ -145,44 +144,61 @@ export default function OperatorDirectory() {
     })();
   }, []);
 
-  const cfg = useMemo(
-    () => ({ ...DIRECTORY_DEFAULTS, ...Object.fromEntries(Object.entries(config).filter(([, v]) => v !== "" && v != null)) }),
-    [config],
-  );
+  const cfg = useMemo(() => {
+    const merged = { ...DIRECTORY_DEFAULTS, ...Object.fromEntries(Object.entries(config).filter(([, v]) => v !== "" && v != null)) };
+    if (eyebrow) merged.eyebrow = eyebrow;
+    if (headline) merged.headline = headline;
+    if (subheadline) merged.subheadline = subheadline;
+    return merged;
+  }, [config, eyebrow, headline, subheadline]);
   const accent = cfg.accent || ACCENT;
+
+  const presetFilter = useMemo(
+    () =>
+      (presetWaySlug && WAYS.find((w) => w.slug === presetWaySlug)?.match) ||
+      (presetDestinationSlug && DESTINATIONS.find((d) => d.slug === presetDestinationSlug)?.match) ||
+      undefined,
+    [presetWaySlug, presetDestinationSlug],
+  );
+
+  // A destination/activity landing page scopes every section below (cards,
+  // tiles, counts) to operators matching its preset regex; the plain
+  // /directory page has no preset so `base` is just every operator.
+  const base = useMemo(
+    () => (presetFilter ? operators.filter((o) => presetFilter.test(haystack(o))) : operators),
+    [operators, presetFilter],
+  );
 
   const filtered = useMemo(() => {
     const active = WAYS.find((w) => w.label === way);
-    if (active) return operators.filter((o) => active.match.test(haystack(o)));
+    if (active) return base.filter((o) => active.match.test(haystack(o)));
     const q = query.trim().toLowerCase();
-    if (!q) return operators;
-    return operators.filter((o) => haystack(o).toLowerCase().includes(q));
-  }, [operators, query, way]);
+    if (!q) return base;
+    return base.filter((o) => haystack(o).toLowerCase().includes(q));
+  }, [base, query, way]);
 
-  const selectWay = (label: string) => { setWay(label); setQuery(""); };
   const clearFilters = () => { setWay(null); setQuery(""); };
 
-  const destinations = useMemo(() => {
-    const byLoc: Record<string, { name: string; image: string | null; count: number }> = {};
-    for (const o of operators) {
-      const loc = cleanLocation(o.location_phrase);
-      if (!loc) continue;
-      const d = (byLoc[loc.toLowerCase()] = byLoc[loc.toLowerCase()] || { name: loc, image: null, count: 0 });
-      d.count += o.tour_count;
-      if (!d.image && o.hero_image_url) d.image = o.hero_image_url;
-    }
-    return Object.values(byLoc);
-  }, [operators]);
+  // Grouped by the same canonical regions the dedicated destination pages use
+  // (not raw location_phrase text), so a tile's link and its live count agree.
+  const destinations = useMemo(
+    () =>
+      DESTINATIONS.map((d) => {
+        const matches = base.filter((o) => d.match.test(haystack(o)));
+        return { ...d, count: matches.reduce((s, o) => s + o.tour_count, 0), image: matches.find((o) => o.hero_image_url)?.hero_image_url || null };
+      }).filter((d) => d.count > 0),
+    [base],
+  );
 
   // Only surface a way-to-travel tile that actually matches live operators.
   const ways = useMemo(
     () =>
-      WAYS.map((w) => ({ ...w, count: operators.filter((o) => w.match.test(haystack(o))).length }))
+      WAYS.map((w) => ({ ...w, count: base.filter((o) => w.match.test(haystack(o))).length }))
         .filter((w) => w.count > 0),
-    [operators],
+    [base],
   );
 
-  const totalExperiences = operators.reduce((s, o) => s + o.tour_count, 0);
+  const totalExperiences = base.reduce((s, o) => s + o.tour_count, 0);
 
   // Auto-advance the hero, matching Intrepid's rotating banner. WCAG 2.2.2
   // wants a way to stop motion that starts on its own and runs past 5s: the
@@ -310,7 +326,7 @@ export default function OperatorDirectory() {
             <span aria-hidden className="mr-2">★★★★★</span>{cfg.review_strip}
           </p>
           <p className="text-[13px] font-semibold" style={{ color: VIOLET }}>
-            {operators.length} operator{operators.length === 1 ? "" : "s"} · {totalExperiences} experience{totalExperiences === 1 ? "" : "s"}
+            {base.length} operator{base.length === 1 ? "" : "s"} · {totalExperiences} experience{totalExperiences === 1 ? "" : "s"}
           </p>
         </div>
       </section>
@@ -319,7 +335,7 @@ export default function OperatorDirectory() {
       <section className="px-4 py-12">
         <div className="mx-auto grid max-w-6xl gap-8 text-center sm:grid-cols-3 sm:text-left">
           {[
-            { big: `${totalExperiences} experience${totalExperiences === 1 ? "" : "s"}`, small: `across ${operators.length} independent operator${operators.length === 1 ? "" : "s"} in Southern Africa` },
+            { big: `${totalExperiences} experience${totalExperiences === 1 ? "" : "s"}`, small: `across ${base.length} independent operator${base.length === 1 ? "" : "s"} in Southern Africa` },
             { big: "Small independent crews", small: "the people who answer your booking are the people who take you out" },
             { big: "Every rand goes direct", small: "no agency middleman, no commission markup on the price you see" },
           ].map((v) => (
@@ -435,8 +451,7 @@ export default function OperatorDirectory() {
             {ways.map((w) => (
               <a
                 key={w.label}
-                href="#operators"
-                onClick={() => selectWay(w.label)}
+                href={`/directory/activities/${w.slug}`}
                 className="group relative block h-56 overflow-hidden rounded-lg shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -461,21 +476,20 @@ export default function OperatorDirectory() {
           <div className="mt-8 grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
             {destinations.map((d) => (
               <a
-                key={d.name}
-                href="#operators"
-                onClick={() => { setQuery(d.name); setWay(null); }}
+                key={d.slug}
+                href={`/directory/destinations/${d.slug}`}
                 className="group relative block h-40 overflow-hidden rounded-lg shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={d.image || stock(locationPhoto(d.name))}
-                  alt={d.name}
+                  src={d.image || stock(d.photo)}
+                  alt={d.label}
                   className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                 />
 
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
                 <div className="absolute bottom-3 left-3 right-3">
-                  <p className="font-display text-lg font-black text-white">{d.name}</p>
+                  <p className="font-display text-lg font-black text-white">{d.label}</p>
                   <p className="text-[12px] font-semibold text-white/80">{d.count} experience{d.count === 1 ? "" : "s"}</p>
                 </div>
               </a>

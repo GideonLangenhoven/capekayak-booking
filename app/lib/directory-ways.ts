@@ -49,13 +49,28 @@ export function haystack(o: MatchableOperator) {
 // Every alternative is \b-anchored. Unanchored stems match inside unrelated
 // words: "Craft"/"Driver" -> rafting, "Fair"/"Hair" -> air, "Divine" -> diving,
 // "Recycling" -> cycling. scripts/check-ways.ts guards this.
-export const WAYS: Array<{ label: string; photo: string; match: RegExp }> = [
-  { label: "Paddling & kayaking", photo: PHOTO.boat, match: /\bkayak|\bpaddl|\bcanoe|\bsup\b/i },
-  { label: "Diving & snorkelling", photo: PHOTO.dive, match: /\bdiv(e|ing|er)|\bsnorkel|\breef|\bpadi\b/i },
-  { label: "Hiking & trekking", photo: PHOTO.hikeAlt, match: /\bhik|\btrek|\bclimb|\bsummit|\balpine|\btrail/i },
-  { label: "Wildlife & safari", photo: PHOTO.safari, match: /\bsafari|\bwildlife|\bgame\b|\bbig five|\bbird/i },
-  { label: "Skydiving & air", photo: PHOTO.skydive, match: /\bskydiv|\bparachut|\bparaglid|\bkite|\bair\b/i },
-  { label: "Wine & food routes", photo: PHOTO.wine, match: /\bwine|\bvineyard|\bfood|\btast/i },
-  { label: "Rafting & whitewater", photo: PHOTO.raft, match: /\braft|\bwhitewater|\briver|\brapid/i },
-  { label: "Cycling & biking", photo: PHOTO.cycle, match: /\bcycl|\bbik|\bmtb\b/i },
+// `slug` backs the dedicated /directory/activities/[slug] SEO landing pages —
+// keep it stable, it's a public URL once indexed.
+export const WAYS: Array<{ label: string; slug: string; photo: string; match: RegExp }> = [
+  { label: "Paddling & kayaking", slug: "kayaking", photo: PHOTO.boat, match: /\bkayak|\bpaddl|\bcanoe|\bsup\b/i },
+  { label: "Diving & snorkelling", slug: "diving", photo: PHOTO.dive, match: /\bdiv(e|ing|er)|\bsnorkel|\breef|\bpadi\b/i },
+  { label: "Hiking & trekking", slug: "hiking", photo: PHOTO.hikeAlt, match: /\bhik|\btrek|\bclimb|\bsummit|\balpine|\btrail/i },
+  { label: "Wildlife & safari", slug: "safari", photo: PHOTO.safari, match: /\bsafari|\bwildlife|\bgame\b|\bbig five|\bbird/i },
+  { label: "Skydiving & air", slug: "skydiving", photo: PHOTO.skydive, match: /\bskydiv|\bparachut|\bparaglid|\bkite|\bair\b/i },
+  { label: "Wine & food routes", slug: "wine-routes", photo: PHOTO.wine, match: /\bwine|\bvineyard|\bfood|\btast/i },
+  { label: "Rafting & whitewater", slug: "rafting", photo: PHOTO.raft, match: /\braft|\bwhitewater|\briver|\brapid/i },
+  { label: "Cycling & biking", slug: "cycling", photo: PHOTO.cycle, match: /\bcycl|\bbik|\bmtb\b/i },
+];
+
+// Stock imagery for well-known Southern African locations, used only when no
+// operator in that location has uploaded a photo yet. Also backs the dedicated
+// /directory/destinations/[slug] SEO landing pages — keep `slug` stable.
+export const DESTINATIONS: Array<{ label: string; slug: string; photo: string; match: RegExp }> = [
+  { label: "Cape Town", slug: "cape-town", photo: PHOTO.capeTown, match: /cape town|sea point|camps bay|table mountain|atlantic seaboard|hout bay/i },
+  { label: "Cape Winelands", slug: "winelands", photo: PHOTO.wine, match: /winelands|stellenbosch|franschhoek|paarl|constantia/i },
+  { label: "Garden Route", slug: "garden-route", photo: PHOTO.coast, match: /garden route|knysna|plettenberg|hermanus|mossel/i },
+  { label: "Drakensberg", slug: "drakensberg", photo: PHOTO.mountain, match: /drakensberg|berg|maloti|lesotho/i },
+  { label: "Kruger & Mpumalanga", slug: "kruger-mpumalanga", photo: PHOTO.canyon, match: /kruger|mpumalanga|limpopo|blyde|panorama/i },
+  { label: "Namibia", slug: "namibia", photo: PHOTO.giraffe, match: /namibia|swakopmund|sossusvlei|desert|kalahari/i },
+  { label: "Durban & KZN", slug: "durban-kzn", photo: PHOTO.dive, match: /durban|zululand|kwazulu|st lucia|sodwana/i },
 ];
