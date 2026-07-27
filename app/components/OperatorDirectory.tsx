@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { PHOTO, WAYS, haystack } from "../lib/directory-ways";
+import { PHOTO, WAYS, haystack, stock } from "../lib/directory-ways";
 
 // Central BookingTours landing page — a directory of every live operator,
 // modelled on intrepidtravel.com's component structure: utility strip → sticky
@@ -44,7 +44,7 @@ export const DIRECTORY_DEFAULTS: Required<DirectoryConfig> = {
   headline: "Real and remarkable adventures, run by local operators",
   subheadline: "Kayaking, hiking, boats, wine routes and more across Southern Africa — book directly with the independent operators who run every trip.",
   search_placeholder: "Search operators or destinations…",
-  hero_image_url: "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=2000&q=80",
+  hero_image_url: "/stock/cape-town-hero.jpg",
   accent: "",
   review_strip: "Book direct with independent local operators — no middleman, no markups",
   value_props: [
@@ -76,13 +76,11 @@ const SURFACE_ALT = "#EDE7FA"; // derived: tinted band behind "what sets us apar
 // Slate Indigo #5E60CE as the end stop drops them to 3.74:1.
 const DEEP_GRAD = `linear-gradient(135deg, ${VIOLET} 0%, ${PRIMARY} 100%)`;
 
-// Stock photography (Unsplash CDN, hotlink-permitted). Every id in PHOTO
-// (../lib/directory-ways) was fetched and eyeballed before being placed — the
-// subject matches the slot it fills. Operator-supplied photos always win;
-// these only fill empty slots so the page never falls back to a flat tile.
-const stock = (id: string, w = 900) => `https://images.unsplash.com/${id}?w=${w}&q=${w > 400 ? 68 : 60}&auto=format&fit=crop`;
-// 2000px at q80 cost 2.4MB across the three slides and left the hero a flat
-// colour on a slow connection. 1600 at q68 is the same picture at a third of it.
+// Stock photography is self-hosted in public/stock (see PHOTO in
+// ../lib/directory-ways). Every photo was fetched and eyeballed before being
+// placed — the subject matches the slot it fills. Operator-supplied photos
+// always win; these only fill empty slots so the page never falls back to a
+// flat tile.
 const HERO_W = 1600;
 
 // Hero carousel — Intrepid runs three rotating full-bleed slides with dots.

@@ -2,22 +2,34 @@
 // Pure data + regex, kept out of the component so scripts/check-ways.ts can
 // exercise it without a React or Next runtime.
 
+// Self-hosted in public/stock (downloaded once from Unsplash under the
+// Unsplash License, which permits commercial use without attribution).
+// These were hotlinked to images.unsplash.com originally; a returning
+// visitor's service worker cached an opaque CDN rate-limit response for some
+// of them and replayed it as a broken image on every visit. Same-origin
+// files remove the third-party failure mode entirely.
 export const PHOTO = {
-  capeTown: "photo-1580060839134-75a5edca2e99", // Table Mountain / Cape Town aerial
-  coast: "photo-1506929562872-bb421503ef21", // turquoise bay with boats
-  hike: "photo-1526772662000-3f88f10405ff", // hiker at a summit cairn
-  hikeAlt: "photo-1551632811-561732d1e306", // trekker, mountain pass
-  dive: "photo-1544551763-46a013bb70d5", // scuba diver in a shoal
-  skydive: "photo-1521673252667-e05da380b252", // skydiver in freefall
-  wine: "photo-1560493676-04071c5f467b", // vineyard rows at sunrise
-  cycle: "photo-1517649763962-0c623066013b", // road cycling peloton
-  raft: "photo-1530866495561-507c9faab2ed", // whitewater rafting
-  boat: "photo-1476514525535-07fb3b4ae5f1", // bow of a boat on open water
-  canyon: "photo-1484318571209-661cf29a69c3", // Blyde River Canyon
-  mountain: "photo-1470071459604-3b5ec3a7fe05", // misty green mountains
-  safari: "photo-1516426122078-c23e76319801", // game vehicle at sunset
-  giraffe: "photo-1523805009345-7448845a9e53", // giraffe on the savanna
+  capeTown: "/stock/cape-town", // Table Mountain / Cape Town aerial
+  coast: "/stock/coast", // turquoise bay with boats
+  hike: "/stock/hike", // hiker at a summit cairn
+  hikeAlt: "/stock/hike-alt", // trekker, mountain pass
+  dive: "/stock/dive", // scuba diver in a shoal
+  skydive: "/stock/skydive", // skydiver in freefall
+  wine: "/stock/wine", // vineyard rows at sunrise
+  cycle: "/stock/cycle", // road cycling peloton
+  raft: "/stock/raft", // whitewater rafting
+  boat: "/stock/boat", // bow of a boat on open water
+  canyon: "/stock/canyon", // Blyde River Canyon
+  mountain: "/stock/mountain", // misty green mountains
+  safari: "/stock/safari", // game vehicle at sunset
+  giraffe: "/stock/giraffe", // giraffe on the savanna
 };
+
+// Rendition picker. Every photo has a 900px base; only the three hero-slide
+// photos (capeTown, coast, hike) also ship -hero (1600px) and -thumb (240px)
+// files, and only the hero requests those widths.
+export const stock = (base: string, w = 900) =>
+  `${base}${w >= 1600 ? "-hero" : w <= 400 ? "-thumb" : ""}.jpg`;
 
 export type MatchableOperator = {
   business_name: string | null;
