@@ -6,6 +6,7 @@ import type { PostgrestError } from "@supabase/supabase-js";
 import { createTenantSupabase, createVoucherSupabase, supabase } from "../lib/supabase";
 import { formatDuration } from "../lib/duration";
 import { useTheme } from "../components/ThemeProvider";
+import TenantClosedNotice, { useTenantTrading } from "../components/TenantClosedNotice";
 import BookingFlowSkeleton from "../components/skeletons/BookingFlowSkeleton";
 import Toast from "../components/ui/Toast";
 import { useToast } from "../hooks/useToast";
@@ -29,6 +30,7 @@ type ReviewItem = {
 export function BookingFlow({ embed = false }: { embed?: boolean }) {
   const params = useSearchParams();
   const theme = useTheme();
+  const trading = useTenantTrading();
   const tenantSupabase = useMemo(() => createTenantSupabase(theme.id), [theme.id]);
   const tz = theme.timezone || "Africa/Johannesburg";
   const tzAbbr = useMemo(() => {
@@ -622,6 +624,11 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
       </Link>
     </div>
   );
+
+  // Fix 3a: never render a booking flow for an operator that is not trading.
+  // create-checkout would reject the payment anyway; failing here means the
+  // customer finds out before filling in guest details, not after.
+  if (!trading) return <TenantClosedNotice />;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 md:py-12">

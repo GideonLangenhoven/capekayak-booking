@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import SectionHeader from "./components/ui/SectionHeader";
 import { useTheme } from "./components/ThemeProvider";
 import OperatorDirectory from "./components/OperatorDirectory";
+import TenantClosedNotice, { useTenantTrading } from "./components/TenantClosedNotice";
 import { readValidDraft, clearDraft, draftResumeUrl, type BookingDraft } from "@/app/lib/booking-draft";
 import type { Tour, Slot } from "./lib/types";
 
@@ -28,6 +29,7 @@ type DealSlot = Pick<Slot, "id" | "tour_id" | "start_time" | "price_per_person_o
 
 export default function Home() {
   const theme = useTheme();
+  const trading = useTenantTrading();
   const tenantSupabase = useMemo(() => createTenantSupabase(theme.id), [theme.id]);
   const tz = theme.timezone || "Africa/Johannesburg";
   const router = useRouter();
@@ -135,6 +137,12 @@ export default function Home() {
       </div>
     </div>
   );
+
+  // Fix 3a: a paused or suspended operator shows a status page instead of a
+  // sellable tour list. Checked after `loading` so the notice never flashes
+  // before the tenant resolves. The binding gate is server-side in
+  // create-checkout; this is the storefront's side of it.
+  if (!trading) return <div className="app-container page-wrap"><TenantClosedNotice /></div>;
 
   return (
     <div className="app-container page-wrap">
