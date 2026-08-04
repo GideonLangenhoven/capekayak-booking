@@ -1,12 +1,18 @@
 "use client";
 
 // Full-bleed decorative backdrop the glass surfaces blur against.
-// First active tour image when one exists, else a mesh gradient generated
-// from the operator palette (both under the engine-computed scrim).
+// The operator's uploaded background when they have set one, otherwise a mesh
+// gradient generated from their palette (both under the engine-computed scrim).
 // Purely decorative: aria-hidden, never carries text, z-index -1.
-import { useEffect, useState } from "react";
+//
+// This used to fall back to the first active tour's photo when no background
+// was uploaded. That put an image on the storefront that appears nowhere in the
+// booking-site settings — the settings screen offers "Upload background" and
+// reports none is set, while the site showed one anyway. A tour photo is
+// chosen to sell that tour, not to be site furniture, so an operator who has
+// uploaded no background now gets the palette mesh.
+import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { createTenantSupabase } from "../lib/supabase";
 import { useTheme } from "./ThemeProvider";
 
 export default function GlassBackdrop() {
@@ -18,43 +24,30 @@ export default function GlassBackdrop() {
   // backdrop would paint over the host site.
   const isEmbed = pathname.startsWith("/embed");
 
-  // Operator-uploaded background wins immediately — a pure derivation from
-  // theme, tracked during render (not an effect) since it needs no async work.
+  // The uploaded background is a pure derivation from theme, so it is tracked
+  // during render rather than in an effect — it needs no async work.
+  //
+  // Assigned unconditionally, including to null. It used to only ever be set,
+  // never cleared, which the tour-photo fallback hid: removing the background
+  // simply swapped one image for another. With no fallback, a one-way assign
+  // would leave the deleted image on screen until the page remounted.
   const [prevHeroKey, setPrevHeroKey] = useState<string | null>(null);
   const heroKey = `${theme.id || ""}|${theme.hero_image || ""}|${isEmbed}`;
   if (heroKey !== prevHeroKey) {
     setPrevHeroKey(heroKey);
-    if (!isEmbed && theme.id && theme.hero_image && theme.hero_image.trim()) {
-      setImageUrl(theme.hero_image.trim());
-    }
+    const hero = !isEmbed && theme.id ? String(theme.hero_image || "").trim() : "";
+    setImageUrl(hero || null);
+    // Re-arm the fade so a newly chosen image eases in instead of appearing at
+    // full opacity on the previous image's `loaded` flag.
+    setLoaded(false);
   }
-
-  useEffect(() => {
-    // First active tour photo is the fallback when there's no operator background.
-    if (!theme.id || isEmbed || (theme.hero_image && theme.hero_image.trim())) return;
-    let cancelled = false;
-    (async () => {
-      const supabase = createTenantSupabase(theme.id);
-      const { data } = await supabase
-        .from("tours")
-        .select("image_url")
-        .eq("business_id", theme.id!)
-        .eq("active", true)
-        .order("sort_order", { ascending: true })
-        .limit(6);
-      if (cancelled) return;
-      const first = (data || []).map((t) => t.image_url).find((u) => typeof u === "string" && u.trim());
-      if (first) setImageUrl(first);
-    })();
-    return () => { cancelled = true; };
-  }, [theme.id, theme.hero_image, isEmbed]);
 
   if (isEmbed) return null;
 
   return (
     <div className="glass-backdrop" aria-hidden="true">
-      {/* Mesh always renders — it's the blur content while the photo loads,
-          and the permanent backdrop when the operator has no tour imagery. */}
+      {/* Mesh always renders — it's the blur content while an uploaded
+          background loads, and the permanent backdrop when none is set. */}
       <div className="glass-backdrop-mesh" />
       {imageUrl && (
         // Plain <img>: the custom next/image loader allow-list doesn't cover
