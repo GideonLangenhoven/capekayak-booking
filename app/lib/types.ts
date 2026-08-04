@@ -152,7 +152,10 @@ export interface AppliedPromo {
 export interface BookingLog {
   id: string;
   booking_id: string;
-  action: string;
+  // logs stores these as `event` and `payload`. The interface said
+  // action/details, so the select asked for columns that do not exist and
+  // PostgREST failed the whole query — every booking's activity list was empty.
+  event: string;
   created_at: string;
-  details?: string | null;
+  payload?: unknown;
 }

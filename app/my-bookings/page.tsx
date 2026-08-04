@@ -414,14 +414,14 @@ export default function MyBookings() {
       .filter(Boolean);
     if (completedSlotIds.length > 0) {
       const { data: photos } = await tenantSupabase.from("trip_photos")
-        .select("id, photo_urls, slot_id")
+        .select("id, photo_url, slot_id")
         .in("slot_id", completedSlotIds);
       if (photos && photos.length > 0) {
         const photoMap: Record<string, string[]> = {};
         for (const p of photos) {
-          if (p.slot_id && p.photo_urls) {
+          if (p.slot_id && p.photo_url) {
             if (!photoMap[p.slot_id]) photoMap[p.slot_id] = [];
-            photoMap[p.slot_id] = photoMap[p.slot_id].concat(Array.isArray(p.photo_urls) ? p.photo_urls : [p.photo_urls]);
+            photoMap[p.slot_id] = photoMap[p.slot_id].concat(p.photo_url);
           }
         }
         setTripPhotos(photoMap);
@@ -432,7 +432,7 @@ export default function MyBookings() {
     const bookingIds = data.map((b: Booking) => b.id);
     if (bookingIds.length > 0) {
       const { data: logs } = await tenantSupabase.from("logs")
-        .select("id, booking_id, action, created_at, details")
+        .select("id, booking_id, event, created_at, payload")
         .in("booking_id", bookingIds)
         .order("created_at", { ascending: true });
       if (logs && logs.length > 0) {
