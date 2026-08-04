@@ -369,9 +369,9 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     };
     try {
       if (draftBookingId) {
-        await supabase.from("bookings").update(draftData).eq("id", draftBookingId).eq("status", "DRAFT");
+        await tenantSupabase.from("bookings").update(draftData).eq("id", draftBookingId).eq("status", "DRAFT");
       } else {
-        const { data } = await supabase.from("bookings").insert(draftData).select("id").single();
+        const { data } = await tenantSupabase.from("bookings").insert(draftData).select("id").single();
         if (data) setDraftBookingId(data.id);
       }
     } catch (e) { /* draft save is best-effort */ }
@@ -438,10 +438,10 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     };
     let booking: Booking | null; let error: PostgrestError | null;
     if (draftBookingId) {
-      const res = await supabase.from("bookings").update(bookingPayload).eq("id", draftBookingId).select().single();
+      const res = await tenantSupabase.from("bookings").update(bookingPayload).eq("id", draftBookingId).select().single();
       booking = res.data; error = res.error;
     } else {
-      const res = await supabase.from("bookings").insert(bookingPayload).select().single();
+      const res = await tenantSupabase.from("bookings").insert(bookingPayload).select().single();
       booking = res.data; error = res.error;
     }
     if (error || !booking) { showToast("Something went wrong.", "error"); setSubmitting(false); return; }
@@ -452,7 +452,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
       .filter(ao => selectedAddOns[ao.id] && selectedAddOns[ao.id] > 0)
       .map(ao => ({ booking_id: booking.id, add_on_id: ao.id, qty: selectedAddOns[ao.id], unit_price: ao.price }));
     if (addOnRows.length > 0) {
-      await supabase.from("booking_add_ons").insert(addOnRows);
+      await tenantSupabase.from("booking_add_ons").insert(addOnRows);
     }
 
     // Record promo usage atomically (prevents race conditions and duplicate uses)
@@ -477,7 +477,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
       });
       if (confirmErr || !confirmRes?.ok) {
         if (confirmRes?.error === "no_capacity") {
-          await supabase.from("bookings").update({ status: "CANCELLED", cancellation_reason: "No capacity" }).eq("id", booking.id);
+          await tenantSupabase.from("bookings").update({ status: "CANCELLED", cancellation_reason: "No capacity" }).eq("id", booking.id);
           setSoldOutMsg(confirmRes?.message || "This slot just sold out! Please select another time.");
           setSelectedSlot(null);
           setStep("calendar");
@@ -540,7 +540,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     });
     if (holdError || !holdResult?.success) {
       // Capacity exceeded or hold failed — clean up the booking and redirect to calendar
-      await supabase.from("bookings").update({ status: "CANCELLED", cancellation_reason: "No capacity" }).eq("id", booking.id);
+      await tenantSupabase.from("bookings").update({ status: "CANCELLED", cancellation_reason: "No capacity" }).eq("id", booking.id);
       setSoldOutMsg(holdResult?.error || "This slot just sold out! Please select another time.");
       setSelectedSlot(null);
       setStep("calendar");
@@ -548,7 +548,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
       if (selectedTour) loadSlots(selectedTour.id);
       return;
     }
-    await supabase.from("bookings").update({ status: "HELD" }).eq("id", booking.id);
+    await tenantSupabase.from("bookings").update({ status: "HELD" }).eq("id", booking.id);
 
     // skip_notifications: the customer is being redirected to the payment page
     // right now — emailing/WhatsApping them the same link is noise. If they
