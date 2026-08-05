@@ -13,12 +13,6 @@ import TenantClosedNotice, { useTenantTrading } from "./components/TenantClosedN
 import { readValidDraft, clearDraft, draftResumeUrl, type BookingDraft } from "@/app/lib/booking-draft";
 import type { Tour, Slot } from "./lib/types";
 
-const TOUR_IMAGES: Record<string, string> = {
-  "Sea Kayak": "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=600&h=400&fit=crop",
-  "Sunset Paddle": "https://images.unsplash.com/photo-1500259571355-332da5cb07aa?w=600&h=400&fit=crop",
-  "Private Tour": "https://images.unsplash.com/photo-1472745942893-4b9f730c7668?w=600&h=400&fit=crop",
-};
-
 type ComboTourRef = { id: string; name: string; image_url: string | null; duration_minutes: number };
 type ComboItem = { id: string; tour_id: string; business_id: string; position: number | null; label: string | null; tours: ComboTourRef | null };
 type ComboOfferRow = { id: string; name: string; description: string | null; combo_price: number; original_price: number; items: ComboItem[] };
@@ -237,11 +231,18 @@ export default function Home() {
               style={{ borderRadius: 28 }}
               aria-label={"Book " + tour.name}
               onClick={() => router.push("/book?tour=" + tour.id)}>
+              {/* No image on the tour means a plain glass tile — the chips
+                  below stay readable on it, and there is no house photo to
+                  borrow on a multi-tenant storefront. */}
               <div className="relative aspect-[4/3] overflow-hidden">
-                <Image src={tour.image_url || TOUR_IMAGES[tour.name] || TOUR_IMAGES["Sea Kayak"]} alt={tour.name + " tour"}
-                  fill sizes="(max-width: 767px) 92vw, (max-width: 1279px) 46vw, 30vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.04]" priority={idx === 0} loading={idx === 0 ? "eager" : "lazy"} />
-                {/* Text over imagery always sits on a scrim or a glass capsule */}
-                <div className="glass-photo-scrim" />
+                {tour.image_url && (
+                  <>
+                    <Image src={tour.image_url} alt={tour.name + " tour"}
+                      fill sizes="(max-width: 767px) 92vw, (max-width: 1279px) 46vw, 30vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.04]" priority={idx === 0} loading={idx === 0 ? "eager" : "lazy"} />
+                    {/* Text over imagery always sits on a scrim or a glass capsule */}
+                    <div className="glass-photo-scrim" />
+                  </>
+                )}
                 <span className="glass-chip absolute bottom-3 left-3 px-3.5 py-1.5 font-display text-[15px] font-bold">
                   R{tour.base_price_per_person}
                   <span className="ml-1 text-[11px] font-normal" style={{ color: "var(--ink-muted)" }}>pp</span>
@@ -269,9 +270,11 @@ export default function Home() {
                     </span>
                   )}
                 </div>
-                <p className="mt-3 line-clamp-2 text-[13px] leading-relaxed" style={{ color: "var(--ink-muted)" }}>
-                  {tour.description || "An incredible experience along the stunning coastline."}
-                </p>
+                {tour.description && (
+                  <p className="mt-3 line-clamp-2 text-[13px] leading-relaxed" style={{ color: "var(--ink-muted)" }}>
+                    {tour.description}
+                  </p>
+                )}
                 <span className="btn btn-primary mt-4 w-full text-[13px]">
                   {theme.card_cta_label || "Book Now"}
                 </span>
@@ -311,15 +314,19 @@ export default function Home() {
                     {/* Dual image strip */}
                     <div className="flex h-[180px]">
                       <div className="w-1/2 relative overflow-hidden">
-                        <Image src={tourA?.image_url || TOUR_IMAGES[tourA?.name || ""] || TOUR_IMAGES["Sea Kayak"]} alt={tourA?.name || "Tour"}
-                          fill sizes="190px" className="object-cover" />
+                        {tourA?.image_url && (
+                          <Image src={tourA.image_url} alt={tourA.name + " tour"}
+                            fill sizes="190px" className="object-cover" />
+                        )}
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3">
                           <p className="text-white text-xs font-semibold truncate">{tourA?.name}</p>
                         </div>
                       </div>
                       <div className="w-1/2 relative overflow-hidden border-l" style={{ borderColor: "var(--glass-border)" }}>
-                        <Image src={tourB?.image_url || TOUR_IMAGES[tourB?.name || ""] || TOUR_IMAGES["Sea Kayak"]} alt={tourB?.name || "Tour"}
-                          fill sizes="190px" className="object-cover" />
+                        {tourB?.image_url && (
+                          <Image src={tourB.image_url} alt={tourB.name + " tour"}
+                            fill sizes="190px" className="object-cover" />
+                        )}
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3">
                           <p className="text-white text-xs font-semibold truncate">{tourB?.name}{extraCount > 0 ? ` +${extraCount} more` : ""}</p>
                         </div>

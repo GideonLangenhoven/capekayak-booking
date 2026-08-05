@@ -87,7 +87,7 @@ function SuccessContent() {
   const meetingLocation = directionsText || "See confirmation email for meeting point";
   // ctz pins Google's add-event UI to the tour's timezone — without it,
   // viewers whose Google account timezone differs see a shifted time.
-  const gCalUrl = startDate && endDate ? "https://www.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(booking.tours?.name || "Kayak Tour") + "&dates=" + gCalFmt(startDate) + "/" + gCalFmt(endDate) + "&ctz=" + encodeURIComponent(theme.timezone || "Africa/Johannesburg") + "&location=" + encodeURIComponent(meetingLocation) + "&details=" + encodeURIComponent("Ref: " + booking.id.substring(0, 8).toUpperCase() + ". Arrive 15 min early.") : null;
+  const gCalUrl = startDate && endDate ? "https://www.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(booking.tours?.name || "Tour") + "&dates=" + gCalFmt(startDate) + "/" + gCalFmt(endDate) + "&ctz=" + encodeURIComponent(theme.timezone || "Africa/Johannesburg") + "&location=" + encodeURIComponent(meetingLocation) + "&details=" + encodeURIComponent("Ref: " + booking.id.substring(0, 8).toUpperCase() + ". Arrive 15 min early.") : null;
   const icsUrl = startDate && endDate ? "/api/ics?" + new URLSearchParams({
     title: booking.tours?.name || "Tour",
     start: startDate.toISOString(),

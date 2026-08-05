@@ -186,12 +186,6 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     return function () { clearTimeout(id); };
   }, [selectedTour, selectedDate, selectedSlot, qty, name, email, phone, dialCode, marketingOptIn, promoCode, voucherCode, selectedAddOns, step]);
 
-  const IMG: Record<string, string> = {
-    "Sea Kayak": "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800&h=500&fit=crop",
-    "Sunset Paddle": "https://images.unsplash.com/photo-1500259571355-332da5cb07aa?w=800&h=500&fit=crop",
-    "Private Tour": "https://images.unsplash.com/photo-1472745942893-4b9f730c7668?w=800&h=500&fit=crop",
-  };
-
   async function loadSlots(tid: string) {
     const now = new Date();
     const cutoff = new Date(now.getTime() + BOOKING_CUTOFF_MINUTES * 60 * 1000);

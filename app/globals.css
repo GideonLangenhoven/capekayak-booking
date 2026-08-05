@@ -343,6 +343,13 @@
     @apply text-xs font-semibold uppercase tracking-[0.14em];
   }
 
+  /* Letter-spacing leaves a gap after the last glyph, so a centred eyebrow
+     reads half a space left of true centre. Indenting by the full tracking
+     shifts the line back by exactly half. */
+  .text-center .eyebrow {
+    text-indent: 0.14em;
+  }
+
   .headline-display {
     /* Spec §6: hero title 34–40px mobile → 56–72px desktop */
     font-size: clamp(2.125rem, 5vw, 4rem);
