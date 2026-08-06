@@ -21,14 +21,33 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
   }
 
+  // Only real web protocols. Without this, ftp://supabase.co/x passes the
+  // host check below (URL.hostname is set for any scheme) and reaches fetch.
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    return NextResponse.json({ error: "Protocol not allowed" }, { status: 400 });
+  }
+
   if (!ALLOWED_HOSTS.some(h => parsed.hostname === h || parsed.hostname.endsWith("." + h))) {
     return NextResponse.json({ error: "Host not allowed" }, { status: 403 });
   }
 
   try {
-    const upstream = await fetch(url, { next: { revalidate: 86400 } });
+    // redirect:"manual" is the actual SSRF guard. The allowlist only vets the
+    // URL we are handed; anyone can register their own <ref>.supabase.co
+    // project — an allowlisted host — and serve a 302 to 169.254.169.254 or
+    // any internal address, which a following fetch would happily retrieve and
+    // proxy back. A 3xx is not `ok`, so it falls out as a 502 below.
+    const upstream = await fetch(url, { redirect: "manual", next: { revalidate: 86400 } });
     if (!upstream.ok) {
       return NextResponse.json({ error: "Upstream fetch failed" }, { status: 502 });
+    }
+
+    // This route echoes bytes from our own origin. Without a type check an
+    // allowlisted host serving text/html turns the proxy into stored XSS on
+    // the booking domain.
+    const upstreamType = upstream.headers.get("content-type") || "";
+    if (!upstreamType.startsWith("image/")) {
+      return NextResponse.json({ error: "Upstream is not an image" }, { status: 415 });
     }
 
     const contentType = fmt === "avif" ? "image/avif" : "image/webp";
@@ -49,16 +68,19 @@ export async function GET(req: NextRequest) {
           "Content-Type": contentType,
           "Cache-Control": "public, max-age=31536000, immutable",
           "Vary": "Accept",
+          "X-Content-Type-Options": "nosniff",
         },
       });
     } catch {
-      // sharp not available — proxy original with cache
+      // sharp not available — proxy original with cache. upstreamType was
+      // checked to be image/* above, so this can't echo markup.
       body = upstream.body;
       return new NextResponse(body, {
         headers: {
-          "Content-Type": upstream.headers.get("content-type") || "image/jpeg",
+          "Content-Type": upstreamType,
           "Cache-Control": "public, max-age=31536000, immutable",
           "Vary": "Accept",
+          "X-Content-Type-Options": "nosniff",
         },
       });
     }
