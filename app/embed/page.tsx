@@ -12,6 +12,7 @@ import { createTenantSupabase } from "../lib/supabase";
 import { useTheme } from "../components/ThemeProvider";
 import type { Tour, Slot } from "../lib/types";
 import { formatDuration } from "../lib/duration";
+import { BrandMark } from "../components/BrandLogo";
 
 const DAY_COUNT = 5;
 
@@ -418,7 +419,8 @@ function WidgetQuick() {
             </svg>
             Secure checkout
           </span>
-          <span className="text-[11px] text-[#8a8478]">
+          <span className="flex items-center gap-1.5 text-[11px] text-[#8a8478]">
+            <BrandMark size={8} className="shrink-0" />
             Powered by{" "}
             <a
               href="https://bookingtours.co.za"

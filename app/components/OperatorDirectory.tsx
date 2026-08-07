@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../lib/supabase";
 import { PHOTO, WAYS, DESTINATIONS, haystack, stock } from "../lib/directory-ways";
+import { BrandMark } from "./BrandLogo";
 
 // Central BookingTours landing page — a directory of every live operator,
 // modelled on intrepidtravel.com's component structure: utility strip → sticky
@@ -557,7 +558,8 @@ export default function OperatorDirectory({ presetWaySlug, presetDestinationSlug
             ))}
           </div>
           <div className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-6">
-            <p className="text-[12px] text-white/50">
+            <p className="flex items-center gap-1.5 text-[12px] text-white/50">
+              <BrandMark size={8} variant="ivory" className="shrink-0" />
               {operators.length} independent operator{operators.length === 1 ? "" : "s"} · Southern Africa · Powered by BookingTours
             </p>
             <p className="text-[12px] text-white/50">

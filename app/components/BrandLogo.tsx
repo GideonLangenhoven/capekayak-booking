@@ -1,14 +1,25 @@
 /* BookingTours brand mark — the "B" monogram, solid pine with a wave-textured
    mint counter. Platform provenance only: tenant branding always wins where a
-   tenant logo exists. No ivory variant here (unlike the admin copy): this only
-   renders in the footer's small "Powered by" chip, on a per-tenant themed
-   surface that may be light or dark, so it stays the platform's own pine. */
+   tenant logo exists.
 
-export function BrandMark({ size = 28, className = "" }: { size?: number; className?: string }) {
+   variant defaults to "pine". Pass "ivory" on dark surfaces (the operator
+   directory's dark footer): the pine body is 61% of the art and nearly
+   disappears on dark, leaving only the mint counter. The storefront Footer
+   chip stays pine — it renders on a per-tenant theme that may be either. */
+
+export function BrandMark({
+  size = 28,
+  className = "",
+  variant = "pine",
+}: {
+  size?: number;
+  className?: string;
+  variant?: "pine" | "ivory";
+}) {
   const scaledSize = Math.round(size * 1.8);
   return (
     <img
-      src="/brand/bt-mark.png"
+      src={variant === "ivory" ? "/brand/bt-mark-ivory.png" : "/brand/bt-mark.png"}
       alt="BookingTours logo"
       width={scaledSize}
       height={scaledSize}
