@@ -1,5 +1,8 @@
-/* BookingTours brand mark — dotted trail from an amber start-point to a destination ring.
-   Platform provenance only: tenant branding always wins where a tenant logo exists. */
+/* BookingTours brand mark — the "B" monogram, solid pine with a wave-textured
+   mint counter. Platform provenance only: tenant branding always wins where a
+   tenant logo exists. No ivory variant here (unlike the admin copy): this only
+   renders in the footer's small "Powered by" chip, on a per-tenant themed
+   surface that may be light or dark, so it stays the platform's own pine. */
 
 export function BrandMark({ size = 28, className = "" }: { size?: number; className?: string }) {
   const scaledSize = Math.round(size * 1.8);
