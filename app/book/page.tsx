@@ -814,7 +814,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                       {/* Brief Reciprocity/Endowment Pricing Summary */}
                       <div className="glass p-5">
                         <div className="space-y-2 text-[14px]">
-                          <div className="flex justify-between items-center"><span className="text-[color:var(--ink-muted)] font-bold">Base Price ({qty} Guests)</span><span className="font-extrabold text-[color:var(--ink)]">R{baseTotal}</span></div>
+                          <div className="flex justify-between items-center"><span className="text-[color:var(--ink-muted)] font-bold">Base Price ({qty} {qty === 1 ? "Guest" : "Guests"})</span><span className="font-extrabold text-[color:var(--ink)]">R{baseTotal}</span></div>
                           {addOnsTotal > 0 && (
                             <div className="flex justify-between items-center"><span className="text-[color:var(--ink-muted)] font-bold">Selected Extras</span><span className="font-extrabold text-[color:var(--accent-text)]">+R{addOnsTotal}</span></div>
                           )}
@@ -1121,7 +1121,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
               )}
 
               <div className="surface-muted w-full py-6 mb-8 text-center">
-                 <p className="text-[12px] font-extrabold uppercase tracking-widest text-[color:var(--ink-muted)] mb-1">Payload Total</p>
+                 <p className="text-[12px] font-extrabold uppercase tracking-widest text-[color:var(--ink-muted)] mb-1">Payment Total</p>
                  <p className="text-5xl font-extrabold tracking-tighter text-[color:var(--ink)]">R{finalTotal}</p>
               </div>
 

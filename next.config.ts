@@ -63,11 +63,15 @@ const nextConfig: NextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com",
+              // *.paysafe.com: the combo checkout loads paysafe.checkout.min.js
+              // from hosted.paysafe.com and the overlay talks to Paysafe APIs —
+              // without these entries SplitPay combos dead-end at payment.
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://*.paysafe.com",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https:",
               "font-src 'self' data:",
-              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.sentry.io https://lottie.host https://unpkg.com https://cdn.jsdelivr.net",
+              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.sentry.io https://lottie.host https://unpkg.com https://cdn.jsdelivr.net https://*.paysafe.com",
+              "frame-src 'self' https://*.paysafe.com",
               "frame-ancestors 'none'",
               "form-action 'self'",
               "base-uri 'self'",
