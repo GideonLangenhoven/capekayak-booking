@@ -13,6 +13,35 @@ const BOOKING_CUTOFF_MINUTES = 60;
 const SU = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SK = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
+// Every leg date on this page is a local-midnight Date built by the calendar,
+// so a plain Y/M/D day number is enough to measure gaps in calendar days.
+const dayNum = (d: Date) => Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86_400_000);
+
+const POLICY_NOTE: Record<string, string> = {
+  VOUCHER_ONLY: "Cancellations are refunded as a credit voucher.",
+  NO_CANCEL: "This package is non-refundable once booked.",
+  // POLICY_REFUND is the standard behaviour, so it needs no line.
+};
+
+// An unset max gap is absent, not zero: max_gap_days 0 legitimately means
+// "same day", so Number(null) === 0 would turn no rule into the tightest one.
+const maxGapOf = (rules: ComboRules) => (rules.max_gap_days == null ? NaN : Number(rules.max_gap_days));
+
+function describeRules(rules?: ComboRules | null): string {
+  if (!rules) return "";
+  const parts: string[] = [];
+  const minGap = Number(rules.min_gap_days);
+  if (Number.isFinite(minGap) && minGap > 0) parts.push("at least " + minGap + " day" + (minGap === 1 ? "" : "s") + " apart");
+  const maxGap = maxGapOf(rules);
+  if (Number.isFinite(maxGap) && maxGap >= 0) {
+    parts.push(maxGap === 0 ? "on the same day" : "within " + maxGap + " day" + (maxGap === 1 ? "" : "s") + " of each other");
+  }
+  if (rules.enforce_order) parts.push("taken in order");
+  if (parts.length === 0) return "";
+  const list = parts.length > 1 ? parts.slice(0, -1).join(", ") + " and " + parts[parts.length - 1] : parts[0];
+  return "These tours must be " + list + ".";
+}
+
 type PaysafeCheckout = {
   setup: (
     apiKey: string,
@@ -26,6 +55,10 @@ type PaysafeWindow = Window & {
   paysafe?: { checkout?: PaysafeCheckout };
 };
 
+// Offer-level rules. Enforcement lives in create-paysafe-checkout (_shared/
+// combo.ts validateComboDates); everything below only mirrors it in the UI.
+type ComboRules = { min_gap_days?: number | null; max_gap_days?: number | null; enforce_order?: boolean };
+
 type OfferWithItems = {
   id: string;
   name: string;
@@ -33,6 +66,8 @@ type OfferWithItems = {
   combo_price: number;
   original_price: number;
   currency?: string;
+  cancellation_policy?: string | null;
+  combo_rules?: ComboRules | null;
   items?: Array<{ id: string; tour_id: string; business_id: string; position: number; tours: Tour | null }>;
   tour_a?: Tour | null;
   tour_b?: Tour | null;
@@ -138,6 +173,39 @@ export default function ComboBookingPage() {
     return Math.min(m, l.slot.capacity_total - l.slot.booked - (l.slot.held || 0));
   }, 10);
 
+  // Would picking `day` for this leg break the offer's date rules, given what
+  // the other legs already have? Mirrors validateComboDates, but only over the
+  // legs already chosen — the server is still the authority at checkout.
+  function breaksRules(idx: number, day: number): boolean {
+    const rules = combo?.combo_rules;
+    if (!rules) return false;
+    const days = legs.map((l, i) => (i === idx ? day : l.date ? dayNum(l.date) : null));
+
+    if (rules.enforce_order) {
+      for (let i = 0; i < days.length; i++) {
+        const d = days[i];
+        if (d === null || i === idx) continue;
+        if (i < idx ? d > day : d < day) return true;
+      }
+    }
+
+    const minGap = Number(rules.min_gap_days);
+    if (Number.isFinite(minGap) && minGap > 0) {
+      for (let i = 1; i < days.length; i++) {
+        const a = days[i - 1], b = days[i];
+        if (a !== null && b !== null && Math.abs(b - a) < minGap) return true;
+      }
+    }
+
+    const maxGap = maxGapOf(rules);
+    if (Number.isFinite(maxGap) && maxGap >= 0) {
+      const known = days.filter((d): d is number => d !== null);
+      if (Math.max(...known) - Math.min(...known) > maxGap) return true;
+    }
+
+    return false;
+  }
+
   function renderCalendar(idx: number) {
     const leg = legs[idx];
     const availDates = new Set<string>();
@@ -154,15 +222,16 @@ export default function ComboBookingPage() {
       const past = date < today;
       const sel = leg.date && isSameDay(date, leg.date);
       const isToday = isSameDay(date, today);
+      const blocked = past || !has || breaksRules(idx, dayNum(date));
       cells.push(
-        <button key={day} disabled={past || !has} onClick={() => patchLeg(idx, { date, slot: null })}
+        <button key={day} disabled={blocked} onClick={() => patchLeg(idx, { date, slot: null })}
           className={"relative aspect-square rounded-full flex items-center justify-center text-sm font-medium transition-all " +
             (sel ? "bg-[color:var(--accent)] text-[color:var(--ink-on-main)] shadow-lg scale-105 " : "") +
-            (!sel && has && !past ? "bg-[color:var(--glass-tint-card)] text-[color:var(--ink)] hover:bg-[color:var(--hover-overlay)] border border-[color:var(--glass-border)] cursor-pointer " : "") +
-            (past || !has ? "text-[color:var(--ink-faint)] cursor-not-allowed " : "") +
+            (!sel && !blocked ? "bg-[color:var(--glass-tint-card)] text-[color:var(--ink)] hover:bg-[color:var(--hover-overlay)] border border-[color:var(--glass-border)] cursor-pointer " : "") +
+            (blocked ? "text-[color:var(--ink-faint)] cursor-not-allowed " : "") +
             (isToday && !sel ? "ring-2 ring-[color-mix(in_srgb,var(--accent)_25%,transparent)] ring-offset-2 " : "")}>
           {day}
-          {has && !past && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[color:var(--accent)]" />}
+          {!blocked && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[color:var(--accent)]" />}
         </button>
       );
     }
@@ -251,12 +320,17 @@ export default function ComboBookingPage() {
       const data = await res.json();
 
       if (!res.ok || data.error) {
-        if (data.error?.includes("capacity") || data.error?.includes("taken") || data.error?.includes("sold out")) {
-          setSoldOutMsg(data.error || "A slot just sold out. Please select different times.");
+        const msg = String(data.error || "");
+        // Match the capacity errors precisely: the date-rule messages say "must
+        // be taken in order" / "taken within N days", which a bare "taken"
+        // test mistook for "those spots were just taken" and answered by
+        // clearing every selection.
+        if (res.status === 409 || /capacity|just taken|sold out/i.test(msg)) {
+          setSoldOutMsg(msg || "A slot just sold out. Please select different times.");
           setStep("slots");
           refreshAllSlots();
         } else {
-          setPaymentError(data.error || "Something went wrong. Please try again.");
+          setPaymentError(msg || "Something went wrong. Please try again.");
         }
         setSubmitting(false);
         return;
@@ -355,6 +429,8 @@ export default function ComboBookingPage() {
 
   const savings = combo.original_price - combo.combo_price;
   const tourNamesLine = legs.map((l) => l.tour?.name).filter(Boolean).join(" + ");
+  const rulesLine = describeRules(combo.combo_rules);
+  const policyNote = POLICY_NOTE[String(combo.cancellation_policy || "")] || "";
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -395,6 +471,10 @@ export default function ComboBookingPage() {
       {step === "slots" && (
         <div>
           <Link href="/" className="text-sm text-[color:var(--ink-muted)] mb-6 hover:text-[color:var(--ink)] inline-block">&larr; Back to tours</Link>
+
+          {rulesLine && (
+            <p className="text-sm text-[color:var(--ink-muted)] mb-6">{rulesLine} Dates that do not fit are greyed out.</p>
+          )}
 
           {soldOutMsg && (
             <div className="mb-4 p-4 bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] rounded-2xl flex items-center gap-3">
@@ -473,12 +553,6 @@ export default function ComboBookingPage() {
                   className="mt-1 w-4 h-4 shrink-0 rounded border-[color:var(--glass-border)]" />
                 <span className="text-xs text-[color:var(--ink-muted)] leading-relaxed">I agree to receive booking updates and occasional promotions by email and SMS. You can opt out at any time.</span>
               </label>
-
-              {paymentError && (
-                <div className="p-4 bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] rounded-2xl">
-                  <p className="text-sm text-[color:var(--danger)]">{paymentError}</p>
-                </div>
-              )}
             </div>
 
             {/* Booking Summary Sidebar */}
@@ -510,10 +584,18 @@ export default function ComboBookingPage() {
                     <div className="flex justify-between text-lg font-bold"><span>Total</span><span>R{comboTotal}</span></div>
                   </div>
                 </div>
+                {/* Rejections (date rules, payment) belong beside the button
+                    that triggered them, not at the foot of the form column. */}
+                {paymentError && (
+                  <div className="mt-5 p-4 bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] rounded-2xl">
+                    <p className="text-sm text-[color:var(--danger)]">{paymentError}</p>
+                  </div>
+                )}
                 <button onClick={submitComboBooking} disabled={submitting || !name.trim() || !email.trim()}
                   className="btn btn-primary w-full mt-5 !py-3.5">
                   {submitting ? "Processing..." : "Pay R" + comboTotal}
                 </button>
+                {policyNote && <p className="text-xs text-[color:var(--ink-muted)] text-center mt-3">{policyNote}</p>}
                 <p className="surface-muted !rounded-full px-4 py-2 text-xs text-[color:var(--ink-muted)] text-center mt-3">Secure payment via a PCI DSS compliant provider: card details never touch our servers</p>
               </div>
             </div>

@@ -14,12 +14,57 @@ import { readValidDraft, clearDraft, draftResumeUrl, type BookingDraft } from "@
 import type { Tour, Slot } from "./lib/types";
 
 type ComboTourRef = { id: string; name: string; image_url: string | null; duration_minutes: number };
-type ComboItem = { id: string; tour_id: string; business_id: string; position: number | null; label: string | null; tours: ComboTourRef | null };
+type ComboTourInfo = ComboTourRef & { available: boolean };
+type ComboItem = { id: string; tour_id: string; business_id: string; position: number | null; label: string | null };
 type ComboOfferRow = { id: string; name: string; description: string | null; combo_price: number; original_price: number; items: ComboItem[] };
 type DealSlot = Pick<Slot, "id" | "tour_id" | "start_time" | "price_per_person_override" | "capacity_total" | "booked" | "held"> & {
   // Non-optional: the deals list is filtered to entries with a tour before storage.
   tour: { name: string; base_price_per_person: number; hidden: boolean | null; active: boolean | null };
 };
+
+// A combo leg is only sellable if its tour is still live AND has an open,
+// bookable slot. Both live behind the partner operator's own RLS scope, so the
+// page's tenant client cannot see them — one scoped client per participating
+// business, two queries each, never one per leg.
+async function loadComboTourInfo(offers: ComboOfferRow[]): Promise<Record<string, ComboTourInfo>> {
+  const byBusiness: Record<string, string[]> = {};
+  for (const offer of offers) {
+    for (const item of offer.items || []) {
+      if (!item.business_id || !item.tour_id) continue;
+      const ids = (byBusiness[item.business_id] ||= []);
+      if (!ids.includes(item.tour_id)) ids.push(item.tour_id);
+    }
+  }
+
+  const now = Date.now();
+  const from = new Date(now + BOOKING_CUTOFF_MINUTES * 60 * 1000).toISOString();
+  const to = new Date(now + 60 * 24 * 60 * 60 * 1000).toISOString();
+  const info: Record<string, ComboTourInfo> = {};
+
+  await Promise.all(Object.entries(byBusiness).map(async ([businessId, tourIds]) => {
+    const sb = createTenantSupabase(businessId);
+    const [toursRes, slotsRes] = await Promise.all([
+      // RLS already drops inactive/hidden tours, so a missing row means the leg
+      // cannot be sold.
+      sb.from("tours").select("id, name, image_url, duration_minutes")
+        .eq("business_id", businessId).in("id", tourIds),
+      sb.from("slots").select("tour_id, capacity_total, booked, held")
+        .eq("business_id", businessId).in("tour_id", tourIds)
+        .eq("status", "OPEN").gt("start_time", from).lte("start_time", to),
+    ]);
+    // Fail soft: an errored partner leaves its legs unresolved, which hides the
+    // offer rather than advertising something the checkout would reject.
+    if (toursRes.error || slotsRes.error) return;
+    const bookable = new Set((slotsRes.data || [])
+      .filter((s) => (s.capacity_total || 0) - (s.booked || 0) - (s.held || 0) > 0)
+      .map((s) => s.tour_id));
+    for (const t of ((toursRes.data || []) as unknown as ComboTourRef[])) {
+      info[t.id] = { ...t, available: bookable.has(t.id) };
+    }
+  }));
+
+  return info;
+}
 
 export default function Home() {
   const theme = useTheme();
@@ -29,6 +74,7 @@ export default function Home() {
   const router = useRouter();
   const [tours, setTours] = useState<Tour[]>([]);
   const [comboOffers, setComboOffers] = useState<ComboOfferRow[]>([]);
+  const [comboTourInfo, setComboTourInfo] = useState<Record<string, ComboTourInfo>>({});
   const [loading, setLoading] = useState(true);
   const [spotsThisWeek, setSpotsThisWeek] = useState<Record<string, number>>({});
   const [totalBookings, setTotalBookings] = useState(0);
@@ -81,11 +127,18 @@ export default function Home() {
       const comboIds = [...new Set(((combosRes.data || []) as { combo_offer_id: string }[]).map((r) => r.combo_offer_id))];
       if (comboIds.length > 0) {
         const offersRes = await tenantSupabase.from("combo_offers")
-          .select("*, items:combo_offer_items(id, tour_id, business_id, position, label, tours:tours(id, name, image_url, duration_minutes))")
+          .select("*, items:combo_offer_items(id, tour_id, business_id, position, label)")
           .in("id", comboIds)
           .eq("active", true)
           .order("sort_order", { ascending: true });
-        setComboOffers((offersRes.data || []) as unknown as ComboOfferRow[]);
+        const offers = (offersRes.data || []) as unknown as ComboOfferRow[];
+        const info = await loadComboTourInfo(offers);
+        setComboTourInfo(info);
+        // Advertise only what can be booked end to end: every leg's tour must
+        // resolve and still have an open slot.
+        setComboOffers(offers.filter((o) =>
+          (o.items || []).length >= 2 && (o.items || []).every((i) => info[i.tour_id]?.available)
+        ));
       } else {
         setComboOffers([]);
       }
@@ -284,41 +337,42 @@ export default function Home() {
         })}
       </div>
 
-      {/* Combo Packages */}
+      {/* Combo Packages — same compact glass strip as the last-minute block, so
+          the section sits alongside the tour grid instead of above it. */}
       {comboOffers.length > 0 && (
-        <div className="mt-16">
-          <div className="glass mx-auto mb-8 max-w-3xl px-6 py-6 sm:px-10" style={{ borderRadius: 32 }}>
-            <SectionHeader
-              centered
-              eyebrow="Save More"
-              title="Combo Packages"
-              subtitle="Bundle two adventures together and save."
-            />
+        <div className="glass mt-8 px-5 py-4" style={{ borderRadius: 28 }}>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide" style={{ background: "var(--accent)", color: "var(--ink-on-main)" }}>
+              Save More
+            </span>
+            <h2 className="headline-md" style={{ color: "var(--ink)" }}>Combo Packages</h2>
           </div>
-          <div className="grid gap-8 justify-items-center" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
+          <p className="mt-1 hidden text-[13px] md:block" style={{ color: "var(--ink-muted)" }}>
+            Bundle two adventures together and save.
+          </p>
+          <div className="mt-4 grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 xl:grid-cols-3">
             {comboOffers.map((combo) => {
               const comboTours = (combo.items || [])
                 .slice()
                 .sort((a, b) => (a.position || 0) - (b.position || 0))
-                .map((i) => i.tours)
-                .filter(Boolean);
+                .map((i) => comboTourInfo[i.tour_id]);
               const tourA = comboTours[0];
               const tourB = comboTours[1];
               const extraCount = Math.max(0, comboTours.length - 2);
               const totalDuration = comboTours.reduce((s, t) => s + (t?.duration_minutes || 0), 0);
               const savings = combo.original_price - combo.combo_price;
               return (
-                <button type="button" key={combo.id} className="relative w-full max-w-[380px] mx-auto group cursor-pointer text-left" aria-label={"Book combo: " + combo.name}
+                <button type="button" key={combo.id} className="relative w-full group cursor-pointer text-left" aria-label={"Book combo: " + combo.name}
                   onClick={() => router.push("/combo/" + combo.id)}>
                   <div className="glass glass-hover overflow-hidden" style={{ borderRadius: 28 }}>
                     {/* Dual image strip */}
-                    <div className="flex h-[180px]">
+                    <div className="flex h-[120px]">
                       <div className="w-1/2 relative overflow-hidden">
                         {tourA?.image_url && (
                           <Image src={tourA.image_url} alt={tourA.name + " tour"}
                             fill sizes="190px" className="object-cover" />
                         )}
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3">
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2.5">
                           <p className="text-white text-xs font-semibold truncate">{tourA?.name}</p>
                         </div>
                       </div>
@@ -327,37 +381,35 @@ export default function Home() {
                           <Image src={tourB.image_url} alt={tourB.name + " tour"}
                             fill sizes="190px" className="object-cover" />
                         )}
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3">
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2.5">
                           <p className="text-white text-xs font-semibold truncate">{tourB?.name}{extraCount > 0 ? ` +${extraCount} more` : ""}</p>
                         </div>
                       </div>
                     </div>
                     {/* Content */}
-                    <div className="px-5 py-4">
+                    <div className="px-4 py-3">
                       <div className="flex items-start justify-between gap-2">
-                        <h3 className="font-display text-lg font-bold leading-tight" style={{ color: "var(--ink)" }}>{combo.name}</h3>
+                        <h3 className="font-display text-base font-bold leading-tight" style={{ color: "var(--ink)" }}>{combo.name}</h3>
                         {savings > 0 && (
-                          <span className="shrink-0 rounded-full px-2.5 py-1 text-xs font-bold" style={{ background: "var(--accent)", color: "var(--ink-on-main)" }}>
+                          <span className="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ background: "var(--accent)", color: "var(--ink-on-main)" }}>
                             Save R{savings}
                           </span>
                         )}
                       </div>
                       {combo.description && <p className="mt-1 line-clamp-2 text-xs" style={{ color: "var(--ink-muted)" }}>{combo.description}</p>}
-                      <div className="flex items-baseline gap-2 mt-3">
-                        <span className="font-display text-xl font-bold" style={{ color: "var(--ink)" }}>R{combo.combo_price}</span>
+                      <div className="flex items-baseline gap-2 mt-2">
+                        <span className="font-display text-lg font-bold" style={{ color: "var(--ink)" }}>R{combo.combo_price}</span>
                         <span className="text-sm" style={{ color: "var(--ink-muted)" }}>/pp</span>
                         {savings > 0 && <span className="text-sm line-through" style={{ color: "var(--ink-faint)" }}>R{combo.original_price}</span>}
                       </div>
                       <div className="mt-2 flex items-center gap-3 text-xs" style={{ color: "var(--ink-muted)" }}>
                         <span>{formatDuration(totalDuration)} total</span>
                         <span>•</span>
-                        <span>{comboTours.length || 2} experiences</span>
+                        <span>{comboTours.length} experiences</span>
                       </div>
-                      <div className="text-center mt-4">
-                        <span className="btn btn-primary w-full text-xs uppercase tracking-wide">
-                          Book Combo
-                        </span>
-                      </div>
+                      <span className="btn btn-primary mt-3 w-full text-xs uppercase tracking-wide">
+                        Book Combo
+                      </span>
                     </div>
                   </div>
                 </button>
