@@ -39,6 +39,8 @@ export interface Booking {
   unit_price: number;
   total_amount: number;
   original_total?: number;
+  voucher_amount_paid?: number;
+  last_amendment_id?: string;
   status: string;
   source?: string;
   refund_status?: string | null;

@@ -7,12 +7,22 @@ import { useTheme } from "./ThemeProvider";
 import type { ChatMessage, ChatButton } from "../lib/types";
 
 export default function ChatWidget() {
-  const { chatbot_avatar, business_name } = useTheme();
+  const { id } = useTheme();
+  return <TenantChatWidget key={id || "unresolved"} />;
+}
+
+type WidgetMessage = ChatMessage & { manageBookingsUrl?: string };
+
+function TenantChatWidget() {
+  const { id: businessId, chatbot_avatar, business_name } = useTheme();
   const [open, setOpen] = useState(false);
-  const [msgs, setMsgs] = useState<ChatMessage[]>([]);
+  const [msgs, setMsgs] = useState<WidgetMessage[]>([]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [st, setSt] = useState<Record<string, unknown>>({ step: "IDLE" });
+  const [chatSession, setChatSession] = useState("");
+  const [sessionError, setSessionError] = useState(false);
+  const [sessionAttempt, setSessionAttempt] = useState(0);
   const isHuman = st.status === "HUMAN";
   const adminName = String(st.admin_name || "");
   const [showJoined, setShowJoined] = useState(false);
@@ -26,23 +36,48 @@ export default function ChatWidget() {
   useEffect(() => {
     if (typeof document !== "undefined") document.body.setAttribute("data-chat-hydrated", "1");
   }, [chatbot_avatar]);
-  // Stable per-visitor id so the operator inbox can reply to THIS visitor
-  // (not a shared "web" thread). Persisted so a page reload keeps the thread.
+  // The server issues the visitor identity. Keep its capability separate from
+  // booking-flow state (whose historical `vid` field means voucher ID).
   useEffect(() => {
-    let vid = localStorage.getItem("bt_chat_vid");
-    if (!vid) { vid = crypto.randomUUID(); localStorage.setItem("bt_chat_vid", vid); }
-    setSt(s => ({ ...s, vid }));
-  }, []);
+    if (!open || !businessId) return;
+    let active = true;
+    setSessionError(false);
+    (async () => {
+      try {
+        const storageKey = "bt_chat_session:" + businessId;
+        let saved = "";
+        try { saved = localStorage.getItem(storageKey) || ""; } catch { /* memory-only chat */ }
+        const { data, error } = await supabase.functions.invoke("web-chat", {
+          body: { action: "session", business_id: businessId, chat_session: saved },
+        });
+        if (error || !data?.chat_session) throw new Error("Chat connection failed");
+        if (!active) return;
+        try { localStorage.setItem(storageKey, data.chat_session); } catch { /* memory-only chat */ }
+        setChatSession(data.chat_session);
+      } catch { if (active) setSessionError(true); }
+    })();
+    return () => { active = false; };
+  }, [open, businessId, sessionAttempt]);
+
+  async function invokeChat(body: Record<string, unknown>) {
+    let customerSession = "";
+    try { customerSession = localStorage.getItem("mb_customer_session") || ""; } catch { /* signed-out visitor */ }
+    const response = await supabase.functions.invoke("web-chat", {
+      body: { ...body, business_id: businessId, chat_session: chatSession, customer_session: customerSession },
+    });
+    if (response.error) throw response.error;
+    return response;
+  }
   // Resume a live-agent thread after reload/page navigation: HUMAN status only
   // lives in React state, so a remount would silently stop polling and the
   // visitor would never see agent replies sent while they were away. One-shot
   // check that restores the status and pulls the last 24h of agent replies.
   useEffect(() => {
-    if (!open || !st.vid || isHuman || lastPollRef.current) return;
+    if (!open || !chatSession || isHuman || lastPollRef.current) return;
     (async () => {
       try {
         const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-        const res = await supabase.functions.invoke("web-chat", { body: { action: "poll", state: st, since } });
+        const res = await invokeChat({ action: "poll", state: st, since });
         const d = res.data || {};
         if (d.status === "HUMAN") {
           const missed = Array.isArray(d.messages) ? d.messages : [];
@@ -53,15 +88,15 @@ export default function ChatWidget() {
       } catch { /* stay in bot mode; next send() restores HUMAN via d.human */ }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, st.vid]);
+  }, [open, chatSession]);
   // Live agent handoff: while a human is connected, poll for their replies and
   // drop them into the conversation. Stops when the agent hands back to the bot.
   useEffect(() => {
-    if (!open || !isHuman || !st.vid) return;
+    if (!open || !isHuman || !chatSession) return;
     if (!lastPollRef.current) lastPollRef.current = new Date().toISOString();
     const id = setInterval(async () => {
       try {
-        const res = await supabase.functions.invoke("web-chat", { body: { action: "poll", state: st, since: lastPollRef.current } });
+        const res = await invokeChat({ action: "poll", state: st, since: lastPollRef.current });
         const d = res.data || {};
         if (Array.isArray(d.messages) && d.messages.length) {
           setMsgs(prev => [...prev, ...d.messages.map((m: { text: string }) => ({ role: "bot" as const, text: m.text }))]);
@@ -74,7 +109,7 @@ export default function ChatWidget() {
     }, 4000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, isHuman, st.vid]);
+  }, [open, isHuman, chatSession]);
 
   function handleOpenChat() {
     setOpen(true);
@@ -96,7 +131,7 @@ export default function ChatWidget() {
   }, [open]);
   async function send(ovr?: string) {
     const msg = ovr || input.trim();
-    if (!msg || typing) return;
+    if (!msg || typing || !chatSession) return;
     const isBtn = msg.startsWith("btn:");
     let displayMsg = msg;
     if (isBtn) {
@@ -107,20 +142,20 @@ export default function ChatWidget() {
         if (cd) displayMsg = cd.label;
       }
     }
-    const newM: ChatMessage[] = [...msgs, { role: "user", text: displayMsg }];
+    const newM: WidgetMessage[] = [...msgs, { role: "user", text: displayMsg }];
     setMsgs(newM);
     setInput("");
     setTyping(true);
     try {
       const hist = newM.slice(-12).map(m => ({ role: m.role, text: m.text }));
-      const res = await supabase.functions.invoke("web-chat", { body: { messages: hist.slice(0, -1), message: msg, state: st } });
+      const res = await invokeChat({ messages: hist.slice(0, -1), message: msg, state: st });
       const d = res.data || {};
       setSt(d.state || st);
       // A human agent is handling this — their reply arrives via the poll, so
       // don't render a bot bubble (d.reply is empty in this case).
       if (d.human) { setTyping(false); return; }
       const delay = 800 + Math.min((d.reply || "").length * 6, 1500) + Math.random() * 500;
-      setTimeout(() => { setTyping(false); setMsgs(prev => [...prev, { role: "bot", text: d.reply || "Try again?", buttons: d.buttons || null, paymentUrl: d.paymentUrl || null, calendar: d.calendar || null }]); if (d.rate && !rated) setShowRating(true); }, delay);
+      setTimeout(() => { setTyping(false); setMsgs(prev => [...prev, { role: "bot", text: d.reply || "Try again?", buttons: d.buttons || null, paymentUrl: d.paymentUrl || null, calendar: d.calendar || null, manageBookingsUrl: d.manageBookingsUrl }]); if (d.rate && !rated) setShowRating(true); }, delay);
     } catch {
       setTimeout(() => { setTyping(false); setMsgs(prev => [...prev, { role: "bot", text: "Sorry, try that again?" }]); }, 800);
     }
@@ -129,7 +164,7 @@ export default function ChatWidget() {
     setShowRating(false);
     setRated(true);
     setMsgs(prev => [...prev, { role: "bot", text: "Thanks for your feedback! 🙏" }]);
-    try { await supabase.functions.invoke("web-chat", { body: { action: "rate", rating: n, state: st } }); } catch { /* rating is best-effort */ }
+    try { await invokeChat({ action: "rate", rating: n, state: st }); } catch { /* rating is best-effort */ }
   }
   return (
     <>
@@ -166,7 +201,7 @@ export default function ChatWidget() {
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <button aria-label="New chat" onClick={() => { setMsgs([]); setSt({ step: "IDLE", vid: st.vid }); setShowRating(false); setRated(false); greeted.current = false; setTimeout(() => { greeted.current = true; setTyping(true); setTimeout(() => { setTyping(false); setMsgs([{ role: "bot", text: "Hi there! How can I help?" }]); }, 900 + Math.random() * 500); }, 400); }} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[color:var(--hover-overlay)]" style={{ color: "var(--ink-muted)" }} title="New chat"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+              <button aria-label="New chat" onClick={() => { setMsgs([]); setSt({ step: "IDLE" }); setShowRating(false); setRated(false); greeted.current = false; setTimeout(() => { greeted.current = true; setTyping(true); setTimeout(() => { setTyping(false); setMsgs([{ role: "bot", text: "Hi there! How can I help?" }]); }, 900 + Math.random() * 500); }, 400); }} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[color:var(--hover-overlay)]" style={{ color: "var(--ink-muted)" }} title="New chat"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
               <button aria-label="Close chat" onClick={() => setOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[color:var(--hover-overlay)]" style={{ color: "var(--ink-muted)" }} title="Close">✕</button>
             </div>
           </div>
@@ -176,10 +211,15 @@ export default function ChatWidget() {
                 <div className={"flex " + (m.role === "user" ? "justify-end" : "justify-start")} style={{ animation: "su .15s ease-out" }}>
 
                   <div
-                    className={"max-w-[80%] px-3.5 py-2.5 text-sm leading-relaxed " + (m.role === "user" ? "rounded-2xl rounded-br-md shadow-sm" : "border rounded-2xl rounded-bl-md shadow-sm")}
+                    // overflow-wrap:anywhere, not break-words: only `anywhere`
+                    // shrinks the flex item's min-content size, so a long
+                    // unbreakable URL (waiver + terms links in the hold message)
+                    // wraps instead of spilling outside the bubble.
+                    className={"max-w-[80%] [overflow-wrap:anywhere] px-3.5 py-2.5 text-sm leading-relaxed " + (m.role === "user" ? "rounded-2xl rounded-br-md shadow-sm" : "border rounded-2xl rounded-bl-md shadow-sm")}
                     style={m.role === "user" ? { backgroundColor: "var(--accent)", color: "var(--ink-on-main)" } : { backgroundColor: "var(--glass-tint-card)", color: "var(--ink)", borderColor: "var(--glass-border)" }}
                   >
                     <p className="whitespace-pre-wrap" style={m.role === "user" ? { color: "var(--ink-on-main)" } : { color: "var(--ink)" }}>{m.text}</p>
+                    {m.manageBookingsUrl && <a href={m.manageBookingsUrl} className="mt-2 inline-block underline">Verify in My Bookings</a>}
                   </div>
                 </div>
                 {m.paymentUrl && (
@@ -232,12 +272,13 @@ export default function ChatWidget() {
             <div ref={endRef} />
           </div>
           <div className="p-3 border-t shrink-0 bg-transparent" style={{ borderColor: "var(--glass-border)" }}>
+            {sessionError && <p role="alert" className="mb-2 text-sm">Chat could not connect. <button type="button" className="underline" onClick={() => setSessionAttempt(value => value + 1)}>Retry</button></p>}
             <div className="flex gap-2">
-              <input ref={inRef} type="text" aria-label="Chat message" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="Type a message..." disabled={typing}
+              <input ref={inRef} type="text" aria-label="Chat message" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder={chatSession ? "Type a message..." : "Connecting..."} disabled={typing || !chatSession}
                 className="flex-1 px-3.5 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)] disabled:opacity-50"
                 style={{ backgroundColor: "var(--glass-tint-card)", color: "var(--ink)", borderColor: "var(--glass-border)" }}
               />
-              <button aria-label="Send message" onClick={() => send()} disabled={!input.trim() || typing}
+              <button aria-label="Send message" onClick={() => send()} disabled={!input.trim() || typing || !chatSession}
                 className="w-10 h-10 rounded-xl flex items-center justify-center disabled:opacity-30 shrink-0"
                 style={{ backgroundColor: "var(--cta)", color: "var(--ink-on-cta)" }}
               >

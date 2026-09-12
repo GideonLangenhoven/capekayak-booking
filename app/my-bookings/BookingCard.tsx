@@ -1,4 +1,5 @@
 "use client";
+import { paidPortions } from "../lib/pricing";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { fmtDate, fmtTime } from "../lib/format";
@@ -224,7 +225,7 @@ export default function BookingCard({
              </span>
             {Number(b.total_amount) > 0 && (
               <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-[12px] font-medium text-[#F7F5F0]/85">
-                R{b.total_amount}
+                R{paidPortions(b).total}
               </span>
             )}
             <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-[12px] font-medium tabular-nums text-[#F7F5F0]/85">
@@ -381,7 +382,7 @@ export default function BookingCard({
 
       <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-[color:var(--textMuted)]">
         <span className="inline-flex items-center">{b.qty}</span>
-        {Number(b.total_amount) > 0 && <><span aria-hidden>·</span><span>R{b.total_amount}</span></>}
+        {Number(b.total_amount) > 0 && <><span aria-hidden>·</span><span>R{paidPortions(b).total}</span></>}
         <span aria-hidden>·</span>
         <span className="tabular-nums">Ref {ref}</span>
         {countdown && (

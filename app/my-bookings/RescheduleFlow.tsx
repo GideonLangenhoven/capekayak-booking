@@ -3,7 +3,7 @@ import Button from "../components/ui/Button";
 
 import MiniCalendar from "./MiniCalendar";
 import { fmtFull, fmtTime } from "../lib/format";
-import { rescheduleUnitPrice } from "../lib/pricing";
+import { rescheduleUnitPrice, paidPortions } from "../lib/pricing";
 import type { Booking, Slot } from "../lib/types";
 
 interface RescheduleFlowProps {
@@ -32,6 +32,8 @@ export default function RescheduleFlow({
   // Remediation reschedule of an operator-cancelled booking: any tour, party
   // size may shrink, and excess refunds carry no processing fee.
   const isClaim = rescheduling.status === "CANCELLED";
+  const paid = paidPortions(rescheduling);
+  const credit = paid.cash + (rescheduling.converted_to_voucher_id ? 0 : paid.voucher);
   // Payment screen
   if (reschedulePaymentUrl) {
     return (
@@ -39,7 +41,7 @@ export default function RescheduleFlow({
         <div className="text-center">
 
           <h2 className="text-xl font-bold text-[color:var(--text)] mb-2">Complete Payment</h2>
-          <p className="text-sm text-[color:var(--textMuted)] mb-6">Your reschedule is confirmed. Pay the R{reschedulePaymentDiff} difference to secure your new slot.</p>
+          <p className="text-sm text-[color:var(--textMuted)] mb-6">Your new slot is held. Pay the R{reschedulePaymentDiff} difference to secure your new slot.</p>
           <a href={reschedulePaymentUrl} className="inline-block w-full rounded-full py-4 text-base font-bold text-white bg-[color:var(--cta,#0f766e)] hover:opacity-90 transition-opacity text-center">
             Pay Now: R{reschedulePaymentDiff}
           </a>
@@ -55,7 +57,7 @@ export default function RescheduleFlow({
     const slotSpots = rebookConfirmSlot.capacity_total - rebookConfirmSlot.booked - (rebookConfirmSlot.held || 0);
     const unitPrice = rescheduleUnitPrice(rebookConfirmSlot, rebookConfirmSlot.tours!.base_price_per_person);
     const newTotal = unitPrice * qty;
-    const diff = newTotal - Number(rescheduling.total_amount);
+    const diff = newTotal - credit;
     const refundFactor = isClaim ? 1 : 0.95;
     const notEnoughSpots = slotSpots < qty;
 
@@ -89,7 +91,7 @@ export default function RescheduleFlow({
             <div><p className="text-[color:var(--textMuted)] text-xs mb-0.5">Time</p><p className="font-medium text-[color:var(--text)]">{fmtTime(rebookConfirmSlot.start_time)}</p></div>
           </div>
           <div className="mt-4 pt-4 border-t border-[color:var(--glass-border)] flex justify-between items-center">
-            <span className="text-sm text-[color:var(--textMuted)]">Originally paid</span><span className="text-sm">R{rescheduling.total_amount}</span>
+            <span className="text-sm text-[color:var(--textMuted)]">Originally paid</span><span className="text-sm">R{credit}</span>
           </div>
           <div className="flex justify-between items-center mt-1">
             <span className="text-sm font-semibold text-[color:var(--text)]">New total</span><span className="text-sm font-bold text-[color:var(--text)]">R{newTotal}</span>
@@ -137,7 +139,7 @@ export default function RescheduleFlow({
       <h2 className="text-xl font-bold text-[color:var(--text)] mb-1">Choose a New Date</h2>
       <p className="text-sm text-[color:var(--textMuted)] mb-6">
         {isClaim
-          ? <>Any tour &middot; up to {rescheduling.qty} {rescheduling.qty === 1 ? "person" : "people"} &middot; R{rescheduling.total_amount} credit</>
+          ? <>Any tour &middot; up to {rescheduling.qty} {rescheduling.qty === 1 ? "person" : "people"} &middot; R{credit} credit</>
           : <>{rescheduling.tours?.name} &middot; {rescheduling.qty} {rescheduling.qty === 1 ? "person" : "people"}</>}
       </p>
       {loadingSlots ? (

@@ -38,3 +38,14 @@ export function createBusinessResolverSupabase(input: {
 export function createVoucherSupabase(code: string, businessId?: string | null) {
   return createScopedSupabase(buildVoucherHeaders(code, businessId))
 }
+
+// R05: booking-scoped writes pair the tenant header with the booking's own
+// waiver token (returned in the insert response). A forged tenant header plus
+// leaked UUID alone cannot modify another booking.
+export function createBookingSupabase(businessId: string | null | undefined, bookingId: string, waiverToken: string) {
+  return createScopedSupabase({
+    ...buildTenantHeaders({ businessId }),
+    "x-booking-id": bookingId,
+    "x-booking-waiver-token": waiverToken,
+  })
+}

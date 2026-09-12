@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, Suspense, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { PostgrestError } from "@supabase/supabase-js";
-import { createTenantSupabase, createVoucherSupabase, supabase } from "../lib/supabase";
+import { createBookingSupabase, createTenantSupabase, createVoucherSupabase, supabase } from "../lib/supabase";
 import { formatDuration } from "../lib/duration";
 import { useTheme } from "../components/ThemeProvider";
 import TenantClosedNotice, { useTenantTrading } from "../components/TenantClosedNotice";
@@ -27,7 +27,7 @@ type ReviewItem = {
   submitted_at: string;
 };
 
-export function BookingFlow({ embed = false }: { embed?: boolean }) {
+function BookingFlow({ embed = false }: { embed?: boolean }) {
   const params = useSearchParams();
   const theme = useTheme();
   const trading = useTenantTrading();
@@ -63,6 +63,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState("");
+  const [checkoutAmount, setCheckoutAmount] = useState<number | null>(null);
   const [bookingRef, setBookingRef] = useState("");
   const [voucherRemainders, setVoucherRemainders] = useState<{ code: string; remaining: number }[]>([]);
   const [soldOutMsg, setSoldOutMsg] = useState("");
@@ -76,6 +77,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   const [promoError, setPromoError] = useState("");
   const [waiverUrl, setWaiverUrl] = useState("");
   const [draftBookingId, setDraftBookingId] = useState<string | null>(null);
+  const [draftWaiverToken, setDraftWaiverToken] = useState<string | null>(null);
   const [holdExpiresAt, setHoldExpiresAt] = useState<Date | null>(null);
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const { toast, showToast, dismissToast } = useToast();
@@ -107,7 +109,6 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
         setSelectedDate(new Date(draftDate));
         setSelectedSlot(matchSlot);
         if (explicitResume && d?.tourId === selectedTour.id && d.step >= 2) {
-          setHoldExpiresAt(new Date(Date.now() + 15 * 60 * 1000));
           setStep("details");
         }
       } else if (draftDate) {
@@ -163,7 +164,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
 
   // Debounced save to localStorage on form field changes
   useEffect(() => {
-    if (!selectedTour) return;
+    if (!selectedTour || step === "payment") return;
     const id = setTimeout(function () {
       saveLocalDraft({
         tourId: selectedTour.id,
@@ -180,7 +181,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
         promoCode,
         voucherCode,
         addOns: Object.entries(selectedAddOns).filter(function (e) { return e[1] > 0; }).map(function (e) { return { id: e[0], qty: e[1] }; }),
-        step: step === "payment" ? 3 : step === "details" ? 2 : 1,
+        step: step === "details" ? 2 : 1,
       });
     }, 500);
     return function () { clearTimeout(id); };
@@ -351,26 +352,6 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
 
   function removeVoucher(i: number) { const v = vouchers[i]; setVouchers(vouchers.filter((_, j) => j !== i)); setVoucherTotal(voucherTotal - v.value); }
 
-  async function saveDraft() {
-    if (!name.trim() || !email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !phone.trim()) return;
-    if (!selectedTour || !selectedSlot) return;
-    const draftData = {
-      business_id: selectedTour.business_id, tour_id: selectedTour.id, slot_id: selectedSlot.id,
-      customer_name: name.trim(), email: email.toLowerCase().trim(),
-      qty, unit_price: effectiveUnitPrice,
-      total_amount: grandTotal, original_total: grandTotal,
-      status: "DRAFT" as const, source: embed ? "WIDGET" : "WEB",
-    };
-    try {
-      if (draftBookingId) {
-        await tenantSupabase.from("bookings").update(draftData).eq("id", draftBookingId).eq("status", "DRAFT");
-      } else {
-        const { data } = await tenantSupabase.from("bookings").insert(draftData).select("id").single();
-        if (data) setDraftBookingId(data.id);
-      }
-    } catch (e) { /* draft save is best-effort */ }
-  }
-
   async function applyPromo() {
     if (!promoCode.trim()) return;
     setPromoError("");
@@ -408,8 +389,15 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   }
 
   async function submitBooking() {
-    if (!name.trim() || !email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !phone.trim() || !termsAccepted) return;
+    if (submitting) return;
+    if (!name.trim() || !phone.trim() || !termsAccepted) { showToast("Please complete your contact details and accept the terms.", "error"); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      showToast("Please enter a valid email address.", "error");
+      document.getElementById("book-email")?.focus();
+      return;
+    }
     setSubmitting(true);
+    try {
     const promoInsertFields: Record<string, unknown> = {};
     if (appliedPromo) {
       promoInsertFields.discount_type = appliedPromo.discount_type === "PERCENT" ? "PERCENT" : "FLAT";
@@ -420,7 +408,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     }
     const bookingPayload = {
       business_id: selectedTour!.business_id, tour_id: selectedTour!.id, slot_id: selectedSlot!.id,
-      customer_name: name, phone: phone ? normalizePhone(dialCode, phone) : "", email: email.toLowerCase(),
+      customer_name: name.trim(), phone: phone ? normalizePhone(dialCode, phone) : "", email: email.toLowerCase().trim(),
       qty, unit_price: effectiveUnitPrice, total_amount: finalTotal, original_total: grandTotal,
       voucher_amount_paid: effectiveVoucherCredit,
       status: "PENDING", source: embed ? "WIDGET" : "WEB",
@@ -432,127 +420,73 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     };
     let booking: Booking | null; let error: PostgrestError | null;
     if (draftBookingId) {
-      const res = await tenantSupabase.from("bookings").update(bookingPayload).eq("id", draftBookingId).select().single();
-      booking = res.data; error = res.error;
+      const bookingClient = draftWaiverToken
+        ? createBookingSupabase(selectedTour!.business_id, draftBookingId, draftWaiverToken)
+        : tenantSupabase;
+      const existing = await bookingClient.from("bookings").select().eq("id", draftBookingId).single();
+      if (existing.data?.status === "HELD") {
+        booking = existing.data; error = existing.error;
+        if (booking && (booking.qty !== qty || booking.slot_id !== selectedSlot!.id)) {
+          showToast("Your previous reservation is still held. Restore its guest count and departure to retry, or wait for it to expire.", "error");
+          return;
+        }
+      } else {
+        const res = await bookingClient.from("bookings").update(bookingPayload).eq("id", draftBookingId).select().single();
+        booking = res.data; error = res.error;
+      }
     } else {
-      const res = await tenantSupabase.from("bookings").insert(bookingPayload).select().single();
+      const bookingId = crypto.randomUUID();
+      const waiverToken = crypto.randomUUID();
+      const bookingClient = createBookingSupabase(selectedTour!.business_id, bookingId, waiverToken);
+      const res = await bookingClient.from("bookings").insert({ ...bookingPayload, id: bookingId, waiver_token: waiverToken }).select().single();
+      if (res.data?.id) setDraftBookingId(res.data.id);
+      if (res.data?.waiver_token) setDraftWaiverToken(String(res.data.waiver_token));
       booking = res.data; error = res.error;
     }
     if (error || !booking) { showToast("Something went wrong.", "error"); setSubmitting(false); return; }
+    if (!booking.waiver_token) { showToast("We couldn't verify this booking. Please try again.", "error"); setSubmitting(false); return; }
     setBookingRef(booking.id.substring(0, 8).toUpperCase());
 
-    // Save add-on line items (snapshot unit_price at booking time)
-    const addOnRows = availableAddOns
-      .filter(ao => selectedAddOns[ao.id] && selectedAddOns[ao.id] > 0)
-      .map(ao => ({ booking_id: booking.id, add_on_id: ao.id, qty: selectedAddOns[ao.id], unit_price: ao.price }));
-    if (addOnRows.length > 0) {
-      await tenantSupabase.from("booking_add_ons").insert(addOnRows);
-    }
-
-    // Record promo usage atomically (prevents race conditions and duplicate uses)
-    if (appliedPromo) {
-      await supabase.rpc("apply_promo_code", {
-        p_promo_id: appliedPromo.id,
-        p_customer_email: email.toLowerCase(),
-        p_booking_id: booking.id,
-        p_customer_phone: phone ? normalizePhone(dialCode, phone) : null,
-      });
-    }
-
-    if (finalTotal <= 0) {
-      // Server-side confirmation: confirm_voucher_booking recomputes the total,
-      // verifies the vouchers actually cover it, reserves capacity, deducts the
-      // vouchers and sets PAID — all atomically. Anon can no longer mark a booking
-      // PAID directly, and capacity is checked before confirmation (never PAID on
-      // a sold-out slot).
-      const { data: confirmRes, error: confirmErr } = await supabase.rpc("confirm_voucher_booking", {
-        p_booking_id: booking.id,
-        p_voucher_ids: vouchers.map(v => v.id),
-      });
-      if (confirmErr || !confirmRes?.ok) {
-        if (confirmRes?.error === "no_capacity") {
-          await tenantSupabase.from("bookings").update({ status: "CANCELLED", cancellation_reason: "No capacity" }).eq("id", booking.id);
-          setSoldOutMsg(confirmRes?.message || "This slot just sold out! Please select another time.");
-          setSelectedSlot(null);
-          setStep("calendar");
-          setSubmitting(false);
-          if (selectedTour) loadSlots(selectedTour.id);
-          return;
-        }
-        showToast(confirmRes?.error === "insufficient_voucher"
-          ? "Your voucher no longer covers the full amount. Please try again."
-          : "We couldn't confirm your booking. Please try again.", "error");
-        setSubmitting(false);
-        return;
-      }
-      // Email customers any leftover voucher balance the server reported.
-      const remainders: { code: string; remaining: number }[] = (confirmRes.remainders || []).map((r: { code: string; remaining: number }) => ({ code: r.code, remaining: Number(r.remaining) }));
-      for (const r of remainders) {
-        const used = vouchers.find(v => v.code === r.code);
-        try {
-          await supabase.functions.invoke("send-email", {
-            body: {
-              type: "VOUCHER_BALANCE",
-              data: {
-                email: email.toLowerCase(),
-                customer_name: name,
-                voucher_code: r.code,
-                original_value: used?.value ?? null,
-                amount_used: used ? used.value - r.remaining : null,
-                remaining_balance: r.remaining,
-                booking_ref: booking.id.substring(0, 8).toUpperCase(),
-                tour_name: selectedTour!.name,
-                business_id: selectedTour!.business_id,
-              },
-            },
-          });
-        } catch (e) { console.error("VOUCHER_BALANCE_EMAIL_ERR:", e); }
-      }
-      // Confirm booking (handles email + WhatsApp + invoice + marketing sync)
-      try {
-        await supabase.functions.invoke("confirm-booking", {
-          body: { booking_id: booking.id },
-        });
-      } catch (e) { console.error("VOUCHER_CONFIRM_ERR:", e); }
-      // Fetch waiver token to show CTA on confirmation screen
-      try {
-        const { data: waiverData } = await supabase.from("bookings").select("waiver_token, waiver_status").eq("id", booking.id).single();
-        if (waiverData?.waiver_token && waiverData.waiver_status !== "SIGNED") {
-          setWaiverUrl("/waiver?booking=" + booking.id + "&token=" + waiverData.waiver_token);
-        }
-      } catch (e) { console.error("WAIVER_FETCH_ERR:", e); }
-      setVoucherRemainders(remainders);
-      clearLocalDraft(); setPaymentUrl("FREE"); setStep("payment"); setSubmitting(false); return;
-    }
-
-    // Atomic capacity check + hold creation to prevent overbooking
-    const { data: holdResult, error: holdError } = await supabase.rpc("create_hold_with_capacity_check", {
-      p_booking_id: booking.id,
-      p_slot_id: selectedSlot!.id,
-      p_qty: qty,
-      p_expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+    // The server prices the selected extras and reserves capacity and vouchers.
+    const yocoRes = await supabase.functions.invoke("create-checkout", {
+      body: {
+        booking_id: booking.id, booking_token: booking.waiver_token, amount: finalTotal,
+        customer_name: name.trim(), customer_email: email.trim().toLowerCase(), qty,
+        promo_code: appliedPromo?.code || null,
+        voucher_codes: vouchers.map(v => v.code), voucher_ids: vouchers.map(v => v.id),
+        add_ons: Object.entries(selectedAddOns).filter(([, count]) => count > 0).map(([id, count]) => ({ id, qty: count })),
+        skip_notifications: true,
+      },
     });
-    if (holdError || !holdResult?.success) {
-      // Capacity exceeded or hold failed — clean up the booking and redirect to calendar
-      await tenantSupabase.from("bookings").update({ status: "CANCELLED", cancellation_reason: "No capacity" }).eq("id", booking.id);
-      setSoldOutMsg(holdResult?.error || "This slot just sold out! Please select another time.");
-      setSelectedSlot(null);
-      setStep("calendar");
-      setSubmitting(false);
-      if (selectedTour) loadSlots(selectedTour.id);
+    if (!yocoRes.data?.redirectUrl) {
+      let reason = yocoRes.data?.reason;
+      if (!reason && yocoRes.error) {
+        try { reason = (await yocoRes.error.context?.json())?.reason; } catch { /* use fallback */ }
+      }
+      showToast(reason || "Payment link unavailable. Your details are saved; please try again.", "error");
       return;
     }
-    await tenantSupabase.from("bookings").update({ status: "HELD" }).eq("id", booking.id);
-
-    // skip_notifications: the customer is being redirected to the payment page
-    // right now — emailing/WhatsApping them the same link is noise. If they
-    // abandon, the hold-expiry sweep sends the follow-up instead.
-    const yocoRes = await supabase.functions.invoke("create-checkout", {
-      body: { booking_id: booking.id, amount: finalTotal, customer_name: name, qty, voucher_codes: vouchers.map(v => v.code), voucher_ids: vouchers.map(v => v.id), skip_notifications: true },
-    });
-    if (yocoRes.data?.redirectUrl) { clearLocalDraft(); setPaymentUrl(yocoRes.data.redirectUrl); setStep("payment"); }
-    else showToast("Payment link unavailable. Please try again.", "error");
-    setSubmitting(false);
+    const checkout = yocoRes.data;
+    setCheckoutAmount(Number(checkout.amount ?? finalTotal));
+    setHoldExpiresAt(checkout.expires_at ? new Date(checkout.expires_at) : null);
+    setPaymentUrl(checkout.redirectUrl); setStep("payment"); clearLocalDraft();
+    try {
+      sessionStorage.setItem("bt-checkout-" + theme.id, JSON.stringify({
+        url: checkout.redirectUrl, amount: checkout.amount ?? finalTotal,
+        expiresAt: checkout.expires_at, ref: booking.id.substring(0, 8).toUpperCase(),
+      }));
+    } catch { /* A disabled session store must not prevent payment. */ }
+    if (Math.abs(Number(checkout.amount ?? finalTotal) - finalTotal) > 0.01) {
+      showToast("The available price or voucher balance changed. Please review the payment total below.", "error");
+      return;
+    }
+    // Keep the visible link as a fallback if the browser blocks navigation.
+    if (embed && window.top) window.top.location.href = checkout.redirectUrl;
+    else window.location.assign(checkout.redirectUrl);
+    } catch (error) {
+      console.error("BOOKING_CHECKOUT_ERR:", error);
+      showToast("We couldn't open payment. Please use the payment link or try again.", "error");
+    } finally { setSubmitting(false); }
   }
 
   function renderCalendar() {
@@ -825,7 +759,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                         </div>
                       </div>
 
-                      <button onClick={() => { setHoldExpiresAt(new Date(Date.now() + 15 * 60 * 1000)); setStep("details"); }} className="btn btn-primary w-full !py-4 text-[15px] group">
+                      <button onClick={() => { setStep("details"); }} className="btn btn-primary w-full !py-4 text-[15px] group">
                         Continue to Details
                       </button>
                     </div>
@@ -872,7 +806,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                  </div>
                  <div>
                    <label htmlFor="book-email" className="field-label ml-1">Email Address *</label>
-                   <input id="book-email" type="email" value={email} onChange={e => setEmail(e.target.value)} onBlur={saveDraft} placeholder="john@example.com"
+                   <input id="book-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="john@example.com"
                      className="field" />
                  </div>
                  <div>
@@ -1117,12 +1051,12 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                   }} />
                 </div>
               ) : (
-                <p className="text-[14px] font-bold text-[color:var(--ink-muted)] mb-6">Spots are held exclusively for 15 minutes.</p>
+                <p className="text-[14px] font-bold text-[color:var(--ink-muted)] mb-6">Use the payment link below to complete your booking.</p>
               )}
 
               <div className="surface-muted w-full py-6 mb-8 text-center">
                  <p className="text-[12px] font-extrabold uppercase tracking-widest text-[color:var(--ink-muted)] mb-1">Payment Total</p>
-                 <p className="text-5xl font-extrabold tracking-tighter text-[color:var(--ink)]">R{finalTotal}</p>
+                 <p className="text-5xl font-extrabold tracking-tighter text-[color:var(--ink)]">R{checkoutAmount ?? finalTotal}</p>
               </div>
 
               <a href={paymentUrl} onClick={embed ? (e) => { e.preventDefault(); if (window.top) window.top.location.href = paymentUrl; else window.location.href = paymentUrl; } : undefined} className="btn btn-primary w-full !py-4 text-[16px]">Proceed to Secure Portal &rarr;</a>

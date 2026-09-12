@@ -1,7 +1,7 @@
 "use client";
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import type { User } from "@supabase/supabase-js";
-import { createScopedSupabase, createTenantSupabase, createVoucherSupabase, supabase } from "../lib/supabase";
+import { createTenantSupabase, createVoucherSupabase, supabase } from "../lib/supabase";
 import Link from "next/link";
 import { normalizePhone } from "../lib/phone";
 import { useTheme } from "../components/ThemeProvider";
@@ -100,12 +100,6 @@ export default function MyBookings() {
   const [editGuestsBooking, setEditGuestsBooking] = useState<Booking | null>(null);
   const [guestQty, setGuestQty] = useState(1);
   const [guestExcessAction, setGuestExcessAction] = useState("VOUCHER");
-  const [guestVoucherCode, setGuestVoucherCode] = useState("");
-  const [guestVoucherApplied, setGuestVoucherApplied] = useState<{ code: string; balance: number } | null>(null);
-  const [guestVoucherError, setGuestVoucherError] = useState("");
-  const [guestPromoCode, setGuestPromoCode] = useState("");
-  const [guestPromoApplied, setGuestPromoApplied] = useState<{ id: string; code: string; discount_type: string; discount_value: number } | null>(null);
-  const [guestPromoError, setGuestPromoError] = useState("");
   const [guestPaymentUrl, setGuestPaymentUrl] = useState("");
   const [guestPaymentAmount, setGuestPaymentAmount] = useState(0);
 
@@ -256,6 +250,7 @@ export default function MyBookings() {
   useEffect(() => {
     return () => {
       if (paymentPollRef.current) clearInterval(paymentPollRef.current);
+      paymentPollRef.current = null;
     };
   }, []);
 
@@ -524,29 +519,39 @@ export default function MyBookings() {
   }
 
   /* ───── C14: Start payment polling ───── */
-  function startPaymentPolling(bookingId: string) {
+  function startPaymentPolling(bookingId: string, amendmentId: string) {
     setPaymentPending(bookingId);
     let attempts = 0;
     if (paymentPollRef.current) clearInterval(paymentPollRef.current);
-    paymentPollRef.current = setInterval(async () => {
+    const pollId = setInterval(async () => {
       attempts++;
       if (attempts > 12) {
-        if (paymentPollRef.current) clearInterval(paymentPollRef.current);
+        clearInterval(pollId);
+        paymentPollRef.current = null;
         setPaymentPending(null);
         return;
       }
-      const statusSupabase = createScopedSupabase({ "x-booking-success-token": bookingId });
-      const { data } = await statusSupabase.from("bookings")
-        .select("status")
-        .eq("id", bookingId)
-        .maybeSingle();
-      if (data && ["PAID", "CONFIRMED"].includes(data.status)) {
-        if (paymentPollRef.current) clearInterval(paymentPollRef.current);
-        setPaymentPending(null);
-        showToast("Payment confirmed! Your booking is updated.");
-        reloadAfterAction();
-      }
+      try {
+        let customerSession: string | null = null;
+        try { customerSession = localStorage.getItem("mb_customer_session"); } catch { /* magic-link JWT may still be available */ }
+        // Reuse verified customer access, never treat a booking ID as a token.
+        const { data, error } = await supabase.functions.invoke("my-bookings-lookup", { body: {
+          booking_id: bookingId, business_id: theme.id, customer_session: customerSession,
+          email: email.toLowerCase(), emailOnly: authSession,
+          phone_tail: normalizePhone(dialCode, phoneDigits).replace(/\D/g, "").slice(-9),
+        } });
+        if (paymentPollRef.current !== pollId) return;
+        const booking = data?.bookings?.find((b: Booking) => b.id === bookingId && b.business_id === theme.id);
+        if (!error && booking && amendmentId && booking.last_amendment_id === amendmentId && ["PAID", "CONFIRMED"].includes(booking.status)) {
+          clearInterval(pollId);
+          paymentPollRef.current = null;
+          setPaymentPending(null);
+          showToast("Payment confirmed! Your booking is updated.");
+          reloadAfterAction();
+        }
+      } catch { /* bounded polling retries transient network failures */ }
     }, 10000);
+    paymentPollRef.current = pollId;
   }
 
   /* ───── Admin review (locked bookings) ───── */
@@ -609,7 +614,7 @@ export default function MyBookings() {
       if ((result.diff as number) > 0 && result.payment_url) {
         setReschedulePaymentUrl(result.payment_url as string);
         setReschedulePaymentDiff(result.diff as number);
-        startPaymentPolling(rescheduling.id);
+        startPaymentPolling(rescheduling.id, String(result.hold_id || ""));
         setActionLoading(null);
         return;
       } else if (result.voucher_code) {
@@ -630,39 +635,7 @@ export default function MyBookings() {
     setEditGuestsBooking(b);
     setGuestQty(b.qty);
     setGuestExcessAction("VOUCHER");
-    setGuestVoucherCode(""); setGuestVoucherApplied(null); setGuestVoucherError("");
-    setGuestPromoCode(""); setGuestPromoApplied(null); setGuestPromoError("");
     setGuestPaymentUrl(""); setGuestPaymentAmount(0);
-  }
-
-  async function applyGuestVoucher() {
-    if (!guestVoucherCode.trim()) return;
-    setGuestVoucherError("");
-    const code = guestVoucherCode.toUpperCase().replace(/\s/g, "");
-    if (code.length !== 8) { setGuestVoucherError("Codes are 8 characters"); return; }
-    const voucherSupabase = createVoucherSupabase(code, theme.id);
-    const { data } = await voucherSupabase.from("vouchers").select("*").eq("code", code).single();
-    if (!data) { setGuestVoucherError("Code not found"); return; }
-    if (data.status === "REDEEMED") { setGuestVoucherError("Already redeemed"); return; }
-    if (data.status !== "ACTIVE") { setGuestVoucherError("Not valid"); return; }
-    if (data.expires_at && new Date(data.expires_at) < new Date()) { setGuestVoucherError("Expired"); return; }
-    const bal = Number(data.current_balance ?? data.value ?? data.purchase_amount ?? 0);
-    if (bal <= 0) { setGuestVoucherError("No balance remaining"); return; }
-    setGuestVoucherApplied({ code, balance: bal });
-    setGuestVoucherCode("");
-  }
-
-  async function applyGuestPromo() {
-    if (!guestPromoCode.trim() || !editGuestsBooking) return;
-    setGuestPromoError("");
-    const code = guestPromoCode.toUpperCase().trim();
-    const { data: promo } = await tenantSupabase.from("promotions").select("*").eq("code", code).eq("business_id", editGuestsBooking.business_id).maybeSingle();
-    if (!promo) { setGuestPromoError("Code not found"); return; }
-    if (!promo.active) { setGuestPromoError("No longer active"); return; }
-    if (promo.valid_until && new Date(promo.valid_until) < new Date()) { setGuestPromoError("Expired"); return; }
-    if (promo.max_uses != null && promo.used_count >= promo.max_uses) { setGuestPromoError("Usage limit reached"); return; }
-    setGuestPromoApplied({ id: promo.id, code: promo.code, discount_type: promo.discount_type, discount_value: Number(promo.discount_value) });
-    setGuestPromoCode("");
   }
 
   async function submitEditGuests() {
@@ -678,7 +651,7 @@ export default function MyBookings() {
           // never appeared before. Keep the modal open so the customer can pay.
           setGuestPaymentUrl(result.payment_url as string);
           setGuestPaymentAmount(Number(result.diff) || 0);
-          startPaymentPolling(b.id);
+          startPaymentPolling(b.id, String(result.hold_id || ""));
           setActionLoading(null);
           return;
         }
@@ -1066,12 +1039,7 @@ export default function MyBookings() {
         actionLoading={actionLoading} onClose={() => { setEditGuestsBooking(null); setGuestPaymentUrl(""); setGuestPaymentAmount(0); }} onSubmit={submitEditGuests}
         refundPercent={editGuestsBooking ? refundCalcs[editGuestsBooking.id]?.percent : undefined}
         paymentUrl={guestPaymentUrl} paymentAmount={guestPaymentAmount}
-        voucherCode={guestVoucherCode} setVoucherCode={setGuestVoucherCode}
-        voucherApplied={guestVoucherApplied} voucherError={guestVoucherError}
-        onApplyVoucher={applyGuestVoucher} onRemoveVoucher={() => setGuestVoucherApplied(null)}
-        promoCode={guestPromoCode} setPromoCode={setGuestPromoCode}
-        promoApplied={guestPromoApplied} promoError={guestPromoError}
-        onApplyPromo={applyGuestPromo} onRemovePromo={() => setGuestPromoApplied(null)}
+
       />
       <ContactModal
         open={!!contactBooking} contactName={contactName} setContactName={setContactName}
