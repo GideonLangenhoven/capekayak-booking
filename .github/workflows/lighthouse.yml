@@ -5,6 +5,12 @@ on:
 jobs:
   lhci:
     runs-on: ubuntu-latest
+    # localhost has no tenant subdomain. Audit a real storefront using the
+    # existing legacy resolver, in this read-only CI job only.
+    env:
+      NEXT_PUBLIC_BUSINESS_ID: c8b439f5-c11e-4d46-b347-943df6f172b4
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -12,11 +18,15 @@ jobs:
           node-version: 20
       - run: npm ci
       - run: npm run build
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       - run: npm run start &
       - run: npx wait-on http://localhost:3000
       - run: npx @lhci/cli@0.13.x autorun
         env:
           LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+      - name: Preserve audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: .lighthouseci/
+          retention-days: 7
