@@ -63,25 +63,25 @@ export default function PopiaPage() {
     <div className="app-container page-wrap max-w-2xl">
       <h1 className="headline-lg mb-2">Privacy Request</h1>
       <p className="text-sm text-[color:var(--textMuted)] mb-6">
-        Under South Africa's POPIA (and GDPR for EU residents), you can ask us to:
+        Under South Africa&apos;s POPIA (and GDPR for EU residents), you can ask us to:
       </p>
       <ul className="text-sm text-[color:var(--textMuted)] mb-6 list-disc pl-5 space-y-1">
-        <li><strong>Access</strong> — receive a copy of all personal information we hold about you.</li>
-        <li><strong>Correct</strong> — update incorrect or outdated details on your record.</li>
-        <li><strong>Delete</strong> — anonymise your personal information. Financial records are preserved with anonymised identifiers as required by law.</li>
+        <li><strong>Access</strong>: receive a copy of all personal information we hold about you.</li>
+        <li><strong>Correct</strong>: update incorrect or outdated details on your record.</li>
+        <li><strong>Delete</strong>: anonymise your personal information. Financial records are preserved with anonymised identifiers as required by law.</li>
       </ul>
 
       {status === "sent" ? (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6">
           <h2 className="text-lg font-bold text-emerald-900 mb-1">Confirmation email sent</h2>
           <p className="text-sm text-emerald-800">
-            We've emailed <strong>{email.trim().toLowerCase()}</strong> a confirmation link. Click it within
+            We&apos;ve emailed <strong>{email.trim().toLowerCase()}</strong> a confirmation link. Click it within
             24 hours to start your {type === "DELETION" ? "deletion" : type === "CORRECTION" ? "correction" : "access"} request.
-            If you don't see it, check your spam folder.
+            If you don&apos;t see it, check your spam folder.
           </p>
           {type === "DELETION" && (
             <p className="text-xs text-emerald-700 mt-3">
-              Deletion requests have a 30-day cooling-off period after confirmation before they're fulfilled, in case
+              Deletion requests have a 30-day cooling-off period after confirmation before they&apos;re fulfilled, in case
               you change your mind.
             </p>
           )}
@@ -119,7 +119,7 @@ export default function PopiaPage() {
               placeholder="you@example.com"
               className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40"
             />
-            <p className="text-xs text-slate-500 mt-1">We'll match this against bookings on file and send a confirmation link.</p>
+            <p className="text-xs text-slate-500 mt-1">We&apos;ll match this against bookings on file and send a confirmation link.</p>
           </div>
 
           <div>

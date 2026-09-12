@@ -58,9 +58,7 @@ export default function ReviewPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
         <div className="bg-white rounded-3xl p-8 shadow-xl max-w-md w-full text-center">
-          <div className="w-20 h-20 mx-auto bg-emerald-50 rounded-full flex items-center justify-center mb-6">
-            <svg className="w-10 h-10 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-          </div>
+
           <h1 className="text-2xl font-extrabold text-slate-800 mb-2">Thank You!</h1>
           <p className="text-slate-500 text-[15px]">Your review has been submitted and will appear once approved.</p>
         </div>
@@ -72,9 +70,7 @@ export default function ReviewPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
         <div className="bg-white rounded-3xl p-8 shadow-xl max-w-md w-full text-center">
-          <div className="w-20 h-20 mx-auto bg-red-50 rounded-full flex items-center justify-center mb-6">
-            <svg className="w-10 h-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          </div>
+
           <h1 className="text-xl font-bold text-slate-800 mb-2">Oops</h1>
           <p className="text-slate-500 text-[15px]">{error}</p>
         </div>

@@ -2,32 +2,88 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { createTenantSupabase } from "./lib/supabase";
+import { formatDuration } from "./lib/duration";
+import { fmtDate, fmtTime } from "./lib/format";
+import { BOOKING_CUTOFF_MINUTES } from "./lib/pricing";
 import { useRouter } from "next/navigation";
 import SectionHeader from "./components/ui/SectionHeader";
-import Card from "./components/ui/Card";
 import { useTheme } from "./components/ThemeProvider";
-import TourCardSkeleton from "./components/skeletons/TourCardSkeleton";
+import OperatorDirectory from "./components/OperatorDirectory";
+import TenantClosedNotice, { useTenantTrading } from "./components/TenantClosedNotice";
 import { readValidDraft, clearDraft, draftResumeUrl, type BookingDraft } from "@/app/lib/booking-draft";
+import type { Tour, Slot } from "./lib/types";
 
-const TOUR_IMAGES: Record<string, string> = {
-  "Sea Kayak": "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=600&h=400&fit=crop",
-  "Sunset Paddle": "https://images.unsplash.com/photo-1500259571355-332da5cb07aa?w=600&h=400&fit=crop",
-  "Private Tour": "https://images.unsplash.com/photo-1472745942893-4b9f730c7668?w=600&h=400&fit=crop",
+type ComboTourRef = { id: string; name: string; image_url: string | null; duration_minutes: number };
+type ComboTourInfo = ComboTourRef & { available: boolean };
+type ComboItem = { id: string; tour_id: string; business_id: string; position: number | null; label: string | null };
+type ComboOfferRow = { id: string; name: string; description: string | null; combo_price: number; original_price: number; items: ComboItem[] };
+type DealSlot = Pick<Slot, "id" | "tour_id" | "start_time" | "price_per_person_override" | "capacity_total" | "booked" | "held"> & {
+  // Non-optional: the deals list is filtered to entries with a tour before storage.
+  tour: { name: string; base_price_per_person: number; hidden: boolean | null; active: boolean | null };
 };
+
+// A combo leg is only sellable if its tour is still live AND has an open,
+// bookable slot. Both live behind the partner operator's own RLS scope, so the
+// page's tenant client cannot see them — one scoped client per participating
+// business, two queries each, never one per leg.
+async function loadComboTourInfo(offers: ComboOfferRow[]): Promise<Record<string, ComboTourInfo>> {
+  const byBusiness: Record<string, string[]> = {};
+  for (const offer of offers) {
+    for (const item of offer.items || []) {
+      if (!item.business_id || !item.tour_id) continue;
+      const ids = (byBusiness[item.business_id] ||= []);
+      if (!ids.includes(item.tour_id)) ids.push(item.tour_id);
+    }
+  }
+
+  const now = Date.now();
+  const from = new Date(now + BOOKING_CUTOFF_MINUTES * 60 * 1000).toISOString();
+  const to = new Date(now + 60 * 24 * 60 * 60 * 1000).toISOString();
+  const info: Record<string, ComboTourInfo> = {};
+
+  await Promise.all(Object.entries(byBusiness).map(async ([businessId, tourIds]) => {
+    const sb = createTenantSupabase(businessId);
+    const [toursRes, slotsRes] = await Promise.all([
+      // RLS already drops inactive/hidden tours, so a missing row means the leg
+      // cannot be sold.
+      sb.from("tours").select("id, name, image_url, duration_minutes")
+        .eq("business_id", businessId).in("id", tourIds),
+      sb.from("slots").select("tour_id, capacity_total, booked, held")
+        .eq("business_id", businessId).in("tour_id", tourIds)
+        .eq("status", "OPEN").gt("start_time", from).lte("start_time", to),
+    ]);
+    // Fail soft: an errored partner leaves its legs unresolved, which hides the
+    // offer rather than advertising something the checkout would reject.
+    if (toursRes.error || slotsRes.error) return;
+    const bookable = new Set((slotsRes.data || [])
+      .filter((s) => (s.capacity_total || 0) - (s.booked || 0) - (s.held || 0) > 0)
+      .map((s) => s.tour_id));
+    for (const t of ((toursRes.data || []) as unknown as ComboTourRef[])) {
+      info[t.id] = { ...t, available: bookable.has(t.id) };
+    }
+  }));
+
+  return info;
+}
 
 export default function Home() {
   const theme = useTheme();
+  const trading = useTenantTrading();
   const tenantSupabase = useMemo(() => createTenantSupabase(theme.id), [theme.id]);
+  const tz = theme.timezone || "Africa/Johannesburg";
   const router = useRouter();
-  const [tours, setTours] = useState<any[]>([]);
-  const [comboOffers, setComboOffers] = useState<any[]>([]);
+  const [tours, setTours] = useState<Tour[]>([]);
+  const [comboOffers, setComboOffers] = useState<ComboOfferRow[]>([]);
+  const [comboTourInfo, setComboTourInfo] = useState<Record<string, ComboTourInfo>>({});
   const [loading, setLoading] = useState(true);
   const [spotsThisWeek, setSpotsThisWeek] = useState<Record<string, number>>({});
   const [totalBookings, setTotalBookings] = useState(0);
   const [reviewStats, setReviewStats] = useState<Record<string, { avg: number; count: number }>>({});
-  const [draft, setDraft] = useState<BookingDraft | null>(null);
-
-  useEffect(() => { setDraft(readValidDraft()); }, []);
+  const [deals, setDeals] = useState<DealSlot[]>([]);
+  // Lazy-initialized from localStorage (impure, so must happen once here, not
+  // re-derived on every render) — reading it inline avoids the effect having
+  // to synchronously setState before any async gap.
+  const [draft, setDraft] = useState<BookingDraft | null>(() => readValidDraft());
 
   useEffect(() => {
     if (!theme.id) return;
@@ -35,13 +91,10 @@ export default function Home() {
       const now = new Date();
       const weekEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-      const [toursRes, combosRes, slotsRes, bookingsRes, rvStatsRes] = await Promise.all([
+      const [toursRes, combosRes, slotsRes, bookingsRes, rvStatsRes, dealsRes] = await Promise.all([
         tenantSupabase.from("tours").select("*").eq("business_id", theme.id).eq("active", true).order("sort_order", { ascending: true }),
-        tenantSupabase.from("combo_offers")
-          .select("*, tour_a:tours!combo_offers_tour_a_id_fkey(id, name, image_url, duration_minutes), tour_b:tours!combo_offers_tour_b_id_fkey(id, name, image_url, duration_minutes)")
-          .or(`business_a_id.eq.${theme.id},business_b_id.eq.${theme.id}`)
-          .eq("active", true)
-          .order("sort_order", { ascending: true }),
+        // Offers this tenant participates in (any leg, incl. 3+ party combos)
+        tenantSupabase.from("combo_offer_items").select("combo_offer_id").eq("business_id", theme.id),
         tenantSupabase.from("slots")
           .select("tour_id, capacity_total, booked, held")
           .eq("business_id", theme.id)
@@ -55,11 +108,40 @@ export default function Home() {
         tenantSupabase.from("tour_review_stats")
           .select("tour_id, avg_rating, review_count")
           .eq("business_id", theme.id),
+        // Last-minute deals: slots the cron has repriced (see apply_last_minute_deals).
+        // Only advertise what the booking flow will actually sell — same cutoff.
+        tenantSupabase.from("slots")
+          .select("id, tour_id, start_time, price_per_person_override, capacity_total, booked, held, tours(name, base_price_per_person, hidden, active)")
+          .eq("business_id", theme.id)
+          .eq("status", "OPEN")
+          .not("last_minute_at", "is", null)
+          .not("price_per_person_override", "is", null)
+          .gt("start_time", new Date(now.getTime() + BOOKING_CUTOFF_MINUTES * 60 * 1000).toISOString())
+          .order("start_time", { ascending: true })
+          .limit(20),
       ]);
 
-      const activeTours = (toursRes.data || []).filter((t: any) => !t.hidden);
+      const activeTours = ((toursRes.data || []) as unknown as Tour[]).filter((t) => !t.hidden);
       setTours(activeTours);
-      setComboOffers(combosRes.data || []);
+
+      const comboIds = [...new Set(((combosRes.data || []) as { combo_offer_id: string }[]).map((r) => r.combo_offer_id))];
+      if (comboIds.length > 0) {
+        const offersRes = await tenantSupabase.from("combo_offers")
+          .select("*, items:combo_offer_items(id, tour_id, business_id, position, label)")
+          .in("id", comboIds)
+          .eq("active", true)
+          .order("sort_order", { ascending: true });
+        const offers = (offersRes.data || []) as unknown as ComboOfferRow[];
+        const info = await loadComboTourInfo(offers);
+        setComboTourInfo(info);
+        // Advertise only what can be booked end to end: every leg's tour must
+        // resolve and still have an open slot.
+        setComboOffers(offers.filter((o) =>
+          (o.items || []).length >= 2 && (o.items || []).every((i) => info[i.tour_id]?.available)
+        ));
+      } else {
+        setComboOffers([]);
+      }
 
       const spotMap: Record<string, number> = {};
       for (const s of (slotsRes.data || [])) {
@@ -75,65 +157,111 @@ export default function Home() {
       }
       setReviewStats(rvMap);
 
+      // Supabase types the joined tour as an array; it is one row per slot.
+      setDeals((dealsRes.data || [])
+        .map((s) => ({ ...s, tour: (Array.isArray(s.tours) ? s.tours[0] : s.tours) as { name: string; base_price_per_person: number; hidden: boolean | null; active: boolean | null } | undefined }))
+        .filter((s) =>
+          s.tour && s.tour.active !== false && !s.tour.hidden
+          && (s.capacity_total || 0) - (s.booked || 0) - (s.held || 0) > 0
+        )
+        .slice(0, 4) as DealSlot[]);
+
       setLoading(false);
     })();
   }, [tenantSupabase, theme.id]);
 
+  // No tenant for this host (bare booking domain) — render the central
+  // operator directory instead of an empty storefront.
+  if (!theme.id) return <OperatorDirectory />;
+
   if (loading) return (
     <div className="app-container page-wrap">
-      <div className="grid grid-cols-2 gap-3 md:hidden">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="bg-white rounded-[22px] overflow-hidden animate-pulse">
-            <div className="aspect-square bg-gray-200" />
-            <div className="px-3 pt-2.5 pb-4 space-y-2">
-              <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto" />
-              <div className="h-5 bg-gray-200 rounded w-1/2 mx-auto" />
-              <div className="h-3 bg-gray-200 rounded w-1/3 mx-auto" />
-            </div>
-          </div>
+      {/* Shimmering glass blocks matching the final card grid */}
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 xl:grid-cols-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className={`glass-skeleton overflow-hidden ${i > 1 ? "hidden md:block" : ""} ${i > 2 ? "md:hidden xl:block" : ""}`} style={{ borderRadius: 28, height: 420 }} />
         ))}
-      </div>
-      <div className="hidden md:grid gap-8 justify-items-center" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(275px, 1fr))" }}>
-        <TourCardSkeleton /><TourCardSkeleton /><TourCardSkeleton />
       </div>
     </div>
   );
 
+  // Fix 3a: a paused or suspended operator shows a status page instead of a
+  // sellable tour list. Checked after `loading` so the notice never flashes
+  // before the tenant resolves. The binding gate is server-side in
+  // create-checkout; this is the storefront's side of it.
+  if (!trading) return <div className="app-container page-wrap"><TenantClosedNotice /></div>;
+
   return (
     <div className="app-container page-wrap">
       {draft && (
-        <div className="mb-8 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4 animate-in fade-in duration-300">
+        <div className="glass mb-8 px-5 py-4 animate-in fade-in duration-300">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            </div>
+
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-amber-900 text-[14px]">Pick up where you left off?</p>
-              <p className="text-[13px] text-amber-800 truncate">
+              <p className="text-[14px] font-semibold" style={{ color: "var(--ink)" }}>Pick up where you left off?</p>
+              <p className="truncate text-[13px]" style={{ color: "var(--ink-muted)" }}>
                 {draft.tourName || "Your tour"}
                 {draft.date && draft.slotTime && (
                   <> &middot; {new Date(draft.date + "T00:00:00").toLocaleDateString("en-ZA", { weekday: "short", day: "numeric", month: "short" })} at {draft.slotTime}</>
                 )}
               </p>
             </div>
-            <a href={draftResumeUrl(draft)} className="shrink-0 rounded-xl text-white text-[13px] font-semibold px-4 py-2.5 hover:opacity-90 transition-opacity" style={{ backgroundColor: "var(--cta)" }}>
+            <a href={draftResumeUrl(draft)} className="btn btn-primary shrink-0 px-4 py-2.5 text-[13px]">
               Resume
             </a>
-            <button onClick={() => { clearDraft(); setDraft(null); }} className="shrink-0 text-[12px] text-amber-700 underline hover:text-amber-900" aria-label="Dismiss resume banner">
+            <button onClick={() => { clearDraft(); setDraft(null); }} className="shrink-0 text-[12px] underline underline-offset-2" style={{ color: "var(--ink-muted)" }} aria-label="Dismiss resume banner">
               Dismiss
             </button>
           </div>
         </div>
       )}
-      <SectionHeader
-        centered
-        eyebrow={theme.hero_eyebrow || "Premium Kayaking"}
-        title={theme.hero_title || "Find Your Perfect Paddle"}
-        subtitle={theme.hero_subtitle || "Explore the stunning coastline by kayak with our original guided team."}
-        className="max-w-3xl"
-      />
+      {/* Hero copy sits on glass — text never floats on raw imagery (§5 rule 4).
+          No copy saved in Site Settings means no hero at all; this is a
+          multi-tenant storefront, so there is no sensible default sentence. */}
+      {(theme.hero_eyebrow || theme.hero_title || theme.hero_subtitle) && (
+        <div className="glass mx-auto mb-8 max-w-3xl px-6 py-6 sm:mb-10 sm:px-10 sm:py-8" style={{ borderRadius: 32 }}>
+          <SectionHeader
+            centered
+            eyebrow={theme.hero_eyebrow || undefined}
+            title={theme.hero_title || ""}
+            subtitle={theme.hero_subtitle || undefined}
+          />
+        </div>
+      )}
 
 
+
+      {deals.length > 0 && (
+        <div className="glass mb-8 px-5 py-4" style={{ borderRadius: 28 }}>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide" style={{ background: "var(--accent)", color: "var(--ink-on-main)" }}>
+              Last minute
+            </span>
+            <p className="text-[14px] font-semibold" style={{ color: "var(--ink)" }}>
+              {deals.length === 1 ? "1 departure" : deals.length + " departures"} leaving soon at a reduced rate
+            </p>
+          </div>
+          <div className="mt-3 flex flex-col gap-2">
+            {deals.map((d) => (
+              <button type="button" key={d.id}
+                className="glass-chip flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition-shadow hover:shadow-md"
+                aria-label={"Book " + d.tour.name + " on " + fmtDate(d.start_time, tz) + " at the last-minute rate"}
+                onClick={() => router.push("/book?tour=" + d.tour_id + "&slot=" + d.id + "&date=" + encodeURIComponent(d.start_time))}>
+                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold" style={{ color: "var(--ink)" }}>
+                  {d.tour.name}
+                  <span className="ml-2 font-normal" style={{ color: "var(--ink-muted)" }}>
+                    {fmtDate(d.start_time, tz)} at {fmtTime(d.start_time, tz)}
+                  </span>
+                </span>
+                <span className="shrink-0 text-[13px] font-bold" style={{ color: "var(--ink)" }}>
+                  <span className="mr-1.5 font-normal line-through" style={{ color: "var(--ink-faint)" }}>R{d.tour.base_price_per_person}</span>
+                  R{d.price_per_person_override}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {tours.length === 0 && !loading && (
         <div className="col-span-1 md:col-span-3 py-12 text-center text-[color:var(--textMuted)]">
@@ -142,48 +270,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* Mobile tour cards — compact 2-column grid */}
-      <div className="grid grid-cols-2 gap-3 md:hidden">
-        {tours.map((tour, idx) => {
-          const rv = reviewStats[tour.id];
-          const spots = spotsThisWeek[tour.id];
-          const urgencyLabel = spots !== undefined && spots <= 6 && spots > 0
-            ? `${spots} left` : null;
-          return (
-            <button type="button" key={tour.id}
-              className="bg-white rounded-[22px] shadow-[0_2px_12px_rgba(0,0,0,0.06)] overflow-hidden text-center cursor-pointer active:scale-[0.97] transition-transform"
-              aria-label={"Book " + tour.name}
-              onClick={() => router.push("/book?tour=" + tour.id)}>
-              <div className="relative aspect-square">
-                <Image src={tour.image_url || TOUR_IMAGES[tour.name] || TOUR_IMAGES["Sea Kayak"]} alt={tour.name + " tour"}
-                  fill sizes="(max-width: 768px) 45vw, 285px" className="object-cover" priority={idx === 0} loading={idx === 0 ? "eager" : "lazy"} />
-                {urgencyLabel && (
-                  <div className="absolute top-2.5 right-2.5 bg-gray-900/85 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
-                    {urgencyLabel}
-                  </div>
-                )}
-              </div>
-              <div className="px-3 pt-2.5 pb-4">
-                <div className="font-semibold text-[15px] text-[#393c45] leading-tight line-clamp-1">
-                  {tour.name}
-                </div>
-                <div className="font-bold text-[19px] text-[#393c45] mt-1">
-                  R{tour.base_price_per_person}
-                </div>
-                <div className="text-[10px] text-[#b1b1b3] -mt-0.5">per person</div>
-                {rv && (
-                  <div className="text-[10px] text-amber-500 font-semibold mt-1">
-                    ★ {rv.avg.toFixed(1)} · {rv.count} review{rv.count !== 1 ? "s" : ""}
-                  </div>
-                )}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Desktop tour cards — original hover layout */}
-      <div className="hidden md:grid gap-8 justify-items-center" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(275px, 1fr))" }}>
+      {/* Floating glass tour cards — one grid: 1 col mobile, 2 ≥768px, 3 ≥1280px */}
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 xl:grid-cols-3">
         {tours.map((tour, idx) => {
           const rv = reviewStats[tour.id];
           const spots = spotsThisWeek[tour.id];
@@ -191,135 +279,137 @@ export default function Home() {
             ? `Only ${spots} spot${spots === 1 ? "" : "s"} left this week`
             : null;
           return (
-            <button type="button" key={tour.id} className="relative w-[285px] h-[429px] mx-auto group cursor-pointer mb-4 text-left" aria-label={"Book " + tour.name}
+            <button type="button" key={tour.id} data-shot="tour-card"
+              className="glass glass-hover group cursor-pointer overflow-hidden text-left active:scale-[0.98] flex flex-col"
+              style={{ borderRadius: 28 }}
+              aria-label={"Book " + tour.name}
               onClick={() => router.push("/book?tour=" + tour.id)}>
-              <div className="absolute top-[7px] left-[7px] w-[285px] h-[429px] overflow-hidden bg-white shadow-sm rounded-2xl transition-all duration-300 group-hover:top-[3px] group-hover:left-[3px] group-hover:w-[293px] group-hover:h-[437px] group-hover:shadow-[0_13px_21px_-5px_rgba(0,0,0,0.3)]">
-
-                {/* Image */}
-                <div className="absolute top-0 left-0 w-full h-[65%]">
-                  <Image src={tour.image_url || TOUR_IMAGES[tour.name] || TOUR_IMAGES["Sea Kayak"]} alt={tour.name + " tour"}
-                    fill sizes="285px" className="object-cover" priority={idx === 0} loading={idx === 0 ? "eager" : "lazy"} />
-                  <div className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-70"
-                    style={{ backgroundColor: 'var(--hoverOverlay, #48cfad)' }} />
-                  {/* Urgency badge */}
-                  {urgencyLabel && (
-                    <div className="absolute top-3 left-3 bg-red-500 text-white text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full shadow-sm">
-                      {urgencyLabel}
-                    </div>
+              {/* No image on the tour means a plain glass tile — the chips
+                  below stay readable on it, and there is no house photo to
+                  borrow on a multi-tenant storefront. */}
+              <div className="relative aspect-[4/3] overflow-hidden">
+                {tour.image_url && (
+                  <>
+                    <Image src={tour.image_url} alt={tour.name + " tour"}
+                      fill sizes="(max-width: 767px) 92vw, (max-width: 1279px) 46vw, 30vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.04]" priority={idx === 0} loading={idx === 0 ? "eager" : "lazy"} />
+                    {/* Text over imagery always sits on a scrim or a glass capsule */}
+                    <div className="glass-photo-scrim" />
+                  </>
+                )}
+                <span className="glass-chip absolute bottom-3 left-3 px-3.5 py-1.5 font-display text-[15px] font-bold">
+                  R{tour.base_price_per_person}
+                  <span className="ml-1 text-[11px] font-normal" style={{ color: "var(--ink-muted)" }}>pp</span>
+                </span>
+                <span className="glass-chip absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg>
+                </span>
+                {urgencyLabel && (
+                  <span className="absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide shadow-sm" style={{ background: "var(--danger)", color: "#fff" }}>
+                    {urgencyLabel}
+                  </span>
+                )}
+              </div>
+              <div className="px-5 pb-5 pt-4">
+                <h3 className="font-display text-xl font-semibold leading-tight" style={{ color: "var(--ink)", fontSize: "1.25rem" }}>
+                  {tour.name}
+                </h3>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="glass-chip inline-flex items-center px-2.5 py-1 text-[11px] font-semibold">
+                    {formatDuration(tour.duration_minutes)}
+                  </span>
+                  {rv && (
+                    <span className="glass-chip inline-flex items-center px-2.5 py-1 text-[11px] font-semibold">
+                      {rv.avg.toFixed(1)} · {rv.count} review{rv.count !== 1 ? "s" : ""}
+                    </span>
                   )}
                 </div>
-
-                {/* Stats — description always visible on mobile, hover on desktop */}
-                <div className="absolute top-[65%] left-0 w-full h-[65%] bg-white px-5 pt-4 pb-5 transition-all duration-300 group-hover:top-[35%] text-left">
-                  <div className="text-[30px] text-[#393c45] font-semibold tracking-tight leading-tight line-clamp-2">
-                    {tour.name}
-                  </div>
-
-                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 mt-1 transition-all duration-300 group-hover:mt-2">
-                    <div className="font-semibold text-[16px] text-[#393c45]">
-                      R{tour.base_price_per_person}<span className="text-[11px] font-normal text-[#b1b1b3] ml-0.5"> per person</span>
-                    </div>
-                    <div className="text-xs text-[#b1b1b3]">
-                      • {tour.duration_minutes} min
-                    </div>
-                    {rv && (
-                      <div className="text-xs text-amber-500 font-semibold">
-                        ★ {rv.avg.toFixed(1)} · {rv.count} review{rv.count !== 1 ? "s" : ""}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Book Now — default state (visible, hidden on hover for desktop) */}
-                  <div className="text-center mt-5 transition-all duration-300 group-hover:hidden">
-                    <span className="inline-block rounded-full text-white text-[12px] font-semibold uppercase tracking-wide px-5 py-2"
-                      style={{ backgroundColor: 'var(--cta)' }}>
-                      Book Now
-                    </span>
-                  </div>
-
-                  {/* Description — always visible on mobile, hover-reveal on desktop */}
-                  <div className="mt-2 group-hover:opacity-100 sm:opacity-0 sm:transition-opacity sm:duration-300">
-                    <div className="hidden group-hover:block mt-2 mb-3 text-center">
-                      <span className="inline-block rounded-full text-white text-xs font-semibold uppercase tracking-wide px-5 py-2"
-                        style={{ backgroundColor: 'var(--cta)' }}>
-                        Book Now
-                      </span>
-                    </div>
-                    <div className="text-xs text-[#969699] line-clamp-3 leading-relaxed">
-                      {tour.description || "An incredible kayaking experience along the stunning coastline."}
-                    </div>
-                  </div>
-                </div>
-
+                {tour.description && (
+                  <p className="mt-3 line-clamp-2 text-[13px] leading-relaxed" style={{ color: "var(--ink-muted)" }}>
+                    {tour.description}
+                  </p>
+                )}
+                <span className="btn btn-primary mt-4 w-full text-[13px]">
+                  {theme.card_cta_label || "Book Now"}
+                </span>
               </div>
             </button>
           );
         })}
       </div>
 
-      {/* Combo Packages */}
+      {/* Combo Packages — same compact glass strip as the last-minute block, so
+          the section sits alongside the tour grid instead of above it. */}
       {comboOffers.length > 0 && (
-        <div className="mt-16">
-          <SectionHeader
-            centered
-            eyebrow="Save More"
-            title="Combo Packages"
-            subtitle="Bundle two adventures together and save."
-            className="max-w-3xl"
-          />
-          <div className="grid gap-8 justify-items-center" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
+        <div className="glass mt-8 px-5 py-4" style={{ borderRadius: 28 }}>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide" style={{ background: "var(--accent)", color: "var(--ink-on-main)" }}>
+              Save More
+            </span>
+            <h2 className="headline-md" style={{ color: "var(--ink)" }}>Combo Packages</h2>
+          </div>
+          <p className="mt-1 hidden text-[13px] md:block" style={{ color: "var(--ink-muted)" }}>
+            Bundle two adventures together and save.
+          </p>
+          <div className="mt-4 grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 xl:grid-cols-3">
             {comboOffers.map((combo) => {
-              const tourA = combo.tour_a;
-              const tourB = combo.tour_b;
+              const comboTours = (combo.items || [])
+                .slice()
+                .sort((a, b) => (a.position || 0) - (b.position || 0))
+                .map((i) => comboTourInfo[i.tour_id]);
+              const tourA = comboTours[0];
+              const tourB = comboTours[1];
+              const extraCount = Math.max(0, comboTours.length - 2);
+              const totalDuration = comboTours.reduce((s, t) => s + (t?.duration_minutes || 0), 0);
               const savings = combo.original_price - combo.combo_price;
               return (
-                <button type="button" key={combo.id} className="relative w-full max-w-[380px] mx-auto group cursor-pointer text-left" aria-label={"Book combo: " + combo.name}
+                <button type="button" key={combo.id} className="relative w-full group cursor-pointer text-left" aria-label={"Book combo: " + combo.name}
                   onClick={() => router.push("/combo/" + combo.id)}>
-                  <div className="overflow-hidden bg-white shadow-sm rounded-2xl transition-all duration-300 hover:shadow-[0_13px_21px_-5px_rgba(0,0,0,0.2)] hover:-translate-y-1">
+                  <div className="glass glass-hover overflow-hidden" style={{ borderRadius: 28 }}>
                     {/* Dual image strip */}
-                    <div className="flex h-[180px]">
+                    <div className="flex h-[120px]">
                       <div className="w-1/2 relative overflow-hidden">
-                        <Image src={tourA?.image_url || TOUR_IMAGES[tourA?.name] || TOUR_IMAGES["Sea Kayak"]} alt={tourA?.name || "Tour"}
-                          fill sizes="190px" className="object-cover" />
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3">
+                        {tourA?.image_url && (
+                          <Image src={tourA.image_url} alt={tourA.name + " tour"}
+                            fill sizes="190px" className="object-cover" />
+                        )}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2.5">
                           <p className="text-white text-xs font-semibold truncate">{tourA?.name}</p>
                         </div>
                       </div>
-                      <div className="w-1/2 relative overflow-hidden border-l-2 border-white">
-                        <Image src={tourB?.image_url || TOUR_IMAGES[tourB?.name] || TOUR_IMAGES["Sea Kayak"]} alt={tourB?.name || "Tour"}
-                          fill sizes="190px" className="object-cover" />
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3">
-                          <p className="text-white text-xs font-semibold truncate">{tourB?.name}</p>
+                      <div className="w-1/2 relative overflow-hidden border-l" style={{ borderColor: "var(--glass-border)" }}>
+                        {tourB?.image_url && (
+                          <Image src={tourB.image_url} alt={tourB.name + " tour"}
+                            fill sizes="190px" className="object-cover" />
+                        )}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2.5">
+                          <p className="text-white text-xs font-semibold truncate">{tourB?.name}{extraCount > 0 ? ` +${extraCount} more` : ""}</p>
                         </div>
                       </div>
                     </div>
                     {/* Content */}
-                    <div className="px-5 py-4">
+                    <div className="px-4 py-3">
                       <div className="flex items-start justify-between gap-2">
-                        <h3 className="text-lg font-bold text-gray-900 leading-tight">{combo.name}</h3>
+                        <h3 className="font-display text-base font-bold leading-tight" style={{ color: "var(--ink)" }}>{combo.name}</h3>
                         {savings > 0 && (
-                          <span className="shrink-0 bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full">
+                          <span className="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ background: "var(--accent)", color: "var(--ink-on-main)" }}>
                             Save R{savings}
                           </span>
                         )}
                       </div>
-                      {combo.description && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{combo.description}</p>}
-                      <div className="flex items-baseline gap-2 mt-3">
-                        <span className="text-xl font-bold text-gray-900">R{combo.combo_price}</span>
-                        <span className="text-sm text-gray-400">/pp</span>
-                        {savings > 0 && <span className="text-sm text-gray-400 line-through">R{combo.original_price}</span>}
+                      {combo.description && <p className="mt-1 line-clamp-2 text-xs" style={{ color: "var(--ink-muted)" }}>{combo.description}</p>}
+                      <div className="flex items-baseline gap-2 mt-2">
+                        <span className="font-display text-lg font-bold" style={{ color: "var(--ink)" }}>R{combo.combo_price}</span>
+                        <span className="text-sm" style={{ color: "var(--ink-muted)" }}>/pp</span>
+                        {savings > 0 && <span className="text-sm line-through" style={{ color: "var(--ink-faint)" }}>R{combo.original_price}</span>}
                       </div>
-                      <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
-                        <span>{tourA?.duration_minutes + (tourB?.duration_minutes || 0)} min total</span>
+                      <div className="mt-2 flex items-center gap-3 text-xs" style={{ color: "var(--ink-muted)" }}>
+                        <span>{formatDuration(totalDuration)} total</span>
                         <span>•</span>
-                        <span>2 experiences</span>
+                        <span>{comboTours.length} experiences</span>
                       </div>
-                      <div className="text-center mt-4">
-                        <span className="inline-block rounded-full text-white text-xs font-semibold uppercase tracking-wide px-6 py-2.5"
-                          style={{ backgroundColor: 'var(--cta)' }}>
-                          Book Combo
-                        </span>
-                      </div>
+                      <span className="btn btn-primary mt-3 w-full text-xs uppercase tracking-wide">
+                        Book Combo
+                      </span>
                     </div>
                   </div>
                 </button>

@@ -29,8 +29,10 @@ export default function TermsPage() {
 
   return (
     <div className="app-container page-wrap">
-      <h1 className="headline-lg mb-8">Terms &amp; Conditions</h1>
-      <div className="prose" dangerouslySetInnerHTML={{ __html: sanitizeHtml(body) }} />
+      <div className="glass-sheet mx-auto max-w-[72ch] px-6 py-8 sm:px-10 sm:py-10">
+        <h1 className="headline-lg mb-8">Terms &amp; Conditions</h1>
+        <div className="prose" dangerouslySetInnerHTML={{ __html: sanitizeHtml(body) }} />
+      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 import { useTheme } from "./ThemeProvider";
+import { BrandMark, BrandWordmark } from "./BrandLogo";
 
 export default function Footer() {
   const theme = useTheme();
@@ -8,19 +9,35 @@ export default function Footer() {
   const line2 = theme.footer_line_two || "";
 
   return (
-    <footer className="mt-14 border-t border-[color:var(--border)]">
-      <div className="app-container py-8 text-center text-sm text-[color:var(--textMuted)]">
+    <footer className="mt-14 px-4 pb-24 lg:pb-6">
+      <div className="glass-sheet app-container py-8 text-center text-sm text-[color:var(--ink-muted)]">
         <p className="max-w-none">{line1}</p>
         {line2 && <p className="mt-1 max-w-none">{line2}</p>}
+        <p className="glass-chip mx-auto mt-4 inline-flex max-w-full items-center gap-2 px-4 py-2 text-xs">
+          <span>Secure checkout: payments processed by PCI DSS compliant providers &middot; card details never touch our servers &middot; TLS encrypted</span>
+        </p>
         <nav className="mt-4 flex flex-wrap justify-center gap-4">
-          <a href="/terms" className="underline underline-offset-2 hover:text-[color:var(--text)]">Terms &amp; Conditions</a>
-          <a href="/privacy" className="underline underline-offset-2 hover:text-[color:var(--text)]">Privacy Policy</a>
-          <a href="/cookies" className="underline underline-offset-2 hover:text-[color:var(--text)]">Cookies Policy</a>
+          <a href="/terms" className="underline underline-offset-2 hover:text-[color:var(--ink)]">Terms &amp; Conditions</a>
+          <a href="/privacy" className="underline underline-offset-2 hover:text-[color:var(--ink)]">Privacy Policy</a>
+          <a href="/cookies" className="underline underline-offset-2 hover:text-[color:var(--ink)]">Cookies Policy</a>
           {/* AK1: surface the POPIA data-subject request form alongside the
               other legal links so customers can find it without needing
               the direct URL. */}
-          <a href="/popia" className="underline underline-offset-2 hover:text-[color:var(--text)]">Privacy Request</a>
+          <a href="/popia" className="underline underline-offset-2 hover:text-[color:var(--ink)]">Privacy Request</a>
         </nav>
+        <a
+          href="https://bookingtours.co.za"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-6 inline-flex items-center gap-2 opacity-70 transition-opacity hover:opacity-100"
+          title="Powered by BookingTours"
+        >
+          <BrandMark size={16} />
+          <span className="flex items-baseline gap-1.5 text-[color:var(--textMuted)]">
+            <span className="text-[10px] font-medium uppercase tracking-[0.1em]">Powered by</span>
+            <BrandWordmark className="text-[13px]" />
+          </span>
+        </a>
       </div>
     </footer>
   );

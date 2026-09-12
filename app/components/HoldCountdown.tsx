@@ -36,17 +36,19 @@ export function HoldCountdown({ expiresAt, onExpire }: HoldCountdownProps) {
     <div
       role="status"
       aria-live="polite"
+      data-shot="hold-timer"
       className={"flex items-center gap-3 px-5 py-3 rounded-2xl mb-6 " + (isUrgent ? "bg-red-50 text-red-900 border border-red-200" : "bg-amber-50 text-amber-900 border border-amber-200")}
     >
-      <div className={"w-9 h-9 rounded-full flex items-center justify-center shrink-0 " + (isUrgent ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-600")}>
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-      </div>
       <div className="flex-1 min-w-0">
         <p className="text-[13px] font-bold leading-tight">
-          Holding your seat for{" "}
+          Spots reserved for{" "}
           <span className="tabular-nums font-extrabold text-[15px]">{min}:{String(sec).padStart(2, "0")}</span>
         </p>
-        {isUrgent && <p className="text-[11px] font-medium mt-0.5 opacity-80">Complete payment soon to keep this slot</p>}
+        <p className="text-[11px] font-medium mt-0.5 opacity-80">
+          {isUrgent 
+            ? "Hurry! Complete payment now to keep your reserved spots before they are released."
+            : "Complete checkout to lock in your booking before these spots are released back to the public."}
+        </p>
       </div>
     </div>
   );

@@ -4,6 +4,22 @@ import { useSearchParams } from "next/navigation";
 import { createScopedSupabase, createTenantSupabase } from "../lib/supabase";
 import { fmtDateTime } from "../lib/format";
 
+// Legal/liability content must always be readable, regardless of the tenant's
+// page theme (color_bg/color_nav/color_secondary can otherwise make this
+// blend into the page or render illegibly — e.g. white text on a themed
+// yellow background). This shadows every CSS variable the waiver container's
+// subtree reads (--bg/--card/--border/--text/--textMuted), so every nested
+// element inherits a fixed light theme without each one needing its own fix.
+const WAIVER_FIXED_THEME: React.CSSProperties = {
+  ["--bg" as string]: "#f8f9fa",
+  ["--card" as string]: "#ffffff",
+  ["--border" as string]: "#e2e2e2",
+  ["--text" as string]: "#1a1a1a",
+  ["--textMuted" as string]: "#6b7280",
+  backgroundColor: "#ffffff",
+  color: "#1a1a1a",
+};
+
 function WaiverContent() {
   const params = useSearchParams();
   const bookingId = params.get("booking") || "";
@@ -17,7 +33,7 @@ function WaiverContent() {
     slots?: { start_time: string };
   } | null>(null);
   const [business, setBusiness] = useState<{ id: string; name: string; business_name?: string; timezone?: string } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => Boolean(bookingId && token));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -28,8 +44,10 @@ function WaiverContent() {
   const [acceptRisk, setAcceptRisk] = useState(false);
   const [guardianConsent, setGuardianConsent] = useState(false);
 
-  // Minor/guardian fields
+  // Per-participant fields
   const [participantDobs, setParticipantDobs] = useState<string[]>([]);
+  const [participantNames, setParticipantNames] = useState<string[]>([]);
+  const [participantLiability, setParticipantLiability] = useState<boolean[]>([]);
   const [guardianName, setGuardianName] = useState("");
   const [guardianIdNumber, setGuardianIdNumber] = useState("");
   const [guardianSignature, setGuardianSignature] = useState("");
@@ -53,7 +71,7 @@ function WaiverContent() {
   const hasMinor = participantDobs.some(d => isCompleteDob(d) && calcAge(d) < 18);
 
   useEffect(() => {
-    if (!bookingId || !token) { setLoading(false); return; }
+    if (!bookingId || !token) return;
     (async () => {
       const scopedSupabase = createScopedSupabase({ "x-booking-id": bookingId, "x-booking-waiver-token": token });
       const { data: b } = await scopedSupabase.from("bookings")
@@ -81,7 +99,10 @@ function WaiverContent() {
 
       setBooking(b as unknown as NonNullable<typeof booking>);
       setSignerName(b.customer_name || "");
-      setParticipantDobs(Array(b.qty || 1).fill(""));
+      const n = b.qty || 1;
+      setParticipantDobs(Array(n).fill(""));
+      setParticipantNames(Array.from({ length: n }, (_, i) => (i === 0 ? (b.customer_name || "") : "")));
+      setParticipantLiability(Array(n).fill(false));
 
       if (b.business_id) {
         const tenantSupabase = createTenantSupabase(b.business_id);
@@ -98,10 +119,13 @@ function WaiverContent() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!signerName.trim()) { setError("Please enter your full name."); return; }
+    if (participantNames.some(n => !n.trim())) { setError("Please enter a name for each guest."); return; }
+    if (participantDobs.some(d => !isCompleteDob(d))) { setError("Please enter a date of birth for every guest."); return; }
+    if (!participantLiability.every(Boolean)) { setError("Each guest must individually accept the liability terms."); return; }
     if (!acceptRisk) { setError("Please accept all required confirmations."); return; }
-    if (hasMinor && !guardianConsent) { setError("A minor is listed — please confirm you are the parent/legal guardian."); return; }
+    if (hasMinor && !guardianConsent) { setError("A minor is listed. Please confirm you are the parent/legal guardian."); return; }
     if (hasMinor && (!guardianName.trim() || !guardianIdNumber.trim() || !guardianSignature.trim())) {
-      setError("A minor is listed — please complete the parent/guardian countersignature section.");
+      setError("A minor is listed. Please complete the parent/guardian countersignature section.");
       return;
     }
 
@@ -119,6 +143,13 @@ function WaiverContent() {
         guardian_consent: hasMinor ? guardianConsent : null,
         user_agent: navigator.userAgent || null,
         participant_dobs: participantDobs.filter(d => d) || null,
+        // Per-guest individual acceptance — name + explicit tick + the shared
+        // signed-at timestamp/IP recorded by sign_waiver = individual assent on record.
+        participants: participantNames.map((name, i) => ({
+          name: name.trim(),
+          dob: participantDobs[i] || null,
+          accepts_liability: !!participantLiability[i],
+        })),
         ...(hasMinor ? {
           guardian_name: guardianName.trim(),
           guardian_id_number: guardianIdNumber.trim(),
@@ -191,10 +222,10 @@ function WaiverContent() {
     return (
       <div className="app-container py-12">
         <div className="max-w-2xl mx-auto">
-          <div className="rounded-3xl border border-[color:var(--border)] bg-[color:var(--card)] overflow-hidden shadow-lg">
+          <div className="rounded-3xl border border-[color:var(--border)] bg-[color:var(--card)] overflow-hidden shadow-lg" style={WAIVER_FIXED_THEME}>
             <div className="bg-gradient-to-br from-[#0f172a] to-[#134e4a] text-white p-8">
               <h1 className="text-3xl font-bold mb-2 !text-white">Waiver signed</h1>
-              <p className="!text-white/80">Thank you — your waiver has been recorded and attached to your booking.</p>
+              <p className="!text-white/80">Thank you. Your waiver has been recorded and attached to your booking.</p>
             </div>
             <div className="p-8">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
@@ -230,7 +261,7 @@ function WaiverContent() {
   return (
     <div className="app-container py-12">
       <div className="max-w-2xl mx-auto">
-        <div className="rounded-3xl border border-[color:var(--border)] bg-[color:var(--card)] overflow-hidden shadow-lg">
+        <div className="rounded-3xl border border-[color:var(--border)] bg-[color:var(--card)] overflow-hidden shadow-lg" style={WAIVER_FIXED_THEME}>
           <div className="bg-[color:var(--bg)] border-b border-[color:var(--border)] p-8">
             <h1 className="text-3xl font-bold mb-2 text-[color:var(--text)]">Complete your waiver</h1>
             <p className="text-[color:var(--textMuted)]">{brandName} needs a signed waiver before the trip starts. This form covers the booking contact and the guests attached to this reservation.</p>
@@ -261,11 +292,11 @@ function WaiverContent() {
             <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--bg)] p-5 mb-6 max-h-80 overflow-y-auto text-sm leading-relaxed text-[color:var(--textMuted)]">
               <p className="font-bold text-base text-[color:var(--text)] mb-3">Indemnity, Assumption of Risk &amp; Release of Liability</p>
               <p className="mb-2"><strong>1. Nature of Activity &amp; Inherent Risks</strong><br/>
-              I understand that adventure and outdoor activities — including but not limited to kayaking, paddling, hiking, water-based excursions, and associated transfers — involve inherent risks and dangers that cannot be eliminated. These include, without limitation: adverse or unpredictable weather and sea conditions; collision with vessels, rocks, or other obstacles; capsizing or falling into water; exhaustion; hypothermia; marine wildlife encounters; equipment failure; and the physical demands of the activity. I voluntarily and knowingly accept these risks.</p>
+              I understand that adventure and outdoor activities, including but not limited to kayaking, paddling, hiking, water-based excursions, and associated transfers, involve inherent risks and dangers that cannot be eliminated. These include, without limitation: adverse or unpredictable weather and sea conditions; collision with vessels, rocks, or other obstacles; capsizing or falling into water; exhaustion; hypothermia; marine wildlife encounters; equipment failure; and the physical demands of the activity. I voluntarily and knowingly accept these risks.</p>
               <p className="mb-2"><strong>2. Assumption of Risk</strong><br/>
               I freely and voluntarily accept and assume all risks of injury, loss, damage, or death arising from my participation and the participation of the guests listed on this booking, whether caused by the negligence of the operator, its employees, guides, or agents, or by any other cause. I acknowledge that no assurance of safety has been given to me.</p>
               <p className="mb-2"><strong>3. Release and Indemnity</strong><br/>
-              In consideration of being permitted to participate, I hereby release, indemnify and hold harmless the operator, its owners, directors, employees, guides, contractors and agents (collectively &quot;the Operator&quot;) from any and all claims, actions, damages, liability, costs and expenses — including legal fees — arising from or relating to my participation or the participation of any guest on this booking, even if such loss or damage arises from the Operator&apos;s negligence, to the fullest extent permitted by applicable law.</p>
+              In consideration of being permitted to participate, I hereby release, indemnify and hold harmless the operator, its owners, directors, employees, guides, contractors and agents (collectively &quot;the Operator&quot;) from any and all claims, actions, damages, liability, costs and expenses, including legal fees, arising from or relating to my participation or the participation of any guest on this booking, even if such loss or damage arises from the Operator&apos;s negligence, to the fullest extent permitted by applicable law.</p>
               <p className="mb-2"><strong>4. Medical Fitness</strong><br/>
               I confirm that I and all guests on this booking are in good physical health and are not aware of any medical condition, disability, or impairment that would increase the risk of participation or endanger themselves or others. I accept full responsibility for disclosing any relevant medical information to the Operator&apos;s guides before the activity commences. I authorise the Operator to seek emergency medical treatment on my behalf or on behalf of any guest if deemed necessary, and I accept responsibility for any associated costs.</p>
               <p className="mb-2"><strong>5. Compliance with Instructions</strong><br/>
@@ -294,7 +325,7 @@ function WaiverContent() {
               </div>
               <div>
                 <label htmlFor="waiver-id" className="block text-sm font-semibold mb-1">
-                  SA ID number or passport number <span className="font-normal text-[color:var(--textMuted)]">(optional — strengthens identity verification)</span>
+                  SA ID number or passport number <span className="font-normal text-[color:var(--textMuted)]">(optional: strengthens identity verification)</span>
                 </label>
                 <input id="waiver-id" type="text" value={idNumber} onChange={e => setIdNumber(e.target.value)}
                   placeholder="e.g. 8001015009087 or A12345678" autoComplete="off"
@@ -307,10 +338,10 @@ function WaiverContent() {
                   className="w-full rounded-2xl border border-[color:var(--border)] px-4 py-3 text-base bg-[color:var(--card)] outline-none resize-y focus:ring-2 focus:ring-[color:var(--accent)]" />
               </div>
 
-              {/* Participant Date of Birth */}
+              {/* Participants — name, individual liability acceptance, optional DOB */}
               <div>
-                <label className="block text-sm font-semibold mb-2">Date of Birth for each participant</label>
-                <p className="text-xs text-[color:var(--textMuted)] mb-3">Required to verify if any participant is a minor. If under 18, a parent/guardian countersignature is required below.</p>
+                <label className="block text-sm font-semibold mb-2">Participants</label>
+                <p className="text-xs text-[color:var(--textMuted)] mb-3">Enter each guest&apos;s full name and date of birth, and confirm they accept the terms individually. A date of birth is <strong className="text-[color:var(--text)]">required for every participant</strong>.</p>
                 <div className="space-y-3">
                   {participantDobs.map((dob, i) => {
                     const parts = dob ? dob.split("-") : ["", "", ""];
@@ -322,12 +353,19 @@ function WaiverContent() {
                       updated[i] = (year || "") + "-" + (month ? month.padStart(2, "0") : "") + "-" + (day ? day.padStart(2, "0") : "");
                       setParticipantDobs(updated);
                     };
+                    const updateName = (val: string) => { const u = [...participantNames]; u[i] = val; setParticipantNames(u); };
+                    const updateLiability = (val: boolean) => { const u = [...participantLiability]; u[i] = val; setParticipantLiability(u); };
                     const curYear = new Date().getFullYear();
                     const selectCls = "rounded-xl border border-[color:var(--border)] px-2 py-2.5 text-sm bg-[color:var(--card)] outline-none focus:ring-2 focus:ring-[color:var(--accent)] appearance-none";
+                    const nm = (participantNames[i] || "").trim();
                     return (
-                      <div key={i}>
+                      <div key={i} className="rounded-2xl border border-[color:var(--border)] p-3 space-y-2.5">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm text-[color:var(--textMuted)] w-16 shrink-0">Guest {i + 1}</span>
+                          <span className="text-sm font-medium text-[color:var(--textMuted)] w-16 shrink-0">Guest {i + 1}</span>
+                          <input type="text" aria-label={"Name for guest " + (i + 1)} value={participantNames[i] || ""} onChange={e => updateName(e.target.value)} placeholder="Full name"
+                            className="flex-1 min-w-[140px] rounded-xl border border-[color:var(--border)] px-3 py-2.5 text-sm bg-[color:var(--card)] outline-none focus:ring-2 focus:ring-[color:var(--accent)]" />
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap sm:pl-[72px]">
                           <select aria-label={"Day for guest " + (i + 1)} value={d} onChange={e => updateDob(e.target.value, m, y)} className={selectCls + " w-[72px]"}>
                             <option value="">Day</option>
                             {Array.from({ length: 31 }, (_, j) => j + 1).map(v => <option key={v} value={String(v)}>{v}</option>)}
@@ -344,6 +382,12 @@ function WaiverContent() {
                             <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-lg">Minor ({calcAge(dob)}y)</span>
                           )}
                         </div>
+                        <label className="flex gap-2.5 items-start cursor-pointer sm:pl-[72px]">
+                          <input type="checkbox" checked={!!participantLiability[i]} onChange={e => updateLiability(e.target.checked)} className="mt-0.5 w-4 h-4 shrink-0" />
+                          <span className="text-xs text-[color:var(--textMuted)] leading-relaxed">
+                            <strong className="text-[color:var(--text)]">{nm || ("Guest " + (i + 1))}</strong> has read and individually accepts the assumption of risk &amp; release of liability above.
+                          </span>
+                        </label>
                       </div>
                     );
                   })}

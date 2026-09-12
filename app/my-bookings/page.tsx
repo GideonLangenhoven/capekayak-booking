@@ -1,11 +1,12 @@
 "use client";
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { createScopedSupabase, createTenantSupabase, createVoucherSupabase, supabase } from "../lib/supabase";
+import type { User } from "@supabase/supabase-js";
+import { createTenantSupabase, createVoucherSupabase, supabase } from "../lib/supabase";
 import Link from "next/link";
 import { normalizePhone } from "../lib/phone";
 import { useTheme } from "../components/ThemeProvider";
 import { getTimeTier, getHrsBefore } from "./constants";
-import type { Booking, Slot, BookingLog } from "../lib/types";
+import type { Booking, Slot, BookingLog, Customer } from "../lib/types";
 
 import LoginScreen from "./LoginScreen";
 import RescheduleFlow from "./RescheduleFlow";
@@ -13,25 +14,33 @@ import BookingCard from "./BookingCard";
 import ProfileTab from "./ProfileTab";
 import EditGuestsModal from "./modals/EditGuestsModal";
 import ContactModal from "./modals/ContactModal";
+import ContactUsModal from "./modals/ContactUsModal";
 import SpecialRequestModal from "./modals/SpecialRequestModal";
 import CancelModal from "./modals/CancelModal";
-import VoucherCheckerModal from "./modals/VoucherCheckerModal";
 
 /* ═══════════════════════════════════════════════════════
-   TOAST BANNER (kept inline — 12 lines, specific positioning)
+   TOAST — floating, token-themed, never shifts layout
    ═══════════════════════════════════════════════════════ */
 function Toast({ message, type, onDismiss }: { message: string; type: "success" | "error"; onDismiss: () => void }) {
   if (!message) return null;
-  const bg = type === "success" ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-red-50 border-red-200 text-red-800";
+  const tone = type === "success" ? "var(--success)" : "var(--danger)";
   return (
-    <div className={"mb-4 p-4 rounded-xl border text-sm " + bg + " flex items-start gap-3"}>
-      <span className="shrink-0 mt-0.5">{type === "success" ? "\u2705" : "\u274C"}</span>
-      <p className="flex-1 font-medium">{message}</p>
-      <button onClick={onDismiss} className="shrink-0 opacity-60 hover:opacity-100 transition-opacity">
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-      </button>
+    <div className="toast-enter fixed inset-x-4 top-4 z-[70] mx-auto max-w-md" role={type === "error" ? "alert" : "status"}>
+      <div
+        className="glass !rounded-xl flex items-start gap-3 px-4 py-3.5"
+        style={{ borderColor: `color-mix(in srgb, ${tone} 30%, transparent)` }}
+      >
+        <p className="flex-1 text-[13.5px] font-medium text-[color:var(--text)]">{message}</p>
+        <button onClick={onDismiss} aria-label="Dismiss" className="-my-2 -mr-2 flex h-11 w-11 shrink-0 items-center justify-center text-[color:var(--textMuted)] transition-colors hover:text-[color:var(--text)]">
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      </div>
     </div>
   );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-[0.12em] text-[color:var(--textMuted)]">{children}</h2>;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -80,6 +89,7 @@ export default function MyBookings() {
   // Reschedule
   const [rescheduling, setRescheduling] = useState<Booking | null>(null);
   const [rescheduleSlots, setRescheduleSlots] = useState<Slot[]>([]);
+  const [rescheduleQty, setRescheduleQty] = useState(1);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [rebookConfirmSlot, setRebookConfirmSlot] = useState<Slot | null>(null);
   const [excessAction, setExcessAction] = useState("VOUCHER");
@@ -90,12 +100,8 @@ export default function MyBookings() {
   const [editGuestsBooking, setEditGuestsBooking] = useState<Booking | null>(null);
   const [guestQty, setGuestQty] = useState(1);
   const [guestExcessAction, setGuestExcessAction] = useState("VOUCHER");
-  const [guestVoucherCode, setGuestVoucherCode] = useState("");
-  const [guestVoucherApplied, setGuestVoucherApplied] = useState<{ code: string; balance: number } | null>(null);
-  const [guestVoucherError, setGuestVoucherError] = useState("");
-  const [guestPromoCode, setGuestPromoCode] = useState("");
-  const [guestPromoApplied, setGuestPromoApplied] = useState<{ id: string; code: string; discount_type: string; discount_value: number } | null>(null);
-  const [guestPromoError, setGuestPromoError] = useState("");
+  const [guestPaymentUrl, setGuestPaymentUrl] = useState("");
+  const [guestPaymentAmount, setGuestPaymentAmount] = useState(0);
 
   // Contact details modal
   const [contactBooking, setContactBooking] = useState<Booking | null>(null);
@@ -106,6 +112,9 @@ export default function MyBookings() {
   // Special request modal
   const [requestBooking, setRequestBooking] = useState<Booking | null>(null);
   const [specialRequest, setSpecialRequest] = useState("");
+
+  // Contact Us modal
+  const [contactUsOpen, setContactUsOpen] = useState(false);
 
   // Cancel modal
   const [cancelTarget, setCancelTarget] = useState<Booking | null>(null);
@@ -134,8 +143,8 @@ export default function MyBookings() {
   const [activeTab, setActiveTab] = useState<"trips" | "profile">("trips");
 
   // Profile
-  const [customer, setCustomer] = useState<any>(null);
-  const [authUser, setAuthUser] = useState<any>(null);
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [authUser, setAuthUser] = useState<User | null>(null);
 
   // C14: Payment polling
   const [paymentPending, setPaymentPending] = useState<string | null>(null);
@@ -173,8 +182,17 @@ export default function MyBookings() {
         return;
       }
       try {
+        // Send the phone tail proven at OTP time: the server's booking filter
+        // drops phone-bearing bookings when the tail is missing, which made a
+        // reload after an OTP login show "No bookings found".
+        const storedTail = localStorage.getItem("mb_customer_phone_tail") || "";
         const resp = await supabase.functions.invoke("my-bookings-lookup", {
-          body: { customer_session: token, email: storedEmail, business_id: theme.id },
+          body: {
+            customer_session: token,
+            email: storedEmail,
+            business_id: theme.id,
+            ...(storedTail ? { phone_tail: storedTail } : {}),
+          },
         });
         if (cancelled) return;
         const respData = (resp.data || {}) as Record<string, unknown>;
@@ -232,6 +250,7 @@ export default function MyBookings() {
   useEffect(() => {
     return () => {
       if (paymentPollRef.current) clearInterval(paymentPollRef.current);
+      paymentPollRef.current = null;
     };
   }, []);
 
@@ -243,7 +262,13 @@ export default function MyBookings() {
 
   /* ───── Edge function caller ───── */
   async function callRebook(body: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const resp = await supabase.functions.invoke("rebook-booking", { body });
+    // rebook-booking requires proof of ownership: the OTP-issued customer
+    // session token (magic-link users are covered by their Supabase Auth JWT,
+    // which functions.invoke attaches automatically).
+    let customerSession: string | null = null;
+    try { customerSession = localStorage.getItem("mb_customer_session"); } catch { /* private mode */ }
+    const payload = customerSession ? { customer_session: customerSession, ...body } : body;
+    const resp = await supabase.functions.invoke("rebook-booking", { body: payload });
     if (resp.error) {
       let msg = "Something went wrong. Please try again.";
       try {
@@ -367,6 +392,10 @@ export default function MyBookings() {
         if (typeof respData.customer_session_expires_at === "number") {
           localStorage.setItem("mb_customer_session_exp", String(respData.customer_session_expires_at));
         }
+        // Keep the OTP-verified phone tail with the token — the resume call
+        // needs it or phone-bearing bookings are filtered out server-side.
+        const tail = normalizePhone(dialCode, phoneDigits).replace(/\D/g, "").slice(-9);
+        if (tail) localStorage.setItem("mb_customer_phone_tail", tail);
       } catch { /* localStorage may be disabled in some browsers */ }
     }
     return true;
@@ -380,14 +409,14 @@ export default function MyBookings() {
       .filter(Boolean);
     if (completedSlotIds.length > 0) {
       const { data: photos } = await tenantSupabase.from("trip_photos")
-        .select("id, photo_urls, slot_id")
+        .select("id, photo_url, slot_id")
         .in("slot_id", completedSlotIds);
       if (photos && photos.length > 0) {
         const photoMap: Record<string, string[]> = {};
         for (const p of photos) {
-          if (p.slot_id && p.photo_urls) {
+          if (p.slot_id && p.photo_url) {
             if (!photoMap[p.slot_id]) photoMap[p.slot_id] = [];
-            photoMap[p.slot_id] = photoMap[p.slot_id].concat(Array.isArray(p.photo_urls) ? p.photo_urls : [p.photo_urls]);
+            photoMap[p.slot_id] = photoMap[p.slot_id].concat(p.photo_url);
           }
         }
         setTripPhotos(photoMap);
@@ -398,7 +427,7 @@ export default function MyBookings() {
     const bookingIds = data.map((b: Booking) => b.id);
     if (bookingIds.length > 0) {
       const { data: logs } = await tenantSupabase.from("logs")
-        .select("id, booking_id, action, created_at, details")
+        .select("id, booking_id, event, created_at, payload")
         .in("booking_id", bookingIds)
         .order("created_at", { ascending: true });
       if (logs && logs.length > 0) {
@@ -425,20 +454,41 @@ export default function MyBookings() {
     }
   }
 
+  // ponytail: full reload after every completed action — the soft refresh
+  // kept missing derived state (banners/badges), so reflect server truth the
+  // blunt way. Session resumes from mb_customer_session, so login survives.
+  // 1.5s delay lets the success toast register before the page swaps.
+  function reloadAfterAction() {
+    setTimeout(() => window.location.reload(), 1500);
+  }
+
   /* ───── Lookup bookings (called after OTP verified or auth session) ───── */
   const lookupBookings = useCallback(async function (emailOnly?: boolean) {
     setLoading(true);
-    const resp = await supabase.functions.invoke("my-bookings-lookup", {
-      body: {
-        token: otpToken || undefined,
-        code: otpCode.trim() || undefined,
-        email: email.toLowerCase(),
-        phone_tail: normalizePhone(dialCode, phoneDigits).replace(/\D/g, "").slice(-9),
-        emailOnly: Boolean(emailOnly),
-        business_id: theme.id,
-      },
-    });
-    const respData = (resp.data || {}) as Record<string, unknown>;
+    // Post-login refreshes (after cancel/voucher/reschedule actions) must use
+    // the customer session — the OTP is single-use and already consumed, so
+    // re-sending it made every refresh fail and the page look stale.
+    let customerSession: string | null = null;
+    try { customerSession = localStorage.getItem("mb_customer_session"); } catch { /* private mode */ }
+    const baseBody = {
+      email: email.toLowerCase(),
+      phone_tail: normalizePhone(dialCode, phoneDigits).replace(/\D/g, "").slice(-9),
+      emailOnly: Boolean(emailOnly),
+      business_id: theme.id,
+    };
+    const invoke = (auth: Record<string, string | undefined>) =>
+      supabase.functions.invoke("my-bookings-lookup", { body: { ...auth, ...baseBody } });
+
+    let resp = await invoke(customerSession
+      ? { customer_session: customerSession }
+      : { token: otpToken || undefined, code: otpCode.trim() || undefined });
+    let respData = (resp.data || {}) as Record<string, unknown>;
+    if ((resp.error || !respData.success) && customerSession && otpToken && otpCode.trim()) {
+      // Stale stored session shadowing a fresh OTP login — drop it and retry.
+      try { localStorage.removeItem("mb_customer_session"); localStorage.removeItem("mb_customer_session_exp"); } catch { /* ignore */ }
+      resp = await invoke({ token: otpToken, code: otpCode.trim() });
+      respData = (resp.data || {}) as Record<string, unknown>;
+    }
     if (resp.error || !respData.success) {
       setLoginError(String(respData.error || "Please verify your email again."));
       setLoggedIn(false);
@@ -469,59 +519,84 @@ export default function MyBookings() {
   }
 
   /* ───── C14: Start payment polling ───── */
-  function startPaymentPolling(bookingId: string) {
+  function startPaymentPolling(bookingId: string, amendmentId: string) {
     setPaymentPending(bookingId);
     let attempts = 0;
     if (paymentPollRef.current) clearInterval(paymentPollRef.current);
-    paymentPollRef.current = setInterval(async () => {
+    const pollId = setInterval(async () => {
       attempts++;
       if (attempts > 12) {
-        if (paymentPollRef.current) clearInterval(paymentPollRef.current);
+        clearInterval(pollId);
+        paymentPollRef.current = null;
         setPaymentPending(null);
         return;
       }
-      const statusSupabase = createScopedSupabase({ "x-booking-success-token": bookingId });
-      const { data } = await statusSupabase.from("bookings")
-        .select("status")
-        .eq("id", bookingId)
-        .maybeSingle();
-      if (data && ["PAID", "CONFIRMED"].includes(data.status)) {
-        if (paymentPollRef.current) clearInterval(paymentPollRef.current);
-        setPaymentPending(null);
-        showToast("Payment confirmed! Your booking is updated.");
-        lookupBookings();
-      }
+      try {
+        let customerSession: string | null = null;
+        try { customerSession = localStorage.getItem("mb_customer_session"); } catch { /* magic-link JWT may still be available */ }
+        // Reuse verified customer access, never treat a booking ID as a token.
+        const { data, error } = await supabase.functions.invoke("my-bookings-lookup", { body: {
+          booking_id: bookingId, business_id: theme.id, customer_session: customerSession,
+          email: email.toLowerCase(), emailOnly: authSession,
+          phone_tail: normalizePhone(dialCode, phoneDigits).replace(/\D/g, "").slice(-9),
+        } });
+        if (paymentPollRef.current !== pollId) return;
+        const booking = data?.bookings?.find((b: Booking) => b.id === bookingId && b.business_id === theme.id);
+        if (!error && booking && amendmentId && booking.last_amendment_id === amendmentId && ["PAID", "CONFIRMED"].includes(booking.status)) {
+          clearInterval(pollId);
+          paymentPollRef.current = null;
+          setPaymentPending(null);
+          showToast("Payment confirmed! Your booking is updated.");
+          reloadAfterAction();
+        }
+      } catch { /* bounded polling retries transient network failures */ }
     }, 10000);
+    paymentPollRef.current = pollId;
   }
 
   /* ───── Admin review (locked bookings) ───── */
   async function requestAdminReview(b: Booking, action: string) {
-    if (!confirm("Your trip is within 12 hours. Send a request to our team?")) return;
+    if (!confirm("Send a change request to our team? They'll get back to you shortly.")) return;
     setActionLoading(b.id);
-    const hrs = getHrsBefore(b);
-    await tenantSupabase.from("chat_messages").insert({
-      business_id: b.business_id,
-      phone: b.phone,
-      direction: "IN",
-      body: "[URGENT] Request to " + action.toUpperCase() + " booking " + b.id.substring(0, 8).toUpperCase() + " (Trip in " + Math.round(hrs) + "h). Customer: " + b.customer_name,
-      sender: b.customer_name,
-    });
-    showToast("Request sent! Our team will get back to you shortly.");
+    // Was a direct anon-key chat_messages insert, which RLS silently rejected
+    // (no anon INSERT policy) while still showing "Request sent!" — so nothing
+    // ever reached the operator. Route through rebook-booking (service role),
+    // which lands it in the inbox, flips the conversation to HUMAN for the
+    // sidebar badge, and emails the operator. Only claim success on real success.
+    try {
+      const res = await callRebook({ booking_id: b.id, action: "REQUEST_CHANGE", requested_action: action });
+      if (res?.email_queued) {
+        showToast("Request sent. Our team has been notified by email and in their dashboard.");
+      } else {
+        showToast("Request sent! Our team will see it in their dashboard shortly.");
+      }
+      reloadAfterAction();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "We couldn't send your request. Please contact us directly.", "error");
+    }
     setActionLoading(null);
   }
 
   /* ───── Reschedule ───── */
   async function startReschedule(b: Booking) {
+    // Remediation reschedule (operator-cancelled booking): any tour qualifies
+    // and the party size may shrink, so only require 1 open spot here — the
+    // backend re-validates capacity for the chosen qty.
+    const isRemediation = b.status === "CANCELLED";
     setRescheduling(b);
+    setRescheduleQty(b.qty);
     setLoadingSlots(true);
     const now = new Date();
     const cutoff = new Date(Date.now() + 60 * 60 * 1000);
     const later = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
-    const { data } = await tenantSupabase.from("slots").select("*, tours(name, base_price_per_person)")
-      .eq("status", "OPEN").eq("tour_id", b.tour_id)
+    let query = tenantSupabase.from("slots").select("*, tours(name, base_price_per_person)")
+      .eq("status", "OPEN")
       .gt("start_time", cutoff.toISOString()).lt("start_time", later.toISOString())
       .order("start_time", { ascending: true });
-    setRescheduleSlots(((data || []) as unknown as Slot[]).filter((s) => s.capacity_total - s.booked - (s.held || 0) >= b.qty && s.id !== b.slot_id));
+    if (!isRemediation) query = query.eq("tour_id", b.tour_id);
+    const { data } = await query;
+    const minSpots = isRemediation ? 1 : b.qty;
+    setRescheduleSlots(((data || []) as unknown as Slot[]).filter((s) => s.capacity_total - s.booked - (s.held || 0) >= minSpots && s.id !== b.slot_id));
     setLoadingSlots(false);
   }
 
@@ -534,11 +609,12 @@ export default function MyBookings() {
         action: "RESCHEDULE",
         new_slot_id: rebookConfirmSlot.id,
         excess_action: excessAction,
+        ...(rescheduling.status === "CANCELLED" && rescheduleQty !== rescheduling.qty ? { new_qty: rescheduleQty } : {}),
       });
       if ((result.diff as number) > 0 && result.payment_url) {
         setReschedulePaymentUrl(result.payment_url as string);
         setReschedulePaymentDiff(result.diff as number);
-        startPaymentPolling(rescheduling.id);
+        startPaymentPolling(rescheduling.id, String(result.hold_id || ""));
         setActionLoading(null);
         return;
       } else if (result.voucher_code) {
@@ -547,7 +623,7 @@ export default function MyBookings() {
         showToast("Booking rescheduled successfully!");
       }
       setRescheduling(null); setRebookConfirmSlot(null); setRescheduleSlots([]);
-      lookupBookings();
+      reloadAfterAction();
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Something went wrong", "error");
     }
@@ -559,38 +635,7 @@ export default function MyBookings() {
     setEditGuestsBooking(b);
     setGuestQty(b.qty);
     setGuestExcessAction("VOUCHER");
-    setGuestVoucherCode(""); setGuestVoucherApplied(null); setGuestVoucherError("");
-    setGuestPromoCode(""); setGuestPromoApplied(null); setGuestPromoError("");
-  }
-
-  async function applyGuestVoucher() {
-    if (!guestVoucherCode.trim()) return;
-    setGuestVoucherError("");
-    const code = guestVoucherCode.toUpperCase().replace(/\s/g, "");
-    if (code.length !== 8) { setGuestVoucherError("Codes are 8 characters"); return; }
-    const voucherSupabase = createVoucherSupabase(code, theme.id);
-    const { data } = await voucherSupabase.from("vouchers").select("*").eq("code", code).single();
-    if (!data) { setGuestVoucherError("Code not found"); return; }
-    if (data.status === "REDEEMED") { setGuestVoucherError("Already redeemed"); return; }
-    if (data.status !== "ACTIVE") { setGuestVoucherError("Not valid"); return; }
-    if (data.expires_at && new Date(data.expires_at) < new Date()) { setGuestVoucherError("Expired"); return; }
-    const bal = Number(data.current_balance ?? data.value ?? data.purchase_amount ?? 0);
-    if (bal <= 0) { setGuestVoucherError("No balance remaining"); return; }
-    setGuestVoucherApplied({ code, balance: bal });
-    setGuestVoucherCode("");
-  }
-
-  async function applyGuestPromo() {
-    if (!guestPromoCode.trim() || !editGuestsBooking) return;
-    setGuestPromoError("");
-    const code = guestPromoCode.toUpperCase().trim();
-    const { data: promo } = await tenantSupabase.from("promotions").select("*").eq("code", code).eq("business_id", editGuestsBooking.business_id).maybeSingle();
-    if (!promo) { setGuestPromoError("Code not found"); return; }
-    if (!promo.active) { setGuestPromoError("No longer active"); return; }
-    if (promo.valid_until && new Date(promo.valid_until) < new Date()) { setGuestPromoError("Expired"); return; }
-    if (promo.max_uses != null && promo.used_count >= promo.max_uses) { setGuestPromoError("Usage limit reached"); return; }
-    setGuestPromoApplied({ id: promo.id, code: promo.code, discount_type: promo.discount_type, discount_value: Number(promo.discount_value) });
-    setGuestPromoCode("");
+    setGuestPaymentUrl(""); setGuestPaymentAmount(0);
   }
 
   async function submitEditGuests() {
@@ -601,12 +646,17 @@ export default function MyBookings() {
       if (guestQty > b.qty) {
         const result = await callRebook({ booking_id: b.id, action: "ADD_GUESTS", new_qty: guestQty });
         if (result.payment_url) {
-          showToast((guestQty - b.qty) + " guest(s) added! Pay R" + result.diff + " to confirm.");
-          window.open(result.payment_url as string, "_blank");
-          startPaymentPolling(b.id);
-        } else {
-          showToast("Guests added!");
+          // Render the pay link in the modal (a direct-click anchor). window.open
+          // after an await is blocked by popup blockers, which is why the link
+          // never appeared before. Keep the modal open so the customer can pay.
+          setGuestPaymentUrl(result.payment_url as string);
+          setGuestPaymentAmount(Number(result.diff) || 0);
+          startPaymentPolling(b.id, String(result.hold_id || ""));
+          setActionLoading(null);
+          return;
         }
+        // A price increase always needs payment; no link means checkout failed.
+        throw new Error("Couldn't create a payment link for the extra guest(s). Please try again.");
       } else {
         const result2 = await callRebook({ booking_id: b.id, action: "REMOVE_GUESTS", new_qty: guestQty, excess_action: guestExcessAction });
         if (result2.voucher_code) {
@@ -618,7 +668,7 @@ export default function MyBookings() {
         }
       }
       setEditGuestsBooking(null);
-      lookupBookings();
+      reloadAfterAction();
     } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Something went wrong", "error"); }
     setActionLoading(null);
   }
@@ -634,7 +684,7 @@ export default function MyBookings() {
       await callRebook({ booking_id: contactBooking.id, action: "UPDATE_CONTACT", contact_name: contactName, contact_email: contactEmail, contact_phone: normalizePhone(dialCode, contactPhone) });
       showToast("Contact details updated!");
       setContactBooking(null);
-      lookupBookings();
+      reloadAfterAction();
     } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Something went wrong", "error"); }
     setActionLoading(null);
   }
@@ -650,7 +700,7 @@ export default function MyBookings() {
       await callRebook({ booking_id: requestBooking.id, action: "SPECIAL_REQUEST", special_requests: specialRequest });
       showToast("Special request saved!");
       setRequestBooking(null);
-      lookupBookings();
+      reloadAfterAction();
     } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Something went wrong", "error"); }
     setActionLoading(null);
   }
@@ -671,7 +721,7 @@ export default function MyBookings() {
         showToast("Your booking has been cancelled.");
       }
       setCancelTarget(null);
-      lookupBookings();
+      reloadAfterAction();
     } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Something went wrong", "error"); }
     setActionLoading(null);
   }
@@ -684,7 +734,7 @@ export default function MyBookings() {
       const result = await callRebook({ booking_id: cancelTarget.id, action: "CANCEL_VOUCHER" });
       showToast("Converted to voucher! Code: " + result.voucher_code + " (R" + result.voucher_amount + ")");
       setCancelTarget(null);
-      lookupBookings();
+      reloadAfterAction();
     } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Something went wrong", "error"); }
     setActionLoading(null);
   }
@@ -696,10 +746,17 @@ export default function MyBookings() {
       const res = await callRebook({ booking_id: b.id, action: "CLAIM_CREDIT", credit_action: creditAction });
       if (creditAction === "VOUCHER") {
         showToast("Voucher issued! Code: " + (res.voucher_code || "Check your email") + " for R" + Number(b.refund_amount).toFixed(2));
+      } else if (res.voucher_code && Number(res.refund_amount || 0) > 0) {
+        // Split-tender booking — cash portion refunded, voucher portion reissued.
+        showToast("Refund of R" + Number(res.refund_amount).toFixed(2) + " requested (5-10 business days). The R" + Number(res.voucher_amount || 0).toFixed(2) + " you paid by voucher is back as voucher " + res.voucher_code + ".");
+      } else if (res.voucher_code) {
+        // Voucher-paid booking — cash refunds aren't possible, the backend
+        // issued a credit voucher instead.
+        showToast("Your booking was paid with a voucher, so we've issued a new voucher instead: " + res.voucher_code + " (R" + Number(res.voucher_amount ?? b.refund_amount).toFixed(2) + ")");
       } else {
-        showToast("Refund of R" + (res.refund_amount ? Number(res.refund_amount).toFixed(2) : (Number(b.refund_amount) * 0.95).toFixed(2)) + " requested. Please allow 5-10 business days.");
+        showToast("Refund of R" + Number(res.refund_amount ?? b.refund_amount).toFixed(2) + " requested. Please allow 5-10 business days.");
       }
-      lookupBookings();
+      reloadAfterAction();
     } catch (e: unknown) { showToast((e instanceof Error ? e.message : null) || "Failed to claim credit", "error"); }
     setActionLoading(null);
   }
@@ -715,6 +772,8 @@ export default function MyBookings() {
         setRebookConfirmSlot={setRebookConfirmSlot}
         rescheduleSlots={rescheduleSlots}
         loadingSlots={loadingSlots}
+        rescheduleQty={rescheduleQty}
+        setRescheduleQty={setRescheduleQty}
         excessAction={excessAction}
         setExcessAction={setExcessAction}
         actionLoading={actionLoading}
@@ -756,9 +815,31 @@ export default function MyBookings() {
   /* ═══════════════════════════════════════════════════════
      BOOKINGS LIST
      ═══════════════════════════════════════════════════════ */
+  // A trip the OPERATOR cancelled (e.g. weather) where the customer still has to
+  // choose reschedule / voucher / refund. These must be impossible to miss, so
+  // they're pulled out of the buried "Cancelled" group and surfaced at the top.
+  const needsAction = (b: Booking) =>
+    b.status === "CANCELLED"
+    && (b.refund_status === "ACTION_REQUIRED" || b.refund_status === "CREDIT_PENDING")
+    && Number(b.refund_amount || 0) > 0
+    && !b.converted_to_voucher_id;
+  const actionNeeded = bookings.filter(needsAction);
   const upcoming = bookings.filter(b => ["PAID", "CONFIRMED", "HELD", "PENDING"].includes(b.status) && getTimeTier(b) !== "PAST");
   const past = bookings.filter(b => b.status === "COMPLETED" || b.status === "EXPIRED" || (["PAID", "CONFIRMED"].includes(b.status) && getTimeTier(b) === "PAST"));
-  const cancelled = bookings.filter(b => b.status === "CANCELLED");
+  const cancelled = bookings.filter(b => b.status === "CANCELLED" && !needsAction(b));
+
+  // Presentation ordering: the soonest upcoming trip is the hero; past trips
+  // read most-recent-first.
+  const FAR_FUTURE = 8.64e15;
+  const upcomingSorted = [...upcoming].sort((a, z) =>
+    new Date(a.slots?.start_time || FAR_FUTURE).getTime() - new Date(z.slots?.start_time || FAR_FUTURE).getTime());
+  const nextTrip = upcomingSorted[0] || null;
+  const laterUpcoming = upcomingSorted.slice(1);
+  const pastSorted = [...past].sort((a, z) =>
+    new Date(z.slots?.start_time || 0).getTime() - new Date(a.slots?.start_time || 0).getTime());
+  const paidTrips = bookings.filter(b => ["PAID", "CONFIRMED", "COMPLETED"].includes(b.status));
+  const tripCount = paidTrips.length;
+  const firstName = ((paidTrips[0]?.customer_name || bookings[0]?.customer_name || email.split("@")[0] || "").split(" ")[0]) || "";
 
   const cardProps = {
     countdownTick, paymentPending, actionLoading, tripPhotos, bookingLogs,
@@ -766,40 +847,56 @@ export default function MyBookings() {
     onReschedule: startReschedule, onEditGuests: openEditGuests,
     onContactDetails: openContactDetails, onSpecialRequest: openSpecialRequest,
     onCancel: setCancelTarget, onAdminReview: requestAdminReview,
+    onContactUs: () => setContactUsOpen(true),
     onClaimCredit: handleClaimCredit,
   };
 
+  const iconBtn = "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border text-[color:var(--textMuted)] transition-colors hover:border-[color:var(--accent)] hover:text-[color:var(--accent)] sm:h-10 sm:w-10";
+  const iconBtnStyle = { background: "color-mix(in srgb, var(--glass-solid-card) 60%, transparent)", borderColor: "var(--glass-border)" } as const;
+
   return (
-    <div className="min-h-screen bg-slate-50 pb-12">
-      <div className="app-container max-w-5xl px-4 pt-6 lg:pt-10">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8 lg:mb-10">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center font-bold text-xl shrink-0">
-              {email.charAt(0).toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-slate-500 font-semibold">CapeKayak Family</p>
-              <h1 className="text-2xl font-extrabold text-slate-900 leading-tight truncate tracking-tight">
-                Hi, {email.split('@')[0]}!
-              </h1>
-            </div>
+    <div className="min-h-screen pb-28 lg:pb-16">
+      {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
+
+      <div className="app-container max-w-3xl px-4 pt-8 sm:pt-12">
+        {/* Greeting */}
+        <header className="mb-8 flex flex-wrap items-end justify-between gap-x-4 gap-y-5">
+          <div className="min-w-0">
+            <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[color:var(--accent)]">
+              {theme.business_name || "My bookings"}
+            </p>
+            <h1 className="font-display mt-1.5 text-[28px] font-semibold leading-[1.08] tracking-[-0.02em] text-[color:var(--text)] sm:text-[34px] sm:leading-none">
+              Welcome back{firstName ? ", " + firstName : ""}
+            </h1>
+            {tripCount >= 2 && (
+              <p className="mt-2 text-[13px] text-[color:var(--textMuted)]">
+                {tripCount} trips together{tripCount >= 5 ? ", thanks for sticking with us" : ""}
+              </p>
+            )}
           </div>
-          <div className="flex items-center gap-3">
-            <button onClick={async () => { if (authSession) { await supabase.auth.signOut(); setAuthSession(false); } setLoggedIn(false); setBookings([]); setEmail(""); setDialCode("+27"); setPhoneDigits(""); setLoginError(""); setToast(null); setAutoLoginAttempted(false); setSessionChecked(true); sessionStorage.removeItem("mb_loggedIn"); sessionStorage.removeItem("mb_email"); sessionStorage.removeItem("mb_dialCode"); sessionStorage.removeItem("mb_phone"); try { localStorage.removeItem("mb_customer_session"); localStorage.removeItem("mb_customer_email"); localStorage.removeItem("mb_customer_session_exp"); } catch { /* */ } }}
-              className="w-10 h-10 shrink-0 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors border border-slate-100">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <Link href="/" className="btn btn-primary flex-1 !px-4 !py-2.5 !text-[13.5px] sm:flex-none sm:!py-2 sm:!text-[13px]">Book a trip</Link>
+            {authSession && (
+              <button onClick={() => setActiveTab("profile")} title="Profile & settings" aria-label="Profile & settings"
+                className={iconBtn} style={iconBtnStyle}>
+                <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              </button>
+            )}
+            <button onClick={async () => { if (authSession) { await supabase.auth.signOut(); setAuthSession(false); } setLoggedIn(false); setBookings([]); setEmail(""); setDialCode("+27"); setPhoneDigits(""); setLoginError(""); setToast(null); setAutoLoginAttempted(false); setSessionChecked(true); sessionStorage.removeItem("mb_loggedIn"); sessionStorage.removeItem("mb_email"); sessionStorage.removeItem("mb_dialCode"); sessionStorage.removeItem("mb_phone"); try { localStorage.removeItem("mb_customer_session"); localStorage.removeItem("mb_customer_email"); localStorage.removeItem("mb_customer_session_exp"); localStorage.removeItem("mb_customer_phone_tail"); } catch { /* */ } }}
+              title="Sign out" aria-label="Sign out"
+              className={iconBtn} style={iconBtnStyle}>
+              <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
             </button>
           </div>
-        </div>
+        </header>
 
         {/* Tab strip (auth-session users only) */}
         {authSession && (
-          <div className="flex gap-1 mb-6 border-b border-slate-200">
+          <div className="glass !rounded-full mb-7 flex w-full p-1 sm:inline-flex sm:w-auto" role="tablist">
             {(["trips", "profile"] as const).map(t => (
-              <button key={t} onClick={() => setActiveTab(t)}
-                className={"px-4 py-2.5 text-sm font-bold -mb-px transition-colors " + (activeTab === t ? "border-b-2 text-teal-700" : "border-b-2 border-transparent text-slate-400 hover:text-slate-600")}
-                style={activeTab === t ? { borderColor: "var(--cta, #14b8a6)" } : undefined}>
+              <button key={t} onClick={() => setActiveTab(t)} role="tab" aria-selected={activeTab === t}
+                className={"min-h-11 flex-1 rounded-full px-4 py-2.5 text-[13px] font-semibold transition-colors sm:min-h-0 sm:flex-none sm:py-1.5 " +
+                  (activeTab === t ? "bg-[color:var(--accent)] text-[color:var(--ink-on-main)]" : "text-[color:var(--textMuted)] hover:text-[color:var(--text)]")}>
                 {t === "trips" ? "Your trips" : "Profile"}
               </button>
             ))}
@@ -810,121 +907,127 @@ export default function MyBookings() {
           <ProfileTab customer={customer} user={authUser} onUpdate={setCustomer} onSignOut={() => { window.location.href = "/"; }} />
         ) : (<>
 
-        {(() => {
-          const paidTrips = bookings.filter(function (b) { return ["PAID", "CONFIRMED", "COMPLETED"].includes(b.status); });
-          const tripCount = paidTrips.length;
-          const firstName = (paidTrips[0]?.customer_name || email.split("@")[0] || "").split(" ")[0];
-          if (tripCount >= 2) return (
-            <div className="mb-6 p-4 rounded-2xl border flex items-center gap-4" style={{ background: "color-mix(in srgb, var(--cta, #14b8a6) 8%, white)", borderColor: "color-mix(in srgb, var(--cta, #14b8a6) 25%, white)" }}>
-              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-lg" style={{ background: "color-mix(in srgb, var(--cta, #14b8a6) 15%, white)" }}>
-                {tripCount >= 5 ? "\u2B50" : "\uD83D\uDC4B"}
-              </div>
-              <div>
-                <p className="font-semibold text-sm" style={{ color: "var(--textPrimary, #0f172a)" }}>
-                  Welcome back{firstName ? ", " + firstName : ""}!
-                </p>
-                <p className="text-xs mt-0.5" style={{ color: "var(--textSecondary, #64748b)" }}>
-                  {tripCount === 2 ? "Your second trip with us \u2014 welcome back."
-                    : "You\u2019ve booked " + tripCount + " trips with us. Thanks for sticking with us!"}
-                </p>
-              </div>
+        {/* Action needed — operator/weather cancellations awaiting a customer choice.
+            Surfaced above everything so a cancelled trip is impossible to miss. */}
+        {actionNeeded.length > 0 && (
+          <section className="mb-9">
+            <div className="mb-3 flex items-center gap-2">
+              <h2 className="text-[12px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--danger)" }}>Needs your attention</h2>
             </div>
-          );
-          return null;
-        })()}
+            <div className="space-y-3">
+              {actionNeeded.map(b => <BookingCard key={b.id} b={b} variant="card" {...cardProps} refundCalc={refundCalcs[b.id] || null} />)}
+            </div>
+          </section>
+        )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-x-8 gap-y-6 items-start">
-           {/* Left Column */}
-           <div className="lg:col-span-5 space-y-6">
-              {/* Quick Actions / Steps */}
-              <div>
-                <h2 className="text-sm font-bold text-slate-800 mb-3 ml-1">Get started with these simple steps</h2>
-                <div className="flex gap-3 overflow-x-auto pb-2 px-1 snap-x hide-scrollbar">
-                   <Link href="/" className="snap-start shrink-0 w-[110px] bg-white rounded-3xl p-4 shadow-sm border border-slate-100 flex flex-col items-center text-center gap-3 hover:shadow-md transition-shadow">
-                      <div className="w-12 h-12 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
-                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      </div>
-                      <span className="text-[13px] font-bold text-slate-700 leading-tight">Book Trips</span>
-                   </Link>
-                   <Link href="/contact" className="snap-start shrink-0 w-[110px] bg-white rounded-3xl p-4 shadow-sm border border-slate-100 flex flex-col items-center text-center gap-3 hover:shadow-md transition-shadow">
-                      <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center shrink-0">
-                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      </div>
-                      <span className="text-[13px] font-bold text-slate-700 leading-tight">Contact Team</span>
-                   </Link>
+        {bookings.length === 0 ? (
+          <div className="glass !border-dashed px-6 py-14 text-center">
+            <h3 className="font-display mt-4 text-[20px] font-semibold text-[color:var(--text)]">No trips yet</h3>
+            <p className="mx-auto mt-1.5 max-w-xs text-[13.5px] text-[color:var(--textMuted)]">When you book, everything lives here: tickets, waivers, changes and photos.</p>
+            <Link href="/" className="btn btn-primary mt-6">Browse tours</Link>
+          </div>
+        ) : (
+          <>
+            {nextTrip && (
+              <section className="mb-9">
+                <BookingCard b={nextTrip} variant="hero" {...cardProps} refundCalc={refundCalcs[nextTrip.id] || null} />
+              </section>
+            )}
+
+            {laterUpcoming.length > 0 && (
+              <section className="mb-9">
+                <SectionLabel>Coming up</SectionLabel>
+                <div className="space-y-3">
+                  {laterUpcoming.map(b => <BookingCard key={b.id} b={b} variant="card" {...cardProps} refundCalc={refundCalcs[b.id] || null} />)}
                 </div>
-              </div>
+              </section>
+            )}
 
-              {/* Toast */}
-              {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
-
-              {/* Wallet / Vouchers styled */}
-              <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100">
-                <p className="text-[13px] font-bold text-slate-500 mb-1">Your Wallet</p>
-                <div className="flex items-end justify-between mb-4">
-                   <h3 className="text-3xl font-extrabold text-slate-900 leading-none">
-                       {voucherResult ? `R${voucherResult.current_balance}` : 'R0.00'}
-                   </h3>
-                   <div className="flex items-center gap-2">
-                      {voucherResult ? (
-                         <button onClick={() => { setVoucherResult(null); setVoucherCode(""); }} className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-sm hover:bg-slate-200 transition-colors">
-                           Clear
-                         </button>
-                      ) : (
-                         <button onClick={checkVoucherBalance} disabled={voucherLoading || !voucherCode.trim()} className="px-4 py-2 bg-teal-800 text-white font-bold rounded-xl text-sm shadow-sm hover:bg-teal-900 transition-colors disabled:opacity-50">
-                           Check
-                         </button>
-                      )}
-                   </div>
+            {/* Utilities */}
+            <section className="mb-9 grid gap-3 sm:grid-cols-2">
+              <div className="glass p-5">
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-[14px] font-semibold text-[color:var(--text)]">Voucher balance</h3>
                 </div>
-                
                 {!voucherResult ? (
-                   <div className="flex items-center gap-3">
-                       <input 
-                         type="text" 
-                         value={voucherCode} 
-                         onChange={e => { setVoucherCode(e.target.value.toUpperCase()); setVoucherError(""); }} 
-                         onKeyDown={e => e.key === "Enter" && checkVoucherBalance()}
-                         placeholder="Enter voucher code" 
-                         className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium tracking-wider outline-none focus:border-teal-500 transition-colors uppercase"
-                       />
-                   </div>
+                  <>
+                    <p className="mt-2.5 text-[12.5px] text-[color:var(--textMuted)]">Have a gift voucher? Check what&apos;s left on it.</p>
+                    <div className="mt-3 flex gap-2">
+                      <input
+                        type="text"
+                        value={voucherCode}
+                        onChange={e => { setVoucherCode(e.target.value.toUpperCase()); setVoucherError(""); }}
+                        onKeyDown={e => e.key === "Enter" && checkVoucherBalance()}
+                        placeholder="CODE"
+                        aria-label="Voucher code"
+                        className="field !py-2.5 min-w-0 flex-1 font-mono !text-[16px] uppercase tracking-widest sm:!py-2 sm:!text-[13px]"
+                      />
+                      <button onClick={checkVoucherBalance} disabled={voucherLoading || !voucherCode.trim()}
+                        className="inline-flex min-h-11 shrink-0 items-center self-stretch rounded-[10px] bg-[color:var(--accent)] px-4 text-[13px] font-semibold text-[color:var(--ink-on-main)] transition-colors hover:bg-[color:var(--accentHover)] disabled:opacity-40 sm:min-h-0"
+                      >
+                        {voucherLoading ? "…" : "Check"}
+                      </button>
+                    </div>
+                    {voucherError && <p role="alert" className="mt-2 text-[12px]" style={{ color: "var(--danger)" }}>{voucherError}</p>}
+                  </>
                 ) : (
-                   <div className="flex items-center justify-between text-sm py-2 px-3 bg-teal-50 text-teal-800 rounded-lg">
-                      <span className="font-medium">Active Voucher Code:</span>
-                      <span className="font-mono font-bold">{voucherResult.code}</span>
-                   </div>
+                  <div className="mt-3 flex items-end justify-between gap-3">
+                    <div>
+                      <p className="font-display text-[30px] font-semibold leading-none text-[color:var(--text)]">R{voucherResult.current_balance}</p>
+                      <p className="mt-2 text-[12px] text-[color:var(--textMuted)]">
+                        <span className="font-mono font-semibold text-[color:var(--text)]">{voucherResult.code}</span>
+                        {voucherResult.expires_at && <> · until {new Date(voucherResult.expires_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}</>}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5">
+                      <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
+                        style={voucherResult.status === "ACTIVE"
+                          ? { color: "var(--success)", background: "color-mix(in srgb, var(--success) 10%, transparent)" }
+                          : { color: "var(--textMuted)", background: "var(--surface2)" }}>
+                        <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                        {voucherResult.status === "ACTIVE" ? "Active" : voucherResult.status === "REDEEMED" ? "Fully used" : voucherResult.status}
+                      </span>
+                      <button onClick={() => { setVoucherResult(null); setVoucherCode(""); }} className="text-[12px] font-semibold text-[color:var(--accent)] hover:underline">
+                        Check another
+                      </button>
+                    </div>
+                  </div>
                 )}
-                {voucherError && <p className="text-xs text-red-500 mt-2 ml-1 font-medium">{voucherError}</p>}
               </div>
-           </div>
 
-           {/* Right Column */}
-           <div className="lg:col-span-7">
-              {/* Notifications / Bookings list */}
-              <div>
-                 <div className="flex justify-between items-center mb-4 px-1">
-                    <h2 className="text-sm font-bold text-slate-800">Notifications</h2>
-                 </div>
-                 
-                 <div className="space-y-4">
-                    {bookings.length === 0 ? (
-                       <div className="bg-orange-50 rounded-[1.5rem] p-6 shadow-sm border border-orange-100/50 flex flex-col items-center">
-                          <p className="text-[14px] text-orange-800 font-semibold mb-1">No upcoming trips yet.</p>
-                          <p className="text-[13px] text-orange-700/80 mb-4">Time to plan your next adventure!</p>
-                          <Link href="/" className="inline-block px-5 py-2.5 bg-orange-100 text-orange-800 font-bold rounded-xl text-[13px] hover:bg-orange-200 transition-colors shadow-sm">Explore Tours</Link>
-                       </div>
-                    ) : (
-                       <>
-                         {upcoming.length > 0 && upcoming.map(b => <BookingCard key={b.id} b={b} {...cardProps} refundCalc={refundCalcs[b.id] || null} />)}
-                         {past.length > 0 && past.map(b => <BookingCard key={b.id} b={b} {...cardProps} />)}
-                         {cancelled.length > 0 && cancelled.map(b => <BookingCard key={b.id} b={b} {...cardProps} />)}
-                       </>
-                    )}
-                 </div>
-              </div>
-           </div>
-        </div>
+              <button onClick={() => setContactUsOpen(true)}
+                className="glass group p-5 text-left transition-colors hover:border-[color:var(--accent)]">
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-[14px] font-semibold text-[color:var(--text)]">Need a hand?</h3>
+                </div>
+                <p className="mt-2.5 text-[12.5px] text-[color:var(--textMuted)]">
+                  Questions about a booking? WhatsApp, call or email {theme.business_name || "our team"} directly.
+                </p>
+                <span className="mt-3 inline-flex items-center gap-1 text-[13px] font-semibold text-[color:var(--accent)]">
+                  Contact us
+                </span>
+              </button>
+            </section>
+
+            {pastSorted.length > 0 && (
+              <section className="mb-9">
+                <SectionLabel>Past trips</SectionLabel>
+                <div className="space-y-2">
+                  {pastSorted.map(b => <BookingCard key={b.id} b={b} variant="row" {...cardProps} />)}
+                </div>
+              </section>
+            )}
+
+            {cancelled.length > 0 && (
+              <section className="mb-9">
+                <SectionLabel>Cancelled</SectionLabel>
+                <div className="space-y-2">
+                  {cancelled.map(b => <BookingCard key={b.id} b={b} variant="row" {...cardProps} />)}
+                </div>
+              </section>
+            )}
+          </>
+        )}
 
       </>)}
       </div>
@@ -933,13 +1036,10 @@ export default function MyBookings() {
       <EditGuestsModal
         booking={editGuestsBooking} guestQty={guestQty} setGuestQty={setGuestQty}
         guestExcessAction={guestExcessAction} setGuestExcessAction={setGuestExcessAction}
-        actionLoading={actionLoading} onClose={() => setEditGuestsBooking(null)} onSubmit={submitEditGuests}
-        voucherCode={guestVoucherCode} setVoucherCode={setGuestVoucherCode}
-        voucherApplied={guestVoucherApplied} voucherError={guestVoucherError}
-        onApplyVoucher={applyGuestVoucher} onRemoveVoucher={() => setGuestVoucherApplied(null)}
-        promoCode={guestPromoCode} setPromoCode={setGuestPromoCode}
-        promoApplied={guestPromoApplied} promoError={guestPromoError}
-        onApplyPromo={applyGuestPromo} onRemovePromo={() => setGuestPromoApplied(null)}
+        actionLoading={actionLoading} onClose={() => { setEditGuestsBooking(null); setGuestPaymentUrl(""); setGuestPaymentAmount(0); }} onSubmit={submitEditGuests}
+        refundPercent={editGuestsBooking ? refundCalcs[editGuestsBooking.id]?.percent : undefined}
+        paymentUrl={guestPaymentUrl} paymentAmount={guestPaymentAmount}
+
       />
       <ContactModal
         open={!!contactBooking} contactName={contactName} setContactName={setContactName}
@@ -955,6 +1055,11 @@ export default function MyBookings() {
         booking={cancelTarget} actionLoading={actionLoading}
         onClose={() => setCancelTarget(null)} onCancelRefund={submitCancelRefund} onCancelVoucher={submitCancelVoucher}
         refundCalc={cancelTarget ? refundCalcs[cancelTarget.id] || null : null}
+      />
+      <ContactUsModal
+        open={contactUsOpen} businessName={theme.business_name || ""}
+        email={theme.public_email} phone={theme.public_phone} whatsapp={theme.public_whatsapp}
+        onClose={() => setContactUsOpen(false)}
       />
     </div>
   );

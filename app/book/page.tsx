@@ -1,20 +1,36 @@
 "use client";
 import { useEffect, useState, useRef, Suspense, useMemo } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { createTenantSupabase, createVoucherSupabase, supabase } from "../lib/supabase";
+import type { PostgrestError } from "@supabase/supabase-js";
+import { createBookingSupabase, createTenantSupabase, createVoucherSupabase, supabase } from "../lib/supabase";
+import { formatDuration } from "../lib/duration";
 import { useTheme } from "../components/ThemeProvider";
+import TenantClosedNotice, { useTenantTrading } from "../components/TenantClosedNotice";
 import BookingFlowSkeleton from "../components/skeletons/BookingFlowSkeleton";
 import Toast from "../components/ui/Toast";
 import { useToast } from "../hooks/useToast";
 import { fmtDate, fmtTime, fmtMonth, dateKeyInTz, isSameDay, getDaysInMonth, getFirstDay } from "../lib/format";
-import type { Tour, Slot, VoucherCredit, AddOn, AppliedPromo } from "../lib/types";
-import { normalizePhone } from "../lib/phone";
+import type { Tour, Slot, VoucherCredit, AddOn, AppliedPromo, Booking } from "../lib/types";
+import { normalizePhone, DIAL_CODES } from "../lib/phone";
+import { BOOKING_CUTOFF_MINUTES } from "../lib/pricing";
 import { HoldCountdown } from "../components/HoldCountdown";
 import { saveDraft as saveLocalDraft, clearDraft as clearLocalDraft, readValidDraft } from "@/app/lib/booking-draft";
 
-export function BookingFlow({ embed = false }: { embed?: boolean }) {
+type ReviewItem = {
+  id: string;
+  rating: number;
+  comment: string | null;
+  reviewer_name: string | null;
+  reviewer_avatar_url: string | null;
+  source: string | null;
+  submitted_at: string;
+};
+
+function BookingFlow({ embed = false }: { embed?: boolean }) {
   const params = useSearchParams();
   const theme = useTheme();
+  const trading = useTenantTrading();
   const tenantSupabase = useMemo(() => createTenantSupabase(theme.id), [theme.id]);
   const tz = theme.timezone || "Africa/Johannesburg";
   const tzAbbr = useMemo(() => {
@@ -36,6 +52,10 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [dialCode, setDialCode] = useState("+27");
+  const [isCompany, setIsCompany] = useState(false);
+  const [companyName, setCompanyName] = useState("");
+  const [vatNumber, setVatNumber] = useState("");
   const [voucherCode, setVoucherCode] = useState("");
   const [vouchers, setVouchers] = useState<VoucherCredit[]>([]);
   const [voucherTotal, setVoucherTotal] = useState(0);
@@ -43,6 +63,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState("");
+  const [checkoutAmount, setCheckoutAmount] = useState<number | null>(null);
   const [bookingRef, setBookingRef] = useState("");
   const [voucherRemainders, setVoucherRemainders] = useState<{ code: string; remaining: number }[]>([]);
   const [soldOutMsg, setSoldOutMsg] = useState("");
@@ -56,8 +77,9 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   const [promoError, setPromoError] = useState("");
   const [waiverUrl, setWaiverUrl] = useState("");
   const [draftBookingId, setDraftBookingId] = useState<string | null>(null);
+  const [draftWaiverToken, setDraftWaiverToken] = useState<string | null>(null);
   const [holdExpiresAt, setHoldExpiresAt] = useState<Date | null>(null);
-  const [reviews, setReviews] = useState<any[]>([]);
+  const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const { toast, showToast, dismissToast } = useToast();
   const draftSlotId = params.get("slot");
   const draftDate = params.get("date");
@@ -69,6 +91,11 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   // draft from a previous customer on a shared browser would leak their PII
   // into a fresh visitor's form (POPIA risk). Slot/date selection is still
   // pulled from the URL because those are not PII.
+  // One-time draft/URL hydration once the tour + slots are ready. This must
+  // stay an effect: it reads localStorage, clears it, and stamps a
+  // Date.now()-based hold expiry — all impure operations React's render-purity
+  // rule forbids in the component body. hydratedRef guards it to fire once.
+  /* eslint-disable react-hooks/set-state-in-effect -- impure (localStorage + Date.now()) one-time hydration, cannot run in render */
   useEffect(() => {
     if (hydratedRef.current || !selectedTour || allSlots.length === 0) return;
     hydratedRef.current = true;
@@ -82,7 +109,6 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
         setSelectedDate(new Date(draftDate));
         setSelectedSlot(matchSlot);
         if (explicitResume && d?.tourId === selectedTour.id && d.step >= 2) {
-          setHoldExpiresAt(new Date(Date.now() + 15 * 60 * 1000));
           setStep("details");
         }
       } else if (draftDate) {
@@ -99,6 +125,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     if (d.customerName) setName(d.customerName);
     if (d.customerEmail) setEmail(d.customerEmail);
     if (d.customerPhone) setPhone(d.customerPhone);
+    if (d.customerDialCode) setDialCode(d.customerDialCode);
     if (d.qty > 1) setQty(d.qty);
     if (d.marketingConsent) setMarketingOptIn(true);
     if (d.promoCode) setPromoCode(d.promoCode);
@@ -108,6 +135,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
       setSelectedAddOns(ao);
     }
   }, [selectedTour, allSlots, draftSlotId, draftDate, params]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Auto-fill from authenticated customer session — PII-gated.
   // Without ?resume=1, a previous customer's session on a shared browser
@@ -136,7 +164,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
 
   // Debounced save to localStorage on form field changes
   useEffect(() => {
-    if (!selectedTour) return;
+    if (!selectedTour || step === "payment") return;
     const id = setTimeout(function () {
       saveLocalDraft({
         tourId: selectedTour.id,
@@ -148,21 +176,25 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
         customerName: name,
         customerEmail: email,
         customerPhone: phone,
+        customerDialCode: dialCode,
         marketingConsent: marketingOptIn,
         promoCode,
         voucherCode,
         addOns: Object.entries(selectedAddOns).filter(function (e) { return e[1] > 0; }).map(function (e) { return { id: e[0], qty: e[1] }; }),
-        step: step === "payment" ? 3 : step === "details" ? 2 : 1,
+        step: step === "details" ? 2 : 1,
       });
     }, 500);
     return function () { clearTimeout(id); };
-  }, [selectedTour, selectedDate, selectedSlot, qty, name, email, phone, marketingOptIn, promoCode, voucherCode, selectedAddOns, step]);
+  }, [selectedTour, selectedDate, selectedSlot, qty, name, email, phone, dialCode, marketingOptIn, promoCode, voucherCode, selectedAddOns, step]);
 
-  const IMG: Record<string, string> = {
-    "Sea Kayak": "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800&h=500&fit=crop",
-    "Sunset Paddle": "https://images.unsplash.com/photo-1500259571355-332da5cb07aa?w=800&h=500&fit=crop",
-    "Private Tour": "https://images.unsplash.com/photo-1472745942893-4b9f730c7668?w=800&h=500&fit=crop",
-  };
+  async function loadSlots(tid: string) {
+    const now = new Date();
+    const cutoff = new Date(now.getTime() + BOOKING_CUTOFF_MINUTES * 60 * 1000);
+    const later = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+    const { data } = await tenantSupabase.from("slots").select("*").eq("tour_id", tid).eq("status", "OPEN")
+      .gt("start_time", cutoff.toISOString()).lt("start_time", later.toISOString()).order("start_time", { ascending: true });
+    setAllSlots(((data || []) as unknown as Slot[]).filter((s) => s.capacity_total - s.booked - (s.held || 0) > 0));
+  }
 
   useEffect(() => {
     if (!theme.id) return; // wait for ThemeProvider to resolve business id
@@ -187,34 +219,15 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   }, [tenantSupabase, tourId, theme.id]);
 
   useEffect(() => {
-    if (!selectedTour || !theme.id) return;
+    if (!theme.id) return;
     (async () => {
-      const { data: nativeRevs } = await tenantSupabase.from("reviews")
+      const { data } = await tenantSupabase.from("reviews")
         .select("id, rating, comment, reviewer_name, reviewer_avatar_url, source, submitted_at")
-        .eq("tour_id", selectedTour.id).eq("status", "APPROVED").not("rating", "is", null)
-        .order("submitted_at", { ascending: false }).limit(10);
-      const { data: googleRevs } = await tenantSupabase.from("reviews")
-        .select("id, rating, comment, reviewer_name, reviewer_avatar_url, source, submitted_at")
-        .eq("business_id", theme.id).eq("source", "GOOGLE").eq("status", "APPROVED").not("rating", "is", null)
-        .order("submitted_at", { ascending: false }).limit(10);
-      const combined = [...(nativeRevs || []), ...(googleRevs || [])];
-      const seen = new Set<string>();
-      const deduped = combined.filter(r => { if (seen.has(r.id)) return false; seen.add(r.id); return true; });
-      deduped.sort((a, b) => new Date(b.submitted_at || 0).getTime() - new Date(a.submitted_at || 0).getTime());
-      setReviews(deduped.slice(0, 20));
+        .eq("business_id", theme.id).eq("status", "APPROVED").not("rating", "is", null)
+        .order("submitted_at", { ascending: false }).limit(20);
+      setReviews((data || []) as ReviewItem[]);
     })();
-  }, [tenantSupabase, selectedTour, theme.id]);
-
-  const BOOKING_CUTOFF_MINUTES = 60;
-
-  async function loadSlots(tid: string) {
-    const now = new Date();
-    const cutoff = new Date(now.getTime() + BOOKING_CUTOFF_MINUTES * 60 * 1000);
-    const later = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
-    const { data } = await tenantSupabase.from("slots").select("*").eq("tour_id", tid).eq("status", "OPEN")
-      .gt("start_time", cutoff.toISOString()).lt("start_time", later.toISOString()).order("start_time", { ascending: true });
-    setAllSlots(((data || []) as unknown as Slot[]).filter((s) => s.capacity_total - s.booked - (s.held || 0) > 0));
-  }
+  }, [tenantSupabase, theme.id]);
 
   const availDates = useMemo(() => {
     const ds = new Set<string>();
@@ -222,13 +235,24 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     return ds;
   }, [allSlots, tz]);
 
-  useEffect(() => {
+  // Both blocks below only need to react to allSlots loading in — track the
+  // previous reference during render (React's documented pattern for
+  // "adjust state when a prop changes") instead of an effect.
+  const [prevAllSlots, setPrevAllSlots] = useState(allSlots);
+  if (allSlots !== prevAllSlots) {
+    setPrevAllSlots(allSlots);
     if (allSlots.length > 0) {
       const first = new Date(allSlots[0].start_time);
       setCalMonth(first.getMonth());
       setCalYear(first.getFullYear());
     }
-  }, [allSlots]);
+    // Smart Defaults: auto-select the first available date and slot if not already set.
+    if (allSlots.length > 0 && !selectedDate && !selectedSlot && !params.get("slot") && !params.get("date")) {
+      const firstSlot = allSlots[0];
+      setSelectedDate(new Date(firstSlot.start_time));
+      setSelectedSlot(firstSlot);
+    }
+  }
 
   const daySlots = useMemo(() => {
     if (!selectedDate) return [];
@@ -245,7 +269,10 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     : selectedTour
       ? Number(selectedTour.base_price_per_person || 0)
       : 0;
-  const isPeakPrice = !!(selectedSlot && selectedSlot.price_per_person_override != null
+  // A last-minute slot also carries an override, so it must win over the Peak
+  // badge. The override check keeps a stale flag from rendering a broken price.
+  const isLastMinute = !!selectedSlot?.last_minute_at && selectedSlot?.price_per_person_override != null;
+  const isPeakPrice = !isLastMinute && !!(selectedSlot && selectedSlot.price_per_person_override != null
     && Number(selectedSlot.price_per_person_override) !== Number(selectedTour?.base_price_per_person || 0));
   const baseTotal = effectiveUnitPrice * qty;
   const addOnsTotal = useMemo(() => {
@@ -278,11 +305,13 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   // Per-voucher applied / remaining breakdown for the "R200 applied · R400 remaining" copy.
   const voucherBreakdown = useMemo(() => {
     let remaining = afterPromoTotal;
-    return vouchers.map((v) => {
+    const rows: { code: string; value: number; applied: number; leftover: number }[] = [];
+    for (const v of vouchers) {
       const applied = Math.min(v.value, Math.max(0, remaining));
       remaining = Math.max(0, remaining - applied);
-      return { code: v.code, value: v.value, applied, leftover: Math.max(0, v.value - applied) };
-    });
+      rows.push({ code: v.code, value: v.value, applied, leftover: Math.max(0, v.value - applied) });
+    }
+    return rows;
   }, [vouchers, afterPromoTotal]);
   const avail = selectedSlot ? selectedSlot.capacity_total - selectedSlot.booked - (selectedSlot.held || 0) : 10;
 
@@ -306,8 +335,10 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     const code = voucherCode.toUpperCase().replace(/\s/g, "");
     if (code.length !== 8) { setVoucherError("Codes are 8 characters"); return; }
     if (vouchers.some(v => v.code === code)) { setVoucherError("Already applied"); return; }
-    const { data } = await createVoucherSupabase(code).from("vouchers").select("*").eq("code", code).single();
-    if (!data) { setVoucherError("Code not found"); return; }
+    // Vouchers are operator-specific — scope the lookup to this tenant (the
+    // RLS policy also requires the x-tenant-business-id header to match).
+    const { data } = await createVoucherSupabase(code, theme.id).from("vouchers").select("*").eq("code", code).eq("business_id", theme.id).single();
+    if (!data) { setVoucherError("Code not valid for this operator"); return; }
     if (data.status === "REDEEMED") { setVoucherError("Already redeemed"); return; }
     if (data.status !== "ACTIVE") { setVoucherError("Not valid"); return; }
     if (data.expires_at && new Date(data.expires_at) < new Date()) { setVoucherError("Expired"); return; }
@@ -320,26 +351,6 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   }
 
   function removeVoucher(i: number) { const v = vouchers[i]; setVouchers(vouchers.filter((_, j) => j !== i)); setVoucherTotal(voucherTotal - v.value); }
-
-  async function saveDraft() {
-    if (!name.trim() || !email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !phone.trim()) return;
-    if (!selectedTour || !selectedSlot) return;
-    const draftData = {
-      business_id: selectedTour.business_id, tour_id: selectedTour.id, slot_id: selectedSlot.id,
-      customer_name: name.trim(), email: email.toLowerCase().trim(),
-      qty, unit_price: effectiveUnitPrice,
-      total_amount: grandTotal, original_total: grandTotal,
-      status: "DRAFT" as const, source: embed ? "WIDGET" : "WEB",
-    };
-    try {
-      if (draftBookingId) {
-        await supabase.from("bookings").update(draftData).eq("id", draftBookingId).eq("status", "DRAFT");
-      } else {
-        const { data } = await supabase.from("bookings").insert(draftData).select("id").single();
-        if (data) setDraftBookingId(data.id);
-      }
-    } catch (e) { /* draft save is best-effort */ }
-  }
 
   async function applyPromo() {
     if (!promoCode.trim()) return;
@@ -378,8 +389,15 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   }
 
   async function submitBooking() {
-    if (!name.trim() || !email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !phone.trim() || !termsAccepted) return;
+    if (submitting) return;
+    if (!name.trim() || !phone.trim() || !termsAccepted) { showToast("Please complete your contact details and accept the terms.", "error"); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      showToast("Please enter a valid email address.", "error");
+      document.getElementById("book-email")?.focus();
+      return;
+    }
     setSubmitting(true);
+    try {
     const promoInsertFields: Record<string, unknown> = {};
     if (appliedPromo) {
       promoInsertFields.discount_type = appliedPromo.discount_type === "PERCENT" ? "PERCENT" : "FLAT";
@@ -390,133 +408,85 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     }
     const bookingPayload = {
       business_id: selectedTour!.business_id, tour_id: selectedTour!.id, slot_id: selectedSlot!.id,
-      customer_name: name, phone: phone ? normalizePhone("+27", phone) : "", email: email.toLowerCase(),
+      customer_name: name.trim(), phone: phone ? normalizePhone(dialCode, phone) : "", email: email.toLowerCase().trim(),
       qty, unit_price: effectiveUnitPrice, total_amount: finalTotal, original_total: grandTotal,
+      voucher_amount_paid: effectiveVoucherCredit,
       status: "PENDING", source: embed ? "WIDGET" : "WEB",
       marketing_opt_in: marketingOptIn || null,
       terms_accepted_at: new Date().toISOString(),
+      customer_company_name: isCompany && companyName.trim() ? companyName.trim() : null,
+      customer_vat_number: isCompany && vatNumber.trim() ? vatNumber.trim() : null,
       ...promoInsertFields,
     };
-    let booking: any; let error: any;
+    let booking: Booking | null; let error: PostgrestError | null;
     if (draftBookingId) {
-      const res = await supabase.from("bookings").update(bookingPayload).eq("id", draftBookingId).select().single();
-      booking = res.data; error = res.error;
+      const bookingClient = draftWaiverToken
+        ? createBookingSupabase(selectedTour!.business_id, draftBookingId, draftWaiverToken)
+        : tenantSupabase;
+      const existing = await bookingClient.from("bookings").select().eq("id", draftBookingId).single();
+      if (existing.data?.status === "HELD") {
+        booking = existing.data; error = existing.error;
+        if (booking && (booking.qty !== qty || booking.slot_id !== selectedSlot!.id)) {
+          showToast("Your previous reservation is still held. Restore its guest count and departure to retry, or wait for it to expire.", "error");
+          return;
+        }
+      } else {
+        const res = await bookingClient.from("bookings").update(bookingPayload).eq("id", draftBookingId).select().single();
+        booking = res.data; error = res.error;
+      }
     } else {
-      const res = await supabase.from("bookings").insert(bookingPayload).select().single();
+      const bookingId = crypto.randomUUID();
+      const waiverToken = crypto.randomUUID();
+      const bookingClient = createBookingSupabase(selectedTour!.business_id, bookingId, waiverToken);
+      const res = await bookingClient.from("bookings").insert({ ...bookingPayload, id: bookingId, waiver_token: waiverToken }).select().single();
+      if (res.data?.id) setDraftBookingId(res.data.id);
+      if (res.data?.waiver_token) setDraftWaiverToken(String(res.data.waiver_token));
       booking = res.data; error = res.error;
     }
     if (error || !booking) { showToast("Something went wrong.", "error"); setSubmitting(false); return; }
+    if (!booking.waiver_token) { showToast("We couldn't verify this booking. Please try again.", "error"); setSubmitting(false); return; }
     setBookingRef(booking.id.substring(0, 8).toUpperCase());
 
-    // Save add-on line items (snapshot unit_price at booking time)
-    const addOnRows = availableAddOns
-      .filter(ao => selectedAddOns[ao.id] && selectedAddOns[ao.id] > 0)
-      .map(ao => ({ booking_id: booking.id, add_on_id: ao.id, qty: selectedAddOns[ao.id], unit_price: ao.price }));
-    if (addOnRows.length > 0) {
-      await supabase.from("booking_add_ons").insert(addOnRows);
-    }
-
-    // Record promo usage atomically (prevents race conditions and duplicate uses)
-    if (appliedPromo) {
-      await supabase.rpc("apply_promo_code", {
-        p_promo_id: appliedPromo.id,
-        p_customer_email: email.toLowerCase(),
-        p_booking_id: booking.id,
-        p_customer_phone: phone ? normalizePhone("+27", phone) : null,
-      });
-    }
-
-    if (finalTotal <= 0) {
-      // Server-side confirmation: confirm_voucher_booking recomputes the total,
-      // verifies the vouchers actually cover it, reserves capacity, deducts the
-      // vouchers and sets PAID — all atomically. Anon can no longer mark a booking
-      // PAID directly, and capacity is checked before confirmation (never PAID on
-      // a sold-out slot).
-      const { data: confirmRes, error: confirmErr } = await supabase.rpc("confirm_voucher_booking", {
-        p_booking_id: booking.id,
-        p_voucher_ids: vouchers.map(v => v.id),
-      });
-      if (confirmErr || !confirmRes?.ok) {
-        if (confirmRes?.error === "no_capacity") {
-          await supabase.from("bookings").update({ status: "CANCELLED", cancellation_reason: "No capacity" }).eq("id", booking.id);
-          setSoldOutMsg(confirmRes?.message || "This slot just sold out! Please select another time.");
-          setSelectedSlot(null);
-          setStep("calendar");
-          setSubmitting(false);
-          if (selectedTour) loadSlots(selectedTour.id);
-          return;
-        }
-        showToast(confirmRes?.error === "insufficient_voucher"
-          ? "Your voucher no longer covers the full amount. Please try again."
-          : "We couldn't confirm your booking. Please try again.", "error");
-        setSubmitting(false);
-        return;
-      }
-      // Email customers any leftover voucher balance the server reported.
-      const remainders: { code: string; remaining: number }[] = (confirmRes.remainders || []).map((r: { code: string; remaining: number }) => ({ code: r.code, remaining: Number(r.remaining) }));
-      for (const r of remainders) {
-        const used = vouchers.find(v => v.code === r.code);
-        try {
-          await supabase.functions.invoke("send-email", {
-            body: {
-              type: "VOUCHER_BALANCE",
-              data: {
-                email: email.toLowerCase(),
-                customer_name: name,
-                voucher_code: r.code,
-                original_value: used?.value ?? null,
-                amount_used: used ? used.value - r.remaining : null,
-                remaining_balance: r.remaining,
-                booking_ref: booking.id.substring(0, 8).toUpperCase(),
-                tour_name: selectedTour!.name,
-                business_id: selectedTour!.business_id,
-              },
-            },
-          });
-        } catch (e) { console.error("VOUCHER_BALANCE_EMAIL_ERR:", e); }
-      }
-      // Confirm booking (handles email + WhatsApp + invoice + marketing sync)
-      try {
-        await supabase.functions.invoke("confirm-booking", {
-          body: { booking_id: booking.id },
-        });
-      } catch (e) { console.error("VOUCHER_CONFIRM_ERR:", e); }
-      // Fetch waiver token to show CTA on confirmation screen
-      try {
-        const { data: waiverData } = await supabase.from("bookings").select("waiver_token, waiver_status").eq("id", booking.id).single();
-        if (waiverData?.waiver_token && waiverData.waiver_status !== "SIGNED") {
-          setWaiverUrl("/waiver?booking=" + booking.id + "&token=" + waiverData.waiver_token);
-        }
-      } catch (e) { console.error("WAIVER_FETCH_ERR:", e); }
-      setVoucherRemainders(remainders);
-      clearLocalDraft(); setPaymentUrl("FREE"); setStep("payment"); setSubmitting(false); return;
-    }
-
-    // Atomic capacity check + hold creation to prevent overbooking
-    const { data: holdResult, error: holdError } = await supabase.rpc("create_hold_with_capacity_check", {
-      p_booking_id: booking.id,
-      p_slot_id: selectedSlot!.id,
-      p_qty: qty,
-      p_expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+    // The server prices the selected extras and reserves capacity and vouchers.
+    const yocoRes = await supabase.functions.invoke("create-checkout", {
+      body: {
+        booking_id: booking.id, booking_token: booking.waiver_token, amount: finalTotal,
+        customer_name: name.trim(), customer_email: email.trim().toLowerCase(), qty,
+        promo_code: appliedPromo?.code || null,
+        voucher_codes: vouchers.map(v => v.code), voucher_ids: vouchers.map(v => v.id),
+        add_ons: Object.entries(selectedAddOns).filter(([, count]) => count > 0).map(([id, count]) => ({ id, qty: count })),
+        skip_notifications: true,
+      },
     });
-    if (holdError || !holdResult?.success) {
-      // Capacity exceeded or hold failed — clean up the booking and redirect to calendar
-      await supabase.from("bookings").update({ status: "CANCELLED", cancellation_reason: "No capacity" }).eq("id", booking.id);
-      setSoldOutMsg(holdResult?.error || "This slot just sold out! Please select another time.");
-      setSelectedSlot(null);
-      setStep("calendar");
-      setSubmitting(false);
-      if (selectedTour) loadSlots(selectedTour.id);
+    if (!yocoRes.data?.redirectUrl) {
+      let reason = yocoRes.data?.reason;
+      if (!reason && yocoRes.error) {
+        try { reason = (await yocoRes.error.context?.json())?.reason; } catch { /* use fallback */ }
+      }
+      showToast(reason || "Payment link unavailable. Your details are saved; please try again.", "error");
       return;
     }
-    await supabase.from("bookings").update({ status: "HELD" }).eq("id", booking.id);
-
-    const yocoRes = await supabase.functions.invoke("create-checkout", {
-      body: { booking_id: booking.id, amount: finalTotal, customer_name: name, qty, voucher_codes: vouchers.map(v => v.code), voucher_ids: vouchers.map(v => v.id) },
-    });
-    if (yocoRes.data?.redirectUrl) { clearLocalDraft(); setPaymentUrl(yocoRes.data.redirectUrl); setStep("payment"); }
-    else showToast("Payment link unavailable. Please try again.", "error");
-    setSubmitting(false);
+    const checkout = yocoRes.data;
+    setCheckoutAmount(Number(checkout.amount ?? finalTotal));
+    setHoldExpiresAt(checkout.expires_at ? new Date(checkout.expires_at) : null);
+    setPaymentUrl(checkout.redirectUrl); setStep("payment"); clearLocalDraft();
+    try {
+      sessionStorage.setItem("bt-checkout-" + theme.id, JSON.stringify({
+        url: checkout.redirectUrl, amount: checkout.amount ?? finalTotal,
+        expiresAt: checkout.expires_at, ref: booking.id.substring(0, 8).toUpperCase(),
+      }));
+    } catch { /* A disabled session store must not prevent payment. */ }
+    if (Math.abs(Number(checkout.amount ?? finalTotal) - finalTotal) > 0.01) {
+      showToast("The available price or voucher balance changed. Please review the payment total below.", "error");
+      return;
+    }
+    // Keep the visible link as a fallback if the browser blocks navigation.
+    if (embed && window.top) window.top.location.href = checkout.redirectUrl;
+    else window.location.assign(checkout.redirectUrl);
+    } catch (error) {
+      console.error("BOOKING_CHECKOUT_ERR:", error);
+      showToast("We couldn't open payment. Please use the payment link or try again.", "error");
+    } finally { setSubmitting(false); }
   }
 
   function renderCalendar() {
@@ -533,38 +503,38 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
       const sel = selectedDate && isSameDay(date, selectedDate);
       const isToday = isSameDay(date, today);
       cells.push(
-        <button key={day} disabled={past || !has} onClick={() => { setSelectedDate(date); setSelectedSlot(null); }}
+        <button key={day} data-shot="calendar-day" disabled={past || !has} onClick={() => { setSelectedDate(date); setSelectedSlot(null); }}
           className={"relative aspect-square rounded-full flex items-center justify-center text-[15px] font-extrabold transition-all outline-none " +
-            (sel ? "bg-teal-700 text-white shadow-md scale-105 " : "") +
-            (!sel && has && !past ? "bg-[#FDFDFB] text-slate-800 hover:bg-white border border-slate-100 hover:border-teal-200 hover:shadow-sm hover:text-teal-700 cursor-pointer " : "") +
-            (past || !has ? "text-slate-300 cursor-not-allowed bg-transparent " : "") +
-            (isToday && !sel ? "ring-2 ring-teal-500/20 ring-offset-2 " : "")}>
+            (sel ? "bg-[color:var(--accent)] text-[color:var(--ink-on-main)] shadow-md scale-105 " : "") +
+            (!sel && has && !past ? "bg-[color:var(--glass-tint-card)] text-[color:var(--ink)] border border-[color:var(--glass-border)] hover:bg-[color:var(--hover-overlay)] hover:shadow-sm cursor-pointer " : "") +
+            (past || !has ? "text-[color:var(--ink-faint)] cursor-not-allowed bg-transparent " : "") +
+            (isToday && !sel ? "ring-2 ring-[color-mix(in_srgb,var(--accent)_25%,transparent)] ring-offset-2 " : "")}>
           {day}
-          {has && !past && !sel && <span className={"absolute bottom-[4px] left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full " + (sel ? "bg-white" : "bg-teal-500")} />}
+          {has && !past && !sel && <span className={"absolute bottom-[4px] left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full " + (sel ? "bg-[color:var(--ink-on-main)]" : "bg-[color:var(--accent)]")} />}
         </button>
       );
     }
     const canPrev = calYear > today.getFullYear() || calMonth > today.getMonth();
     return (
-      <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100">
+      <div className="glass p-6" data-shot="calendar">
         <div className="flex items-center justify-between mb-6">
           <button onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); } else setCalMonth(calMonth - 1); }}
-            disabled={!canPrev} className="w-10 h-10 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-100 disabled:opacity-30 transition-colors">
+            disabled={!canPrev} className="w-10 h-10 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 rounded-full surface-muted flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)] disabled:opacity-30 transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
           </button>
-          <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">{fmtMonth(new Date(calYear, calMonth))}</h3>
+          <h3 className="text-xl font-extrabold text-[color:var(--ink)] tracking-tight">{fmtMonth(new Date(calYear, calMonth))}</h3>
           <button onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1); } else setCalMonth(calMonth + 1); }}
-            className="w-10 h-10 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors">
+            className="w-10 h-10 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 rounded-full surface-muted flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)] transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
           </button>
         </div>
         <div className="grid grid-cols-7 gap-1 mb-3">
-          {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(d => <div key={d} className="text-center text-[11px] font-bold text-slate-400 py-1 uppercase tracking-wider">{d}</div>)}
+          {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(d => <div key={d} className="text-center text-[11px] font-bold text-[color:var(--ink-muted)] py-1 uppercase tracking-wider">{d}</div>)}
         </div>
         <div className="grid grid-cols-7 gap-1.5">{cells}</div>
-        <div className="flex items-center gap-5 mt-6 pt-5 border-t border-slate-100 text-[12px] font-bold text-slate-500 justify-center">
-          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-teal-500 inline-block shadow-sm" /> Available</span>
-          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-slate-200 inline-block" /> Unavailable</span>
+        <div className="flex items-center gap-5 mt-6 pt-5 border-t border-[color:var(--glass-border)] text-[12px] font-bold text-[color:var(--ink-muted)] justify-center">
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[color:var(--accent)] inline-block shadow-sm" /> Available</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[color:var(--glass-border)] inline-block" /> Unavailable</span>
         </div>
       </div>
     );
@@ -574,21 +544,24 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
 
   if (tourNotFound) return (
     <div className="max-w-lg mx-auto px-4 py-16 text-center">
-      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-        <span className="text-3xl">🚫</span>
-      </div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-3">This tour is no longer available</h2>
-      <p className="text-gray-500 mb-8">The tour you are looking for may have been removed or is currently unavailable. Check out our current adventures!</p>
-      <a href="/" className="inline-block bg-gray-900 text-white px-8 py-3 rounded-xl text-sm font-semibold hover:bg-gray-800 shadow-md">
+
+      <h2 className="text-2xl font-bold text-[color:var(--ink)] mb-3">This tour is no longer available</h2>
+      <p className="text-[color:var(--ink-muted)] mb-8">The tour you are looking for may have been removed or is currently unavailable. Check out our current adventures!</p>
+      <Link href="/" className="btn btn-primary px-8 py-3">
         Browse Available Tours
-      </a>
+      </Link>
     </div>
   );
+
+  // Fix 3a: never render a booking flow for an operator that is not trading.
+  // create-checkout would reject the payment anyway; failing here means the
+  // customer finds out before filling in guest details, not after.
+  if (!trading) return <TenantClosedNotice />;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 md:py-12">
       {/* Progress */}
-      <div className="flex items-center justify-between mb-10 bg-white rounded-full p-2.5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-slate-100 max-w-lg mx-auto">
+      <div className="flex items-center justify-between mb-10 glass !rounded-full p-2.5 max-w-lg mx-auto">
         {[{ l: "Date", s: "calendar" }, { l: "Details", s: "details" }, { l: "Pay", s: "payment" }].map((x, i) => {
           const steps = ["calendar", "details", "payment"];
           const ci = steps.indexOf(step);
@@ -596,13 +569,13 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
           const isDone = i < ci;
           return (
             <div key={x.l} className="flex items-center flex-1 last:flex-none">
-              <div className={"flex items-center gap-2 " + (active ? "bg-teal-50 pl-2 pr-4 py-2 rounded-full" : "px-3")}>
-                <div className={"w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-extrabold shrink-0 transition-all " + (active ? "bg-teal-700 text-white shadow-sm" : "bg-slate-100 text-slate-400")}>
+              <div className={"flex items-center gap-2 " + (active ? "bg-[color:var(--accentSoft)] pl-2 pr-4 py-2 rounded-full" : "px-3")}>
+                <div className={"w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-extrabold shrink-0 transition-all " + (active ? "bg-[color:var(--accent)] text-[color:var(--ink-on-main)] shadow-sm" : "bg-[color:var(--hover-overlay)] text-[color:var(--ink-muted)]")}>
                   {isDone ? <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg> : i + 1}
                 </div>
-                <span className={"text-[13px] tracking-wide " + (active ? "text-teal-900 font-extrabold" : "text-slate-400 font-bold")}>{x.l}</span>
+                <span className={"text-[13px] tracking-wide " + (active ? "text-[color:var(--accent-text)] font-extrabold" : "text-[color:var(--ink-muted)] font-bold")}>{x.l}</span>
               </div>
-              {i < 2 && <div className="flex-1 px-2"><div className={"h-0.5 w-full rounded-full " + (isDone ? "bg-teal-500" : "bg-slate-100")} /></div>}
+              {i < 2 && <div className="flex-1 px-2"><div className={"h-0.5 w-full rounded-full " + (isDone ? "bg-[color:var(--accent)]" : "bg-[color:var(--glass-border)]")} /></div>}
             </div>
           );
         })}
@@ -612,65 +585,57 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
       {step === "calendar" && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           {soldOutMsg && (
-            <div className="mb-6 p-5 bg-orange-50 border border-orange-200/60 rounded-[1.5rem] flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center shrink-0 mt-0.5">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
-              </div>
+            <div className="mb-6 p-5 glass flex items-start gap-4">
+
               <div className="flex-1 pt-0.5">
-                <p className="text-[14px] font-bold text-orange-900">{soldOutMsg}</p>
-                <p className="text-[13px] font-medium text-orange-700/80 mt-1">Available slots have been refreshed below so you can try again.</p>
+                <p className="text-[14px] font-bold text-[color:var(--ink)]">{soldOutMsg}</p>
+                <p className="text-[13px] font-medium text-[color:var(--ink-muted)] mt-1">Available slots have been refreshed below so you can try again.</p>
               </div>
-              <button onClick={() => setSoldOutMsg("")} className="w-8 h-8 rounded-full flex items-center justify-center bg-orange-100/50 text-orange-500 hover:bg-orange-200 transition-colors">
+              <button onClick={() => setSoldOutMsg("")} className="w-8 h-8 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 rounded-full flex items-center justify-center bg-[color:var(--hover-overlay)] text-[color:var(--ink-muted)] hover:text-[color:var(--ink)] transition-colors">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
           )}
           
           <div className="text-center mb-10 w-full flex flex-col items-center justify-center">
-             {!embed && <a href="/" className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-full text-[13px] font-bold text-slate-600 transition-colors mb-6 shadow-sm hover:shadow-md">
-               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
+             {!embed && <Link href="/" className="glass-chip inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-bold text-[color:var(--ink-muted)] transition-colors mb-6 hover:shadow-md">
                Back to tours
-             </a>}
-             <div className="inline-flex items-center gap-4 p-2 pr-6 bg-white rounded-full border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.04)] mb-2">
-               <div className="w-12 h-12 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center shrink-0">
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-               </div>
+             </Link>}
+             {/* Only render once the tour row is loaded — "0 min · From R" placeholders read as broken */}
+             {selectedTour && <div className="glass-chip inline-flex items-center gap-4 p-2 pr-6 mb-2">
                <div className="text-left">
-                 <h3 className="font-extrabold text-[16px] text-slate-800 leading-tight">{selectedTour?.name}</h3>
-                 <p className="text-slate-500 text-[12px] font-bold mt-0.5">
-                   {selectedTour?.duration_minutes} min &middot; {selectedSlot
-                     ? <>R{effectiveUnitPrice} per person{isPeakPrice ? <span className="ml-1 inline-block rounded-full bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider">Peak</span> : null}</>
+                 <h3 className="font-extrabold text-[16px] text-[color:var(--ink)] leading-tight">{selectedTour?.name}</h3>
+                 <p className="text-[color:var(--ink-muted)] text-[12px] font-bold mt-0.5">
+                   {formatDuration(selectedTour?.duration_minutes)} &middot; {selectedSlot
+                     ? <>{isLastMinute ? <span className="mr-1 line-through text-[color:var(--ink-faint)]">R{selectedTour?.base_price_per_person}</span> : null}R{effectiveUnitPrice} per person{isPeakPrice ? <span className="ml-1 inline-block rounded-full bg-[color-mix(in_srgb,var(--warning)_18%,transparent)] text-[color:var(--warning)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider">Peak</span> : null}{isLastMinute ? <span className="ml-1 inline-block rounded-full bg-[color-mix(in_srgb,var(--success)_18%,transparent)] text-[color:var(--success)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider">Last minute</span> : null}</>
                      : <>From R{selectedTour?.base_price_per_person} per person</>}
                  </p>
                </div>
-             </div>
+             </div>}
           </div>
           
           <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
             <div>
-              <h2 className="text-2xl font-extrabold text-slate-800 mb-6 pl-2 tracking-tight">Pick a Date</h2>
+              <h2 className="glass-chip mb-6 inline-block px-4 py-1.5 text-2xl font-extrabold tracking-tight text-[color:var(--ink)]">Pick a Date</h2>
               {renderCalendar()}
             </div>
             
             <div>
-              <h2 className="text-2xl font-extrabold text-slate-800 mb-1 pl-2 tracking-tight">{selectedDate ? "Times for " + fmtDate(selectedDate.toISOString(), tz) : "Select timeslot"}</h2>
-              <p className="text-xs font-medium text-slate-500 mb-5 pl-2">All times shown in {tzAbbr}</p>
+              <div className="glass-chip mb-5 inline-flex flex-col items-start !rounded-3xl px-4 py-2">
+                <h2 className="text-2xl font-extrabold tracking-tight text-[color:var(--ink)]">{selectedDate ? "Times for " + fmtDate(selectedDate.toISOString(), tz) : "Select timeslot"}</h2>
+                <p className="text-xs font-medium text-[color:var(--ink-muted)]">All times shown in {tzAbbr}</p>
+              </div>
 
               {!selectedDate ? (
-                <div className="bg-slate-50/50 rounded-[2rem] border border-dashed border-slate-200 text-center py-16 px-6 flex flex-col items-center justify-center">
-                  <div className="w-16 h-16 bg-white shadow-sm rounded-full flex items-center justify-center text-teal-500 mb-4">
-                     <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                  </div>
-                  <p className="text-[14px] font-bold text-slate-600">No date selected</p>
-                   <p className="text-[13px] font-medium text-slate-400 mt-1">Tap a highlighted date to see available times.</p>
+                <div className="glass !border-dashed text-center py-16 px-6 flex flex-col items-center justify-center">
+
+                  <p className="text-[14px] font-bold text-[color:var(--ink)]">No date selected</p>
+                   <p className="text-[13px] font-medium text-[color:var(--ink-muted)] mt-1">Tap a highlighted date to see available times.</p>
                 </div>
               ) : daySlots.length === 0 ? (
-                <div className="bg-slate-50/50 rounded-[2rem] border border-dashed border-slate-200 text-center py-16 px-6 flex flex-col items-center justify-center">
-                   <div className="w-16 h-16 bg-white shadow-sm rounded-full flex items-center justify-center text-slate-400 mb-4">
-                     <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  </div>
-                  <p className="text-[14px] font-bold text-slate-600">No times available</p>
-                  <p className="text-[13px] font-medium text-slate-400 mt-1">Try selecting another date to proceed.</p>
+                <div className="glass !border-dashed text-center py-16 px-6 flex flex-col items-center justify-center">
+                  <p className="text-[14px] font-bold text-[color:var(--ink)]">No times available</p>
+                  <p className="text-[13px] font-medium text-[color:var(--ink-muted)] mt-1">Try selecting another date to proceed.</p>
                 </div>
               ) : (
                 <div className="flex flex-col gap-3">
@@ -682,30 +647,30 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                     const isLow = a > 0 && a <= lowThreshold;
                     let badgeClass: string, badgeText: string;
                     if (isVeryLow) {
-                      badgeClass = "bg-red-50 text-red-600 border border-red-200";
+                      badgeClass = "bg-[color-mix(in_srgb,var(--danger)_12%,transparent)] text-[color:var(--danger)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)]";
                       badgeText = a === 1 ? "Last spot!" : "Only " + a + " left!";
                     } else if (isLow) {
-                      badgeClass = "bg-amber-50 text-amber-600 border border-amber-200";
+                      badgeClass = "bg-[color-mix(in_srgb,var(--warning)_14%,transparent)] text-[color:var(--warning)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)]";
                       badgeText = a + " left";
                     } else {
-                      badgeClass = "bg-emerald-50 text-emerald-600 border border-emerald-200";
+                      badgeClass = "bg-[color-mix(in_srgb,var(--success)_12%,transparent)] text-[color:var(--success)] border border-[color-mix(in_srgb,var(--success)_30%,transparent)]";
                       badgeText = a + " spots";
                     }
                     return (
-                      <button key={s.id} onClick={() => setSelectedSlot(s)}
-                        aria-label={fmtTime(s.start_time, tz) + " — " + a + " spots " + (isLow ? "remaining, book soon" : "available")}
-                        className={"w-full text-left rounded-[1.5rem] p-5 transition-all outline-none border flex items-center gap-4 group " + (isSel ? "border-teal-600 bg-teal-800 text-white shadow-lg overflow-hidden relative" : "border-slate-100 bg-[#FDFDFB] hover:shadow-md hover:border-slate-200")}>
-                        {isSel && <div className="absolute inset-0 bg-teal-700/50 mix-blend-overlay"></div>}
-                        <div className={"w-12 h-12 rounded-full flex items-center justify-center shrink-0 relative z-10 " + (isSel ? "bg-white text-teal-800" : "bg-teal-50 text-teal-600 group-hover:bg-teal-100")}>
-                           <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        </div>
+                      <button key={s.id} data-slot-id={s.id} data-slot-date={s.start_time} onClick={() => setSelectedSlot(s)}
+                        aria-label={fmtTime(s.start_time, tz) + ", " + a + " spots " + (isLow ? "remaining, book soon" : "available")}
+                        className={"w-full text-left rounded-[1.5rem] p-5 transition-all outline-none flex items-center gap-4 group " + (isSel ? "border-2 border-[color:var(--accent)] bg-[color:var(--accent)] text-[color:var(--ink-on-main)] shadow-lg overflow-hidden relative" : "glass !rounded-[1.5rem] hover:shadow-md")}>
+                        {isSel && <div className="absolute inset-0 bg-[color:var(--main-overlay)] mix-blend-overlay"></div>}
+
                         <div className="flex-1 min-w-0 relative z-10">
-                           <p className={"text-[18px] font-extrabold leading-tight " + (isSel ? "text-white" : "text-slate-800")}>{fmtTime(s.start_time, tz)}</p>
-                           <p className={"text-[12px] font-bold mt-0.5 " + (isSel ? "text-teal-100" : isVeryLow ? "text-red-500" : isLow ? "text-amber-600" : "text-slate-500")}>{a} {a === 1 ? "spot" : "spots"} remaining</p>
+                           <p className={"text-[18px] font-extrabold leading-tight " + (isSel ? "text-[color:var(--ink-on-main)]" : "text-[color:var(--ink)]")}>{fmtTime(s.start_time, tz)}
+                             {s.last_minute_at && s.price_per_person_override != null ? <span className="ml-2 align-middle inline-block rounded-full bg-[color-mix(in_srgb,var(--success)_18%,transparent)] text-[color:var(--success)] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider">R{s.price_per_person_override} last minute</span> : null}
+                           </p>
+                           <p className={"text-[12px] font-bold mt-0.5 " + (isSel ? "text-[color:var(--ink-on-main)] opacity-80" : isVeryLow ? "text-[color:var(--danger)]" : isLow ? "text-[color:var(--warning)]" : "text-[color:var(--ink-muted)]")}>{a} {a === 1 ? "spot" : "spots"} remaining</p>
                         </div>
-                        <div className="shrink-0 relative z-10">
+                        <div className="shrink-0 relative z-10" data-shot="seat-count">
                           {isSel ? (
-                            <span className="bg-white/20 text-white pl-2 pr-3 py-1.5 rounded-full text-[12px] font-bold flex items-center gap-1.5 border border-white/20">
+                            <span className="bg-[color-mix(in_srgb,var(--ink-on-main)_20%,transparent)] text-[color:var(--ink-on-main)] pl-2 pr-3 py-1.5 rounded-full text-[12px] font-bold flex items-center gap-1.5 border border-[color-mix(in_srgb,var(--ink-on-main)_20%,transparent)]">
                               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
                               Selected
                             </span>
@@ -718,18 +683,89 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                       </button>
                     );
                   })}
-                  
-                  {selectedSlot && (
-                    <div className="mt-4 animate-in fade-in slide-in-from-top-2">
-                       <button onClick={() => { setHoldExpiresAt(new Date(Date.now() + 15 * 60 * 1000)); setStep("details"); }} className="w-full bg-teal-800 text-white pt-4 pb-[1.125rem] rounded-[1.5rem] text-[15px] font-bold hover:bg-teal-900 shadow-lg shadow-teal-900/20 transition-all flex items-center justify-center gap-2 group">
-                         Continue to Details
-                         <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-                       </button>
+                     {selectedSlot && (
+                    <div className="mt-6 space-y-6 animate-in fade-in slide-in-from-top-2">
+                      {/* Qty Selector */}
+                      <div className="glass p-5">
+                        <label className="block text-[14px] font-extrabold text-[color:var(--ink)] mb-3">Number of Guests</label>
+                        <div className="flex items-center gap-5">
+                          <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-12 h-12 surface-muted rounded-[1.125rem] flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)] hover:text-[color:var(--ink)] transition-colors">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" /></svg>
+                          </button>
+                          <span className="text-3xl font-extrabold w-10 text-center text-[color:var(--ink)]">{qty}</span>
+                          <button onClick={() => setQty(Math.min(avail, qty + 1))} className="w-12 h-12 surface-muted rounded-[1.125rem] flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)] hover:text-[color:var(--ink)] transition-colors">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                          </button>
+                          <span className="text-[13px] font-bold text-[color:var(--ink-muted)] ml-2">max {avail} limit</span>
+                        </div>
+                      </div>
+
+                      {/* Extras & Add-Ons Selector */}
+                      {availableAddOns.length > 0 && (
+                        <div className="glass p-5">
+                          <label className="block text-[14px] font-extrabold text-[color:var(--ink)] tracking-wide mb-3 uppercase">Extras & Add-Ons</label>
+                          <div className="space-y-3">
+                            {availableAddOns.map(ao => {
+                              const isSelected = !!selectedAddOns[ao.id];
+                              const percentage = Math.round((ao.price / baseTotal) * 100);
+                              const contrastLabel = percentage > 0 ? ` (just ${percentage}% of booking)` : "";
+                              return (
+                                <div key={ao.id} data-shot="addon-row" className={"rounded-[1.25rem] p-3.5 transition-all " + (isSelected ? "border-2 border-[color:var(--accent)] bg-[color:var(--accentSoft)]" : "surface-muted !rounded-[1.25rem] hover:bg-[color:var(--hover-overlay)]")}>
+                                  <div className="flex items-start gap-3">
+                                    <input type="checkbox" checked={isSelected} onChange={() => toggleAddOn(ao.id)}
+                                      className="mt-1 w-5 h-5 shrink-0 rounded border-[color:var(--glass-border)] text-[color:var(--accent)] focus:ring-[color:var(--accent)] cursor-pointer" />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-start justify-between">
+                                        <span className="text-[14px] font-bold text-[color:var(--ink)]">{ao.name}</span>
+                                        <span className="text-[13px] font-extrabold text-[color:var(--accent-text)] bg-[color:var(--accentSoft)] px-2 py-0.5 rounded-full shrink-0 ml-2">
+                                          +R{ao.price}{contrastLabel}
+                                        </span>
+                                      </div>
+                                      {ao.description && <p className="text-[12px] text-[color:var(--ink-muted)] mt-1 font-medium leading-relaxed">{ao.description}</p>}
+                                    </div>
+                                  </div>
+                                  {isSelected && (
+                                    <div className="flex items-center gap-2.5 mt-3 ml-8 surface-muted p-1.5 w-max !rounded-full">
+                                      <span className="text-[10px] font-bold uppercase tracking-wider text-[color:var(--ink-muted)] ml-1.5">Qty</span>
+                                      <button onClick={() => setAddOnQty(ao.id, (selectedAddOns[ao.id] || 1) - 1)}
+                                        className="w-7 h-7 rounded-full flex items-center justify-center text-[color:var(--ink-muted)] bg-[color:var(--hover-overlay)] hover:text-[color:var(--ink)] transition-colors">
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" /></svg>
+                                      </button>
+                                      <span className="text-[13px] font-extrabold w-5 text-center text-[color:var(--ink)]">{selectedAddOns[ao.id]}</span>
+                                      <button onClick={() => setAddOnQty(ao.id, (selectedAddOns[ao.id] || 1) + 1)}
+                                        className="w-7 h-7 rounded-full flex items-center justify-center text-[color:var(--ink-muted)] bg-[color:var(--hover-overlay)] hover:text-[color:var(--ink)] transition-colors">
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Brief Reciprocity/Endowment Pricing Summary */}
+                      <div className="glass p-5">
+                        <div className="space-y-2 text-[14px]">
+                          <div className="flex justify-between items-center"><span className="text-[color:var(--ink-muted)] font-bold">Base Price ({qty} {qty === 1 ? "Guest" : "Guests"})</span><span className="font-extrabold text-[color:var(--ink)]">R{baseTotal}</span></div>
+                          {addOnsTotal > 0 && (
+                            <div className="flex justify-between items-center"><span className="text-[color:var(--ink-muted)] font-bold">Selected Extras</span><span className="font-extrabold text-[color:var(--accent-text)]">+R{addOnsTotal}</span></div>
+                          )}
+                          <div className="border-t border-[color:var(--glass-border)] pt-3 mt-3 flex justify-between items-end">
+                            <span className="text-[13px] font-extrabold uppercase tracking-widest text-[color:var(--ink-muted)]">Subtotal</span>
+                            <span className="text-2xl font-extrabold tracking-tight text-[color:var(--ink)]" data-shot="running-total">R{grandTotal}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button onClick={() => { setStep("details"); }} className="btn btn-primary w-full !py-4 text-[15px] group">
+                        Continue to Details
+                      </button>
                     </div>
                   )}
                   
-                  <p className="text-[12px] font-bold text-slate-400 mt-2 flex items-center justify-center gap-1.5 text-center">
-                    <svg className="w-4 h-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <p className="text-[12px] font-bold text-[color:var(--ink-muted)] mt-2 flex items-center justify-center gap-1.5 text-center">
                     Bookings automatically close 1 hour prior to departure
                   </p>
                 </div>
@@ -743,7 +779,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
       {/* STEP 2: Details */}
       {step === "details" && (
         <div>
-          <button onClick={() => { setHoldExpiresAt(null); setStep("calendar"); }} className="flex items-center gap-1.5 text-[13px] font-bold text-slate-400 mb-6 hover:text-slate-700 transition-colors">
+          <button onClick={() => { setHoldExpiresAt(null); setStep("calendar"); }} className="flex items-center gap-1.5 text-[13px] font-bold text-[color:var(--ink-muted)] mb-6 hover:text-[color:var(--ink)] transition-colors">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
             Back to calendar
           </button>
@@ -756,146 +792,106 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
               if (selectedTour) loadSlots(selectedTour.id);
             }} />
           )}
-          <h2 className="text-3xl font-extrabold text-slate-800 mb-8 tracking-tight pl-2">Complete Booking</h2>
+          <h2 className="text-3xl font-extrabold text-[color:var(--ink)] mb-8 tracking-tight pl-2">Complete Booking</h2>
           <div className="grid md:grid-cols-5 gap-8 lg:gap-12">
             <div className="md:col-span-3 space-y-6">
-              
-              {/* Qty Selector */}
-              <div className="bg-[#FDFDFB] rounded-[1.5rem] p-6 border border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.02)]">
-                <label className="block text-[14px] font-extrabold text-slate-800 mb-4">Number of People</label>
-                <div className="flex items-center gap-5">
-                  <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-[1.125rem] flex items-center justify-center text-slate-600 hover:bg-slate-100 hover:text-slate-800 transition-colors">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" /></svg>
-                  </button>
-                  <span className="text-3xl font-extrabold w-10 text-center text-slate-800">{qty}</span>
-                  <button onClick={() => setQty(Math.min(avail, qty + 1))} className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-[1.125rem] flex items-center justify-center text-slate-600 hover:bg-slate-100 hover:text-slate-800 transition-colors">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
-                  </button>
-                  <span className="text-[13px] font-bold text-slate-400 ml-2">max {avail} limit</span>
-                </div>
-              </div>
 
               {/* Personal Details */}
-              <div className="bg-[#FDFDFB] rounded-[1.5rem] p-6 border border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-5">
-                 <h3 className="text-[14px] font-extrabold text-slate-800 tracking-wide mb-2 uppercase">Your Details</h3>
+              <div className="glass p-6 space-y-5">
+                 <h3 className="text-[14px] font-extrabold text-[color:var(--ink)] tracking-wide mb-2 uppercase">Your Details</h3>
                  <div>
-                   <label htmlFor="book-name" className="block text-[13px] font-bold text-slate-600 mb-2 ml-1">Full Name *</label>
+                   <label htmlFor="book-name" className="field-label ml-1">Full Name *</label>
                    <input id="book-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="John Smith"
-                     className="w-full px-5 py-3.5 bg-slate-50 border-transparent rounded-2xl text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:bg-white transition-all placeholder:text-slate-400" />
+                     className="field" />
                  </div>
                  <div>
-                   <label htmlFor="book-email" className="block text-[13px] font-bold text-slate-600 mb-2 ml-1">Email Address *</label>
-                   <input id="book-email" type="email" value={email} onChange={e => setEmail(e.target.value)} onBlur={saveDraft} placeholder="john@example.com"
-                     className="w-full px-5 py-3.5 bg-slate-50 border-transparent rounded-2xl text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:bg-white transition-all placeholder:text-slate-400" />
+                   <label htmlFor="book-email" className="field-label ml-1">Email Address *</label>
+                   <input id="book-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="john@example.com"
+                     className="field" />
                  </div>
                  <div>
-                   <label htmlFor="book-phone" className="block text-[13px] font-bold text-slate-600 mb-2 ml-1">Phone *</label>
-                   <div className="relative">
-                     <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 font-bold">+27</span>
+                   <label htmlFor="book-phone" className="field-label ml-1">Phone *</label>
+                   <div className="flex gap-2">
+                     <select value={dialCode} onChange={e => setDialCode(e.target.value)} aria-label="Country dial code"
+                       className="field !w-auto shrink-0 cursor-pointer !px-2.5" style={{ minWidth: "96px" }}>
+                       {DIAL_CODES.map((d, i) => <option key={d.country + i} value={d.code}>{d.flag} {d.code}</option>)}
+                     </select>
                      <input id="book-phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="71 234 5678"
-                       className="w-full pl-14 pr-5 py-3.5 bg-slate-50 border-transparent rounded-2xl text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:bg-white transition-all placeholder:text-slate-400" />
+                       className="field min-w-0 flex-1" />
                    </div>
                  </div>
+                 <div className="pt-1">
+                   <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                     <input type="checkbox" checked={isCompany} onChange={e => setIsCompany(e.target.checked)}
+                       className="h-4 w-4 rounded border-[color:var(--glass-border)] text-[color:var(--accent)] focus:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]" />
+                     <span className="text-[13px] font-bold text-[color:var(--ink-muted)]">Booking on behalf of a company? Add invoice details</span>
+                   </label>
+                 </div>
+                 {isCompany && (
+                   <>
+                     <div>
+                       <label htmlFor="book-company" className="field-label ml-1">Company Name</label>
+                       <input id="book-company" type="text" value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Acme (Pty) Ltd"
+                         className="field" />
+                     </div>
+                     <div>
+                       <label htmlFor="book-vat" className="field-label ml-1">VAT Number</label>
+                       <input id="book-vat" type="text" value={vatNumber} onChange={e => setVatNumber(e.target.value)} placeholder="4XXXXXXXXX"
+                         className="field" />
+                     </div>
+                   </>
+                 )}
               </div>
 
-              {availableAddOns.length > 0 && (
-                <div className="bg-[#FDFDFB] rounded-[1.5rem] p-6 border border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.02)]">
-                  <label className="block text-[14px] font-extrabold text-slate-800 tracking-wide mb-4 uppercase">Extras & Add-Ons</label>
-                  <div className="space-y-3">
-                    {availableAddOns.map(ao => {
-                      const isSelected = !!selectedAddOns[ao.id];
-                      return (
-                        <div key={ao.id} className={"rounded-[1.25rem] border p-4 transition-all " + (isSelected ? "border-teal-500 bg-teal-50/30" : "border-slate-100 bg-slate-50/50 hover:bg-slate-50")}>
-                          <div className="flex items-start gap-4">
-                            <input type="checkbox" checked={isSelected} onChange={() => toggleAddOn(ao.id)}
-                              className="mt-1 w-5 h-5 shrink-0 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer" />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start justify-between">
-                                <span className="text-[15px] font-bold text-slate-800">{ao.name}</span>
-                                <span className="text-[14px] font-extrabold text-teal-700 bg-teal-100 px-2.5 py-0.5 rounded-lg shrink-0 ml-2">+R{ao.price}</span>
-                              </div>
-                              {ao.description && <p className="text-[13px] text-slate-500 mt-1 font-medium leading-relaxed">{ao.description}</p>}
-                            </div>
-                          </div>
-                          {isSelected && (
-                            <div className="flex items-center gap-3 mt-4 ml-9 bg-white p-2 w-max rounded-xl border border-slate-100">
-                              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 ml-2">Qty</span>
-                              <button onClick={() => setAddOnQty(ao.id, (selectedAddOns[ao.id] || 1) - 1)}
-                                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 bg-slate-50 hover:bg-slate-100 transition-colors">
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" /></svg>
-                              </button>
-                              <span className="text-[14px] font-extrabold w-6 text-center text-slate-800">{selectedAddOns[ao.id]}</span>
-                              <button onClick={() => setAddOnQty(ao.id, (selectedAddOns[ao.id] || 1) + 1)}
-                                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 bg-slate-50 hover:bg-slate-100 transition-colors">
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
               {/* Discounts Block */}
-              <div className="bg-[#FDFDFB] rounded-[1.5rem] p-6 border border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-6">
+              <div className="glass p-6 space-y-6">
                  <div>
-                   <label htmlFor="book-promo" className="block text-[14px] font-extrabold text-slate-800 tracking-wide mb-3 uppercase">Promo Code</label>
+                   <label htmlFor="book-promo" className="block text-[14px] font-extrabold text-[color:var(--ink)] tracking-wide mb-3 uppercase">Promo Code</label>
                    {!appliedPromo ? (
                      <>
-                       <div className="flex gap-2 relative">
-                         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
-                         </div>
-                         <input id="book-promo" type="text" value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder="e.g. SUMMER20"
-                           className="flex-1 pl-10 pr-4 py-3.5 bg-slate-50 border-transparent rounded-2xl text-[14px] font-bold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white placeholder:normal-case placeholder:font-medium placeholder:text-slate-400"
+                       <div className="flex gap-2">
+                         <input id="book-promo" data-shot="promo-input" type="text" value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder="e.g. SUMMER20"
+                           className="field flex-1 pl-4 font-bold uppercase tracking-wider placeholder:normal-case placeholder:font-medium"
                            onKeyDown={e => e.key === "Enter" && applyPromo()} />
-                         <button onClick={applyPromo} className="bg-slate-800 text-white px-6 py-3.5 rounded-2xl text-[14px] font-extrabold hover:bg-slate-900 transition-colors">Apply</button>
+                         <button onClick={applyPromo} className="btn btn-primary px-6">Apply</button>
                        </div>
-                       {promoError && <p className="text-red-500 text-[12px] font-bold mt-2 ml-1">{promoError}</p>}
+                       {promoError && <p className="text-[color:var(--danger)] text-[12px] font-bold mt-2 ml-1">{promoError}</p>}
                      </>
                    ) : (
-                     <div className="flex items-center justify-between bg-blue-50 border border-blue-200/60 px-5 py-4 rounded-[1.25rem]">
+                     <div className="flex items-center justify-between bg-[color:var(--accentSoft)] border border-[color-mix(in_srgb,var(--accent)_30%,transparent)] px-5 py-4 rounded-full">
                        <div className="flex items-center gap-3">
-                         <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
-                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                         </div>
-                         <span className="text-[14px] text-blue-900 font-extrabold">
-                           {appliedPromo.code} <span className="text-blue-600/70 ml-1 font-bold">({appliedPromo.discount_type === "PERCENT" ? appliedPromo.discount_value + "% off" : "R" + appliedPromo.discount_value + " off"})</span>
+                         <span className="text-[14px] text-[color:var(--accent-text)] font-extrabold">
+                           {appliedPromo.code} <span className="text-[color:var(--accent-text)] opacity-70 ml-1 font-bold">({appliedPromo.discount_type === "PERCENT" ? appliedPromo.discount_value + "% off" : "R" + appliedPromo.discount_value + " off"})</span>
                          </span>
                        </div>
-                       <button onClick={removePromo} className="text-slate-400 bg-white hover:bg-slate-100 hover:text-red-500 w-8 h-8 rounded-full flex items-center justify-center transition-colors">
+                       <button onClick={removePromo} className="text-[color:var(--ink-muted)] bg-[color:var(--glass-tint-card)] hover:bg-[color:var(--hover-overlay)] hover:text-[color:var(--danger)] w-8 h-8 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 rounded-full flex items-center justify-center transition-colors">
                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
                        </button>
                      </div>
                    )}
                  </div>
-                 
-                 <div className="pt-6 border-t border-slate-100">
-                   <label htmlFor="book-voucher" className="block text-[14px] font-extrabold text-slate-800 tracking-wide mb-3 uppercase">Gift Voucher</label>
+
+                 <div className="pt-6 border-t border-[color:var(--glass-border)]">
+                   <label htmlFor="book-voucher" className="block text-[14px] font-extrabold text-[color:var(--ink)] tracking-wide mb-3 uppercase">Gift Voucher</label>
                    <div className="flex gap-2">
                      <input id="book-voucher" type="text" value={voucherCode} onChange={e => setVoucherCode(e.target.value.toUpperCase())} placeholder="XXXXXXXX" maxLength={8}
-                       className="flex-1 px-5 py-3.5 bg-slate-50 border-transparent rounded-2xl text-[15px] font-bold font-mono tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:bg-white placeholder:normal-case placeholder:font-medium placeholder:tracking-normal placeholder:text-slate-400" />
-                     <button onClick={applyVoucher} className="bg-slate-800 text-white px-6 py-3.5 rounded-2xl text-[14px] font-extrabold hover:bg-slate-900 transition-colors">Apply</button>
+                       className="field flex-1 font-bold font-mono tracking-widest uppercase placeholder:normal-case placeholder:font-medium placeholder:tracking-normal" />
+                     <button onClick={applyVoucher} className="btn btn-primary px-6">Apply</button>
                    </div>
-                   {voucherError && <p className="text-red-500 text-[12px] font-bold mt-2 ml-1">{voucherError}</p>}
+                   {voucherError && <p className="text-[color:var(--danger)] text-[12px] font-bold mt-2 ml-1">{voucherError}</p>}
                    {vouchers.map((v, i) => {
                      const b = voucherBreakdown[i];
                      return (
-                       <div key={v.code} className="flex items-center justify-between mt-3 bg-emerald-50 border border-emerald-200/60 px-5 py-4 rounded-[1.25rem]">
+                       <div key={v.code} className="flex items-center justify-between mt-3 bg-[color-mix(in_srgb,var(--success)_10%,transparent)] border border-[color-mix(in_srgb,var(--success)_30%,transparent)] px-5 py-4 rounded-full">
                          <div className="flex items-center gap-3">
-                           <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                           </div>
-                           <span className="text-[14px] text-emerald-900 font-extrabold font-mono tracking-widest">
+                           <span className="text-[14px] text-[color:var(--ink)] font-extrabold font-mono tracking-widest">
                              {v.code}
-                             <span className="font-sans text-emerald-700/80 tracking-normal ml-2">
-                               — R{b?.applied ?? v.value} applied{b && b.leftover > 0 ? ` · R${b.leftover} remaining` : ""}
+                             <span className="font-sans text-[color:var(--success)] tracking-normal ml-2">
+                               : R{b?.applied ?? v.value} applied{b && b.leftover > 0 ? ` · R${b.leftover} remaining` : ""}
                              </span>
                            </span>
                          </div>
-                         <button onClick={() => removeVoucher(i)} className="text-slate-400 bg-white hover:bg-slate-100 hover:text-red-500 w-8 h-8 rounded-full flex items-center justify-center transition-colors">
+                         <button onClick={() => removeVoucher(i)} className="text-[color:var(--ink-muted)] bg-[color:var(--glass-tint-card)] hover:bg-[color:var(--hover-overlay)] hover:text-[color:var(--danger)] w-8 h-8 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 rounded-full flex items-center justify-center transition-colors">
                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
                          </button>
                        </div>
@@ -904,95 +900,90 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                  </div>
               </div>
 
-              <div className="mt-4 p-5 bg-amber-50 border border-amber-200/50 rounded-[1.5rem] flex items-start gap-4">
-                <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                </div>
+              <div className="mt-4 p-5 glass flex items-start gap-4">
                 <div className="flex-1 pt-0.5">
-                  <p className="text-[14px] font-extrabold text-amber-900">Waiver Required</p>
-                  <p className="text-[13px] font-medium text-amber-800/80 mt-1">All participants must complete a digital waiver before arriving. A secure link will be included in your confirmation email.</p>
+                  <p className="text-[14px] font-extrabold text-[color:var(--ink)]">Waiver Required</p>
+                  <p className="text-[13px] font-medium text-[color:var(--ink-muted)] mt-1">All participants must complete a digital waiver before arriving. A secure link will be included in your confirmation email.</p>
                 </div>
               </div>
               
-              <label className="flex items-start gap-4 mt-6 cursor-pointer group bg-[#FDFDFB] rounded-[1.5rem] p-5 border border-slate-100 hover:border-slate-200 transition-colors">
+              <label className="flex items-start gap-4 mt-6 cursor-pointer group glass p-5 transition-colors">
                 <input type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)}
-                  className="mt-0.5 w-5 h-5 shrink-0 rounded text-teal-600 focus:ring-teal-500 cursor-pointer" />
-                <span className="text-[13px] font-bold text-slate-500 leading-relaxed group-hover:text-slate-700 transition-colors">
-                  I accept the <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-teal-600 underline hover:text-teal-700">Terms &amp; Conditions</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-teal-600 underline hover:text-teal-700">Privacy Policy</a>.
+                  className="mt-0.5 w-5 h-5 shrink-0 rounded text-[color:var(--accent)] focus:ring-[color:var(--accent)] cursor-pointer" />
+                <span className="text-[13px] font-bold text-[color:var(--ink-muted)] leading-relaxed group-hover:text-[color:var(--ink)] transition-colors">
+                  I accept the <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[color:var(--accent-text)] underline">Terms &amp; Conditions</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[color:var(--accent-text)] underline">Privacy Policy</a>.
                 </span>
               </label>
 
-              <label className="flex items-start gap-4 mt-3 cursor-pointer group bg-[#FDFDFB] rounded-[1.5rem] p-5 border border-slate-100 hover:border-slate-200 transition-colors">
+              <label className="flex items-start gap-4 mt-3 cursor-pointer group glass p-5 transition-colors">
                 <input type="checkbox" checked={marketingOptIn} onChange={e => setMarketingOptIn(e.target.checked)}
-                  className="mt-0.5 w-5 h-5 shrink-0 rounded text-teal-600 focus:ring-teal-500 cursor-pointer" />
-                <span className="text-[13px] font-bold text-slate-500 leading-relaxed group-hover:text-slate-700 transition-colors">I agree to receive booking updates and occasional promotions by email and SMS. You can opt out at any time.</span>
+                  className="mt-0.5 w-5 h-5 shrink-0 rounded text-[color:var(--accent)] focus:ring-[color:var(--accent)] cursor-pointer" />
+                <span className="text-[13px] font-bold text-[color:var(--ink-muted)] leading-relaxed group-hover:text-[color:var(--ink)] transition-colors">I agree to receive booking updates and occasional promotions by email and SMS. You can opt out at any time.</span>
               </label>
             </div>
             
             {/* Sticky Order Summary */}
             <div className="md:col-span-2">
-              <div className="bg-slate-900 text-white rounded-[2rem] p-7 sticky top-6 shadow-2xl shadow-slate-900/10">
+              <div className="glass-sheet !rounded-[20px] p-7 pb-[calc(1.75rem+env(safe-area-inset-bottom))] sticky top-6">
                 <h3 className="text-[18px] font-extrabold mb-6 tracking-tight">Booking Summary</h3>
                 <div className="space-y-4 text-[14px]">
-                  <div className="flex justify-between items-center"><span className="text-slate-400 font-bold">Tour</span><span className="font-extrabold text-right">{selectedTour?.name}</span></div>
-                  <div className="flex justify-between items-center"><span className="text-slate-400 font-bold">Date</span><span className="font-extrabold text-right">{selectedSlot && fmtDate(selectedSlot.start_time, tz)}</span></div>
-                  <div className="flex justify-between items-center"><span className="text-slate-400 font-bold">Time</span><span className="font-extrabold text-right">{selectedSlot && fmtTime(selectedSlot.start_time, tz)}</span></div>
-                  <div className="flex justify-between items-center"><span className="text-slate-400 font-bold">Guests</span><span className="font-extrabold text-right">{qty}</span></div>
-                  
-                  <div className="border-t border-slate-700/50 pt-4 mt-4 space-y-3">
-                    <div className="flex justify-between items-center"><span className="text-slate-300 font-medium tracking-wide">R{effectiveUnitPrice} × {qty}{isPeakPrice ? <span className="ml-1.5 inline-block rounded-full bg-amber-500/20 text-amber-200 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider">Peak</span> : null}</span><span className="font-extrabold text-[15px]">R{baseTotal}</span></div>
+                  <div className="flex justify-between items-center"><span className="text-[color:var(--ink-muted)] font-bold">Tour</span><span className="font-extrabold text-right">{selectedTour?.name}</span></div>
+                  <div className="flex justify-between items-center"><span className="text-[color:var(--ink-muted)] font-bold">Date</span><span className="font-extrabold text-right">{selectedSlot && fmtDate(selectedSlot.start_time, tz)}</span></div>
+                  <div className="flex justify-between items-center"><span className="text-[color:var(--ink-muted)] font-bold">Time</span><span className="font-extrabold text-right">{selectedSlot && fmtTime(selectedSlot.start_time, tz)}</span></div>
+                  <div className="flex justify-between items-center"><span className="text-[color:var(--ink-muted)] font-bold">Guests</span><span className="font-extrabold text-right">{qty}</span></div>
+
+                  <div className="border-t border-[color:var(--glass-border)] pt-4 mt-4 space-y-3">
+                    <div className="flex justify-between items-center"><span className="text-[color:var(--ink-muted)] font-medium tracking-wide">R{effectiveUnitPrice} × {qty}{isPeakPrice ? <span className="ml-1.5 inline-block rounded-full bg-[color-mix(in_srgb,var(--warning)_20%,transparent)] text-[color:var(--warning)] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider">Peak</span> : null}</span><span className="font-extrabold text-[15px]">R{baseTotal}</span></div>
                     {availableAddOns.filter(ao => selectedAddOns[ao.id]).map(ao => (
-                      <div key={ao.id} className="flex justify-between items-center text-teal-300">
+                      <div key={ao.id} className="flex justify-between items-center text-[color:var(--accent-text)]">
                         <span className="font-medium tracking-wide">{ao.name}{selectedAddOns[ao.id] > 1 ? ` × ${selectedAddOns[ao.id]}` : ""}</span>
                         <span className="font-extrabold text-[15px]">R{ao.price * selectedAddOns[ao.id]}</span>
                       </div>
                     ))}
                     {computedPromoDiscount > 0 && appliedPromo && (
-                      <div className="flex justify-between items-center text-blue-300">
+                      <div className="flex justify-between items-center text-[color:var(--accent-text)]" data-shot="discount-line">
                         <span className="font-medium tracking-wide">Discount ({appliedPromo.code}) {appliedPromo.discount_type === "PERCENT" ? appliedPromo.discount_value + "%" : ""}</span>
                         <span className="font-extrabold text-[15px]">−R{computedPromoDiscount}</span>
                       </div>
                     )}
                     {effectiveVoucherCredit > 0 && (
-                      <div className="flex justify-between items-center text-emerald-300">
+                      <div className="flex justify-between items-center text-[color:var(--success)]">
                         <span className="font-medium tracking-wide">Voucher Credit</span>
                         <span className="font-extrabold text-[15px]">−R{effectiveVoucherCredit}</span>
                       </div>
                     )}
                   </div>
-                  
-                  <div className="border-t border-slate-700/50 pt-5 mt-5">
+
+                  <div className="border-t border-[color:var(--glass-border)] pt-5 mt-5">
                     <div className="flex justify-between items-end">
-                       <span className="text-[14px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">Total</span>
+                       <span className="text-[14px] font-extrabold uppercase tracking-widest text-[color:var(--ink-muted)] mb-1">Total</span>
                        <span className="text-3xl font-extrabold tracking-tight">{finalTotal <= 0 ? "FREE" : "R" + finalTotal}</span>
                     </div>
                   </div>
                 </div>
-                
-                <button onClick={submitBooking} disabled={submitting || !name.trim() || !email.trim() || !phone.trim() || !termsAccepted}
-                  className={"w-full mt-8 py-4 rounded-[1.5rem] text-[15px] font-extrabold transition-all shadow-lg flex items-center justify-center gap-2 " +
-                   (submitting || !name.trim() || !email.trim() || !phone.trim() || !termsAccepted ? "bg-slate-800 text-slate-500 shadow-none" : "bg-teal-500 text-slate-900 hover:bg-teal-400 shadow-teal-500/20")}>
-                  {submitting ? "Processing..." : finalTotal <= 0 ? "Confirm Booking ✓" : "Pay R" + finalTotal + " Securely"}
+
+                <button onClick={submitBooking} data-shot="pay-button" disabled={submitting || !name.trim() || !email.trim() || !phone.trim() || !termsAccepted}
+                  className="btn btn-primary w-full mt-8 !py-4 text-[15px]">
+                  {submitting ? "Processing..." : finalTotal <= 0 ? "Confirm Booking ✓" : "Pay R" + finalTotal + " now →"}
                 </button>
-                <div className="flex items-center justify-center gap-2 mt-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                <div className="surface-muted !rounded-full flex items-center justify-center gap-2 mt-4 px-4 py-2 text-[11px] font-bold text-[color:var(--ink-muted)] uppercase tracking-widest">
                   Yoco Secure Payment
                 </div>
-                <div className="mt-4 space-y-2 text-[12px] text-slate-400">
+                <div className="mt-4 space-y-2 text-[12px] text-[color:var(--ink-muted)]">
                   <div className="flex items-center gap-2">
-                    <svg className="w-3.5 h-3.5 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                    <span>Card details handled directly by Yoco — never touch our servers</span>
+                    <span>Card details handled directly by Yoco and never touch our servers</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <svg className="w-3.5 h-3.5 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    <span>Processed by a PCI DSS compliant provider over encrypted TLS</span>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <span>Flexible cancellation policy</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <svg className="w-3.5 h-3.5 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                     <span>Confirmation email sent within 1 minute</span>
                   </div>
                   {theme.refund_policy_text && (
-                    <details className="mt-2 text-[11px] text-slate-500">
+                    <details className="mt-2 text-[11px] text-[color:var(--ink-muted)]">
                       <summary className="cursor-pointer underline decoration-dotted">Cancellation policy</summary>
                       <p className="mt-1.5 whitespace-pre-wrap leading-relaxed">{theme.refund_policy_text}</p>
                     </details>
@@ -1008,60 +999,46 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
       {step === "payment" && (
         <div className="text-center py-16 max-w-lg mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
           {paymentUrl === "FREE" ? (
-            <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-emerald-900/5 border border-slate-100 flex flex-col items-center">
-              <div className="w-24 h-24 bg-emerald-50 rounded-full flex items-center justify-center mb-6 shadow-inner">
-                <div className="w-16 h-16 bg-emerald-400 rounded-full flex items-center justify-center text-white shadow-md">
-                  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                </div>
-              </div>
-              <h2 className="text-3xl font-extrabold text-slate-800 mb-2 tracking-tight">You&apos;re All Set!</h2>
-              <p className="text-[15px] font-bold text-slate-500 mb-8">Booking confirmed. Your itinerary is on its way.</p>
-              
-              <div className="w-full bg-slate-50/50 rounded-[1.5rem] p-6 text-left mb-8 space-y-3 text-[14px] border border-slate-100">
-                <div className="flex justify-between items-center"><span className="text-slate-400 font-extrabold uppercase tracking-wider text-[11px]">Reference Tag</span><span className="font-mono font-bold text-slate-700 bg-white px-2 py-0.5 rounded shadow-sm border border-slate-100">{bookingRef}</span></div>
-                <div className="flex justify-between items-center"><span className="text-slate-400 font-extrabold uppercase tracking-wider text-[11px]">Tour</span><span className="font-extrabold text-slate-800">{selectedTour?.name}</span></div>
-                <div className="flex justify-between items-center"><span className="text-slate-400 font-extrabold uppercase tracking-wider text-[11px]">Date</span><span className="font-extrabold text-slate-800">{selectedSlot && fmtDate(selectedSlot.start_time, tz)}</span></div>
-                <div className="flex justify-between items-center"><span className="text-slate-400 font-extrabold uppercase tracking-wider text-[11px]">Time / Guests</span><span className="font-extrabold text-slate-800">{selectedSlot && fmtTime(selectedSlot.start_time, tz)} &middot; {qty} Guests</span></div>
+            <div className="glass p-8 flex flex-col items-center">
+              <h2 className="text-3xl font-extrabold text-[color:var(--ink)] mb-2 tracking-tight">You&apos;re All Set!</h2>
+              <p className="text-[15px] font-bold text-[color:var(--ink-muted)] mb-8">Booking confirmed. Your itinerary is on its way.</p>
+
+              <div className="w-full surface-muted p-6 text-left mb-8 space-y-3 text-[14px]">
+                <div className="flex justify-between items-center"><span className="text-[color:var(--ink-muted)] font-extrabold uppercase tracking-wider text-[11px]">Reference Tag</span><span className="font-mono font-bold text-[color:var(--ink)] bg-[color:var(--glass-tint-card)] px-2 py-0.5 rounded shadow-sm border border-[color:var(--glass-border)]">{bookingRef}</span></div>
+                <div className="flex justify-between items-center"><span className="text-[color:var(--ink-muted)] font-extrabold uppercase tracking-wider text-[11px]">Tour</span><span className="font-extrabold text-[color:var(--ink)]">{selectedTour?.name}</span></div>
+                <div className="flex justify-between items-center"><span className="text-[color:var(--ink-muted)] font-extrabold uppercase tracking-wider text-[11px]">Date</span><span className="font-extrabold text-[color:var(--ink)]">{selectedSlot && fmtDate(selectedSlot.start_time, tz)}</span></div>
+                <div className="flex justify-between items-center"><span className="text-[color:var(--ink-muted)] font-extrabold uppercase tracking-wider text-[11px]">Time / Guests</span><span className="font-extrabold text-[color:var(--ink)]">{selectedSlot && fmtTime(selectedSlot.start_time, tz)} &middot; {qty} Guests</span></div>
               </div>
 
               {voucherRemainders.length > 0 && (
-                <div className="w-full bg-emerald-50 border border-emerald-200/50 rounded-[1.5rem] p-6 text-left mb-8 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-4 opacity-10">
-                     <svg className="w-16 h-16 text-emerald-900" fill="currentColor" viewBox="0 0 24 24"><path d="M21.582 5.764a.75.75 0 00-1.164-.264L12 12.181l-8.418-6.68a.75.75 0 00-1.164.264v12.47a.75.75 0 00.75.75h17.664a.75.75 0 00.75-.75V5.764z"/></svg>
-                  </div>
-                  <p className="text-[14px] font-extrabold text-emerald-900 tracking-wide uppercase mb-3 relative z-10">Voucher Credit Return</p>
+                <div className="w-full bg-[color-mix(in_srgb,var(--success)_10%,transparent)] border border-[color-mix(in_srgb,var(--success)_25%,transparent)] rounded-[1.5rem] p-6 text-left mb-8 relative overflow-hidden">
+                  <p className="text-[14px] font-extrabold text-[color:var(--success)] tracking-wide uppercase mb-3 relative z-10">Voucher Credit Return</p>
                   {voucherRemainders.map((vr) => (
                     <div key={vr.code} className="flex flex-col mb-2 last:mb-0 relative z-10">
-                      <span className="font-mono font-bold text-emerald-800/60 mb-0.5">Code: {vr.code}</span>
-                      <span className="text-2xl font-extrabold tracking-tight text-emerald-700">R{vr.remaining} remaining</span>
+                      <span className="font-mono font-bold text-[color:var(--ink-muted)] mb-0.5">Code: {vr.code}</span>
+                      <span className="text-2xl font-extrabold tracking-tight text-[color:var(--success)]">R{vr.remaining} remaining</span>
                     </div>
                   ))}
-                  <p className="text-[12px] font-bold text-emerald-700/80 mt-4 leading-snug relative z-10">Use your remaining balance on your next adventure. Details sent to your email.</p>
+                  <p className="text-[12px] font-bold text-[color:var(--ink-muted)] mt-4 leading-snug relative z-10">Use your remaining balance on your next adventure. Details sent to your email.</p>
                 </div>
               )}
 
               {waiverUrl && (
-                <div className="w-full bg-amber-50 border border-amber-200/50 rounded-[1.5rem] p-6 text-left mb-8 flex flex-col items-start">
-                  <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 mb-3 shadow-sm border border-amber-200">
-                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                  </div>
-                  <p className="text-[15px] font-extrabold text-amber-900 mb-1">Sign Waiver Document</p>
-                  <p className="text-[13px] font-bold text-amber-800/70 mb-5 leading-relaxed">It is mandatory for all group members to sign the safety waiver. Complete it now to save time.</p>
-                  <a href={waiverUrl} className="w-full text-center bg-amber-500 text-amber-950 py-3.5 rounded-xl text-[14px] font-extrabold hover:bg-amber-400 transition-colors shadow-sm">Review & Sign Documents</a>
+                <div className="w-full bg-[color-mix(in_srgb,var(--warning)_10%,transparent)] border border-[color-mix(in_srgb,var(--warning)_25%,transparent)] rounded-[1.5rem] p-6 text-left mb-8 flex flex-col items-start">
+                  <p className="text-[15px] font-extrabold text-[color:var(--ink)] mb-1">Sign Waiver Document</p>
+                  <p className="text-[13px] font-bold text-[color:var(--ink-muted)] mb-5 leading-relaxed">It is mandatory for all group members to sign the safety waiver. Complete it now to save time.</p>
+                  <a href={waiverUrl} className="btn btn-primary w-full !py-3.5">Review & Sign Documents</a>
                 </div>
               )}
 
               <div className="w-full flex flex-col gap-3">
-                <a href="/my-bookings" target={embed ? "_blank" : undefined} className="w-full block text-center bg-teal-800 text-white py-4 rounded-[1.25rem] text-[15px] font-extrabold hover:bg-teal-900 shadow-md transition-colors">Manage this booking</a>
-                {!embed && <a href="/" className="w-full block text-center bg-[#FDFDFB] text-slate-700 border border-slate-200 hover:bg-slate-50 py-4 rounded-[1.25rem] text-[15px] font-extrabold transition-colors">Browse other tours</a>}
+                <a href="/my-bookings" target={embed ? "_blank" : undefined} className="btn btn-primary w-full !py-4 text-[15px]">Manage this booking</a>
+                {!embed && <Link href="/" className="btn btn-secondary w-full !py-4 text-[15px]">Browse other tours</Link>}
               </div>
             </div>
           ) : (
-            <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-slate-900/5 border border-slate-100 flex flex-col items-center">
-              <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6 shadow-inner border border-slate-100">
-                 <svg className="w-8 h-8 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
-              </div>
-              <h2 className="text-3xl font-extrabold text-slate-800 mb-2 tracking-tight">Finalizing Checkout</h2>
+            <div className="glass p-8 flex flex-col items-center">
+              <h2 className="text-3xl font-extrabold text-[color:var(--ink)] mb-2 tracking-tight">Finalizing Checkout</h2>
               {holdExpiresAt ? (
                 <div className="mb-4 mt-2">
                   <HoldCountdown expiresAt={holdExpiresAt} onExpire={() => {
@@ -1074,17 +1051,16 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                   }} />
                 </div>
               ) : (
-                <p className="text-[14px] font-bold text-slate-500 mb-6">Spots are held exclusively for 15 minutes.</p>
+                <p className="text-[14px] font-bold text-[color:var(--ink-muted)] mb-6">Use the payment link below to complete your booking.</p>
               )}
-              
-              <div className="border-t border-b border-slate-100 w-full py-6 mb-8 text-center bg-slate-50/50">
-                 <p className="text-[12px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">Payload Total</p>
-                 <p className="text-5xl font-extrabold tracking-tighter text-slate-800">R{finalTotal}</p>
+
+              <div className="surface-muted w-full py-6 mb-8 text-center">
+                 <p className="text-[12px] font-extrabold uppercase tracking-widest text-[color:var(--ink-muted)] mb-1">Payment Total</p>
+                 <p className="text-5xl font-extrabold tracking-tighter text-[color:var(--ink)]">R{checkoutAmount ?? finalTotal}</p>
               </div>
-              
-              <a href={paymentUrl} onClick={embed ? (e) => { e.preventDefault(); if (window.top) window.top.location.href = paymentUrl; else window.location.href = paymentUrl; } : undefined} className="w-full block text-center bg-teal-500 text-slate-900 hover:bg-teal-400 py-4.5 rounded-[1.5rem] text-[16px] font-extrabold shadow-lg shadow-teal-500/20 transition-all">Proceed to Secure Portal &rarr;</a>
-              <div className="flex items-center justify-center gap-2 mt-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+
+              <a href={paymentUrl} onClick={embed ? (e) => { e.preventDefault(); if (window.top) window.top.location.href = paymentUrl; else window.location.href = paymentUrl; } : undefined} className="btn btn-primary w-full !py-4 text-[16px]">Proceed to Secure Portal &rarr;</a>
+              <div className="surface-muted !rounded-full flex items-center justify-center gap-2 mt-6 px-4 py-2 text-[11px] font-bold text-[color:var(--ink-muted)] uppercase tracking-widest">
                 Regulated via Yoco · Ref: {bookingRef}
               </div>
             </div>
@@ -1094,27 +1070,27 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
       {/* Reviews Feed */}
       {reviews.length > 0 && step === "calendar" && (
         <div className="mt-12 animate-in fade-in duration-500">
-          <h2 className="text-xl font-extrabold text-slate-800 mb-6 text-center tracking-tight">What Others Say</h2>
+          <h2 className="text-xl font-extrabold text-[color:var(--ink)] mb-6 text-center tracking-tight">What Others Say</h2>
           <div className="grid gap-4 md:grid-cols-2 max-w-3xl mx-auto">
             {reviews.map(r => (
-              <div key={r.id} className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+              <div key={r.id} className="glass p-5">
                 <div className="flex items-center gap-3 mb-2">
                   {r.reviewer_avatar_url ? (
                     <img src={r.reviewer_avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
                   ) : (
-                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-xs font-bold">
+                    <div className="w-8 h-8 rounded-full surface-muted flex items-center justify-center text-[color:var(--ink-muted)] text-xs font-bold">
                       {(r.reviewer_name || "?")[0].toUpperCase()}
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <span className="font-semibold text-slate-700 text-sm truncate block">{r.reviewer_name || "Guest"}</span>
-                    <span className="text-amber-400 text-xs">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span>
+                    <span className="font-semibold text-[color:var(--ink)] text-sm truncate block">{r.reviewer_name || "Guest"}</span>
+                    <span className="text-[color:var(--warning)] text-xs">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span>
                   </div>
                   {r.source === "GOOGLE" && (
-                    <span className="text-[10px] font-semibold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full">Google</span>
+                    <span className="text-[10px] font-semibold text-[color:var(--ink-muted)] surface-muted !rounded-full px-2 py-0.5">Google</span>
                   )}
                 </div>
-                {r.comment && <p className="text-[13px] text-slate-600 leading-relaxed line-clamp-3">{r.comment}</p>}
+                {r.comment && <p className="text-[13px] text-[color:var(--ink-muted)] leading-relaxed line-clamp-3">{r.comment}</p>}
               </div>
             ))}
           </div>

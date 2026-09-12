@@ -2,6 +2,7 @@
 import { useEffect, useState, createContext, useContext } from "react";
 import { createBusinessResolverSupabase } from "../lib/supabase";
 import { tenantSubdomainFromHost } from "../lib/tenant-headers";
+import { computeTheme } from "../../lib/theme-engine";
 
 type ThemeData = {
   id: string | null;
@@ -15,6 +16,10 @@ type ThemeData = {
   hero_eyebrow: string | null;
   hero_title: string | null;
   hero_subtitle: string | null;
+  // Operator-uploaded site background (admin → Booking Site Configuration).
+  // GlassBackdrop prefers it over the first tour photo. Anon column grant
+  // confirmed on businesses.hero_image.
+  hero_image: string | null;
   business_name: string | null;
   business_tagline: string | null;
   logo_url: string | null;
@@ -30,18 +35,27 @@ type ThemeData = {
   footer_line_two: string | null;
   subscription_status: string | null;
   refund_policy_text: string | null;
+  public_email: string | null;
+  public_phone: string | null;
+  public_whatsapp: string | null;
+  // Canonical per-operator booking site origin (e.g. https://aonyx.booking.bookingtours.co.za).
+  // The embed widget uses it to deep-link out to the operator's own /book flow
+  // regardless of which origin is serving the iframe.
+  booking_site_url: string | null;
 };
 
 const defaults: ThemeData = {
   id: null, color_main: null, color_secondary: null, color_cta: null,
   color_bg: null, color_nav: null, color_hover: null, chatbot_avatar: null,
-  hero_eyebrow: null, hero_title: null, hero_subtitle: null,
+  hero_eyebrow: null, hero_title: null, hero_subtitle: null, hero_image: null,
   business_name: null, business_tagline: null, logo_url: null,
   timezone: null, what_to_bring: null, what_to_wear: null, directions: null,
   nav_gift_voucher_label: null, nav_my_bookings_label: null,
   card_cta_label: null, chat_widget_label: null,
   footer_line_one: null, footer_line_two: null,
   subscription_status: null, refund_policy_text: null,
+  public_email: null, public_phone: null, public_whatsapp: null,
+  booking_site_url: null,
 };
 
 // AN3 P1: explicit column list mirrors the ThemeData keys above so anon reads
@@ -56,7 +70,7 @@ function toTheme(row: Record<string, unknown> | null): ThemeData {
   const t: ThemeData = { ...defaults };
   for (const key of Object.keys(defaults) as (keyof ThemeData)[]) {
     if (key in row && row[key] !== undefined) {
-      (t as any)[key] = row[key];
+      t[key] = row[key] as string | null;
     }
   }
   return t;
@@ -93,8 +107,17 @@ function lighten(hex: string, pct: number) {
  * 2. ?business_id= query parameter — for previewing / testing
  * 3. Match the current standard subdomain or current origin without enumerating businesses
  */
-async function resolveBusiness(): Promise<ThemeData> {
-  // 1. Environment variable — most reliable, set once per Vercel deployment
+async function resolveBusiness(initialBusinessId?: string | null): Promise<ThemeData> {
+  // 0. Server-resolved tenant (shared-deployment model): the layout resolves the
+  // tenant from the request Host and passes its id in. Most authoritative — one
+  // indexed lookup, no dependency on a per-deploy env var.
+  if (initialBusinessId) {
+    const scoped = createBusinessResolverSupabase({ businessId: initialBusinessId });
+    const { data } = await scoped.from("businesses").select(BUSINESS_THEME_COLS).eq("id", initialBusinessId).maybeSingle();
+    if (data) return toTheme(data as unknown as Record<string, unknown>);
+  }
+
+  // 1. Environment variable — legacy per-Vercel-deployment lock (kept for back-compat)
   const envBusinessId = process.env.NEXT_PUBLIC_BUSINESS_ID || "";
   if (envBusinessId) {
     const scoped = createBusinessResolverSupabase({ businessId: envBusinessId });
@@ -139,16 +162,21 @@ async function resolveBusiness(): Promise<ThemeData> {
   return defaults;
 }
 
-export default function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<ThemeData>(defaults);
+export default function ThemeProvider({ children, initialBusinessId, initialTheme }: { children: React.ReactNode; initialBusinessId?: string | null; initialTheme?: Record<string, unknown> | null }) {
+  // Server-resolved theme row (layout fetches it with the tenant lookup it
+  // already does) — themed first paint, no client theme round-trip blocking
+  // every page's data queries.
+  const [theme, setTheme] = useState<ThemeData>(() => (initialTheme ? toTheme(initialTheme) : defaults));
 
   useEffect(() => {
-    (async () => {
-      const resolved = await resolveBusiness();
-      if (resolved) {
-        setTheme(resolved);
-      }
-    })();
+    if (!initialTheme) {
+      (async () => {
+        const resolved = await resolveBusiness(initialBusinessId);
+        if (resolved) {
+          setTheme(resolved);
+        }
+      })();
+    }
     // Load dotlottie script for animated avatars
     if (!document.getElementById("dotlottie-script")) {
       const script = document.createElement("script");
@@ -186,6 +214,33 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
     if (theme.color_hover) {
       root.style.setProperty("--hoverOverlay", theme.color_hover);
     }
+
+    // Glass token system: every derived token (ink, alphas, tints, scrim) is
+    // computed by the legibility engine — operator colors are untrusted input
+    // and only ever TINT surfaces; text colors are solved for WCAG AA.
+    const glass = computeTheme({
+      main: theme.color_main,
+      secondary: theme.color_secondary,
+      cta: theme.color_cta,
+      bg: theme.color_bg,
+      nav: theme.color_nav,
+      hover: theme.color_hover,
+    });
+    for (const [k, v] of Object.entries(glass.vars)) root.style.setProperty(k, v);
+    root.setAttribute("data-scheme", glass.scheme);
+    // Legacy tokens that carry TEXT must use engine ink, not raw config —
+    // this is what keeps pastel-on-pastel palettes legible in components
+    // that haven't moved to the glass system yet.
+    root.style.setProperty("--text", glass.vars["--ink"]);
+    root.style.setProperty("--textMuted", glass.vars["--ink-muted"]);
+    let meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.name = "theme-color";
+      document.head.appendChild(meta);
+    }
+    meta.content = glass.vars["--theme-color"];
+
     // Update page title with business name
     if (theme.business_name) {
       document.title = theme.business_name + " | Book Your Tour";

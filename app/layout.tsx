@@ -1,14 +1,19 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Inter, Quicksand } from "next/font/google";
 import "./globals.css";
 import ChatWidget from "./components/ChatWidget";
 import CookieBanner from "./components/CookieBanner";
 import ThemeProvider from "./components/ThemeProvider";
+import GlassBackdrop from "./components/GlassBackdrop";
 import Header from "./components/Header";
+import BottomNav from "./components/BottomNav";
 import Footer from "./components/Footer";
-import { createBusinessResolverSupabase } from "./lib/supabase";
+import { getRequestTenant } from "./lib/tenant-server";
 
-const font = Plus_Jakarta_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"] });
+// Glass design language pairing: rounded geometric display + legible humanist
+// body. Self-hosted via next/font — no CDN, no CSP change.
+const font = Inter({ subsets: ["latin"] });
+const display = Quicksand({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-display" });
 
 const DEFAULT_TITLE = "Book Your Tour";
 const DEFAULT_DESCRIPTION = "Book your next adventure tour online.";
@@ -18,28 +23,21 @@ export async function generateMetadata(): Promise<Metadata> {
   let description = DEFAULT_DESCRIPTION;
   let ogImage: string | null = null;
 
-  // Per-deployment model: a business is locked in via NEXT_PUBLIC_BUSINESS_ID.
-  // We resolve it server-side here so crawlers and social scrapers (which don't
-  // run the client-side ThemeProvider) get the tenant's real title + share image.
-  // Deliberately NOT reading the request host — that would opt every route into
-  // dynamic rendering. Shared-subdomain previews still rely on client title.
-  const businessId = process.env.NEXT_PUBLIC_BUSINESS_ID || "";
-  if (businessId) {
-    try {
-      const scoped = createBusinessResolverSupabase({ businessId });
-      const { data } = await scoped
-        .from("businesses")
-        .select("business_name,business_tagline,logo_url")
-        .eq("id", businessId)
-        .maybeSingle();
-      if (data?.business_name) {
-        title = `${data.business_name} | Book Your Tour`;
-        if (data.business_tagline) description = data.business_tagline;
-        if (data.logo_url) ogImage = data.logo_url;
-      }
-    } catch {
-      // Metadata must never block render — fall back to generic defaults.
+  // Shared-deployment model: the tenant is resolved server-side from the request
+  // Host (subdomain / custom domain), so a single deployment serves every tenant
+  // and crawlers/social scrapers get each tenant's real title + share image
+  // without the client-side ThemeProvider. Reading the host makes these routes
+  // dynamic — which is exactly what per-host multi-tenancy requires. Falls back
+  // to NEXT_PUBLIC_BUSINESS_ID for any legacy per-tenant deployment.
+  try {
+    const tenant = await getRequestTenant();
+    if (tenant?.business_name) {
+      title = `${tenant.business_name} | Book Your Tour`;
+      if (tenant.business_tagline) description = tenant.business_tagline;
+      if (tenant.logo_url) ogImage = tenant.logo_url;
     }
+  } catch {
+    // Metadata must never block render — fall back to generic defaults.
   }
 
   return {
@@ -60,20 +58,31 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Resolve the tenant server-side (cached: shares generateMetadata's query) and
+  // hand its id to the client so ThemeProvider theming works from a shared
+  // deployment without a baked NEXT_PUBLIC_BUSINESS_ID.
+  const tenant = await getRequestTenant();
+  // Bare booking domain (no tenant) renders the central operator directory,
+  // which brings its own nav and footer. The tenant chrome would otherwise
+  // stack a second sticky header on top of it and link to storefront routes
+  // that cannot work without a business_id.
+  const chrome = Boolean(tenant);
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#000000" />
+        <meta name="theme-color" content="#0F2B1F" />
       </head>
-      <body className={font.className} suppressHydrationWarning>
-        <ThemeProvider>
-          <Header />
+      <body className={`${font.className} ${display.variable}`} suppressHydrationWarning>
+        <ThemeProvider initialBusinessId={tenant?.id ?? null} initialTheme={tenant}>
+          {chrome && <GlassBackdrop />}
+          {chrome && <Header />}
           <main className="min-h-[calc(100dvh-12rem)]">{children}</main>
-          <Footer />
+          {chrome && <Footer />}
+          {chrome && <BottomNav />}
           <CookieBanner />
-          <ChatWidget />
+          {chrome && <ChatWidget />}
         </ThemeProvider>
         <script
           dangerouslySetInnerHTML={{

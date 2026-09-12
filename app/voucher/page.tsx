@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { createTenantSupabase, createVoucherSupabase } from "../lib/supabase";
 import { useTheme } from "../components/ThemeProvider";
 import Button from "../components/ui/Button";
@@ -9,26 +9,32 @@ import VoucherSkeleton from "../components/skeletons/VoucherSkeleton";
 import Toast from "../components/ui/Toast";
 import { useToast } from "../hooks/useToast";
 
+
 export default function VoucherPage() {
   const theme = useTheme();
   const tenantSupabase = useMemo(() => createTenantSupabase(theme.id), [theme.id]);
   const [amount, setAmount] = useState("");
   const [recipientName, setRecipientName] = useState("");
+  const [recipientEmail, setRecipientEmail] = useState("");
   const [giftMessage, setGiftMessage] = useState("");
   const [buyerName, setBuyerName] = useState("");
   const [buyerEmail, setBuyerEmail] = useState("");
   const [step, setStep] = useState<"amount" | "details" | "pay">("amount");
   const [submitting, setSubmitting] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !theme.id);
   const { toast, showToast, dismissToast } = useToast();
 
   const presets = [250, 500, 750, 1000, 1500, 2000];
   const parsedAmount = Number(amount) || 0;
 
-  useEffect(() => {
+  // Stop waiting once ThemeProvider resolves the tenant — a pure derivation
+  // from theme.id, tracked during render instead of an effect.
+  const [prevThemeId, setPrevThemeId] = useState(theme.id);
+  if (theme.id !== prevThemeId) {
+    setPrevThemeId(theme.id);
     if (theme.id) setLoading(false);
-  }, [theme.id]);
+  }
 
   async function submitVoucher() {
     if (!parsedAmount || parsedAmount < 50 || !buyerName.trim() || !buyerEmail.trim() || !recipientName.trim()) return;
@@ -40,7 +46,8 @@ export default function VoucherPage() {
       business_id: theme.id, code: vcode, status: "PENDING", type: "MONETARY",
       value: parsedAmount, purchase_amount: parsedAmount,
       current_balance: parsedAmount,
-      recipient_name: recipientName, gift_message: giftMessage || null,
+      recipient_name: recipientName, recipient_email: recipientEmail.trim().toLowerCase() || null,
+      gift_message: giftMessage || null,
       buyer_name: buyerName, buyer_email: buyerEmail.toLowerCase(),
       expires_at: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000).toISOString(),
     }).select().single();
@@ -57,8 +64,11 @@ export default function VoucherPage() {
 
   return (
     <div className="app-container page-wrap max-w-lg">
+      {/* One glass sheet wraps the whole voucher flow — copy and labels never
+          sit on raw backdrop imagery (§5 rule 4). */}
+      <div className="glass-sheet px-5 py-7 sm:px-8 sm:py-9">
       <div className="mb-8 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[color:var(--accentSoft)]"><span className="text-3xl">🎁</span></div>
+
         <h2 className="headline-lg">Give the Gift of Adventure</h2>
         <p className="mt-2">Purchase a gift voucher valid for any {theme.business_name || ""} adventure. Valid for 3 years.</p>
       </div>
@@ -83,7 +93,7 @@ export default function VoucherPage() {
             {amount && parsedAmount < 50 && <p className="text-xs text-red-500 mt-1">Minimum voucher amount is R50</p>}
           </div>
           <Button onClick={() => setStep("details")} disabled={!parsedAmount || parsedAmount < 50} fullWidth className="py-3.5">
-            Continue — R{parsedAmount || 0}
+            Continue: R{parsedAmount || 0}
           </Button>
         </div>
       )}
@@ -98,6 +108,11 @@ export default function VoucherPage() {
           <div>
             <label htmlFor="voucher-recipient" className="field-label">Recipient Name *</label>
             <Input id="voucher-recipient" type="text" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} placeholder="Recipient's name" />
+          </div>
+          <div>
+            <label htmlFor="voucher-recipient-email" className="field-label">Recipient&apos;s Email (optional)</label>
+            <Input id="voucher-recipient-email" type="email" value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} placeholder="Send the gift straight to them" />
+            <p className="mt-1 text-xs" style={{ color: "var(--textMuted)" }}>Leave blank to receive the voucher yourself and share it with {recipientName || "them"}.</p>
           </div>
           <div>
             <label htmlFor="voucher-message" className="field-label">Personal Message (optional)</label>
@@ -116,21 +131,28 @@ export default function VoucherPage() {
             <span className="text-2xl font-bold text-[color:var(--text)]">R{parsedAmount}</span>
           </Card>
           <Button onClick={submitVoucher} disabled={submitting || !recipientName.trim() || !buyerName.trim() || !buyerEmail.trim()} fullWidth className="py-3.5">
-            {submitting ? "Processing..." : "Purchase Voucher — R" + parsedAmount}
+            {submitting ? "Processing..." : "Purchase Voucher: R" + parsedAmount}
           </Button>
         </div>
       )}
 
       {step === "pay" && (
         <div className="panel-enter py-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[color:var(--accentSoft)]"><span className="text-3xl">💳</span></div>
+
           <h3 className="headline-md mb-2">Complete Secure Payment</h3>
-          <p className="mb-6">After payment, the voucher will be emailed to {buyerEmail}.</p>
+          <p className="mb-6">
+            {recipientEmail.trim()
+              ? `After payment, the gift will be emailed straight to ${recipientName || "the recipient"} at ${recipientEmail}, with a copy of your receipt sent to ${buyerEmail}.`
+              : `After payment, the voucher will be emailed to ${buyerEmail} so you can share it with ${recipientName || "the recipient"}.`}
+          </p>
           <a href={paymentUrl} className="btn btn-primary px-10 py-4">
             Pay R{parsedAmount}
           </a>
+          <p className="mt-4 text-xs text-[color:var(--textMuted)]">Once paid, the voucher email arrives within a minute. If you don&rsquo;t see it, check your <strong>spam or promotions</strong> folder.</p>
+          <p className="mt-2 text-xs text-[color:var(--textMuted)]">Secure payment via Yoco, a PCI DSS compliant provider: card details never touch our servers</p>
         </div>
       )}
+      </div>
       {toast && <Toast message={toast.message} type={toast.type} onDismiss={dismissToast} />}
     </div>
   );

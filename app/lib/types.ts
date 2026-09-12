@@ -11,6 +11,7 @@ export interface Tour {
   active?: boolean;
   meeting_point?: string | null;
   what_to_bring?: string | null;
+  description?: string | null;
 }
 
 export interface Slot {
@@ -22,6 +23,7 @@ export interface Slot {
   booked: number;
   held: number;
   price_per_person_override?: number | null;
+  last_minute_at?: string | null;
   tours?: Pick<Tour, "name" | "base_price_per_person">;
 }
 
@@ -37,6 +39,8 @@ export interface Booking {
   unit_price: number;
   total_amount: number;
   original_total?: number;
+  voucher_amount_paid?: number;
+  last_amendment_id?: string;
   status: string;
   source?: string;
   refund_status?: string | null;
@@ -127,6 +131,19 @@ export interface AddOn {
   image_url: string | null;
 }
 
+export interface Customer {
+  id: string;
+  email: string | null;
+  name: string | null;
+  phone: string | null;
+  date_of_birth: string | null;
+  marketing_consent: boolean | null;
+  total_bookings: number | null;
+  total_spent: number | null;
+  first_booking_at: string | null;
+  created_at: string | null;
+}
+
 export interface AppliedPromo {
   id: string;
   code: string;
@@ -137,7 +154,10 @@ export interface AppliedPromo {
 export interface BookingLog {
   id: string;
   booking_id: string;
-  action: string;
+  // logs stores these as `event` and `payload`. The interface said
+  // action/details, so the select asked for columns that do not exist and
+  // PostgREST failed the whole query — every booking's activity list was empty.
+  event: string;
   created_at: string;
-  details?: string | null;
+  payload?: unknown;
 }
