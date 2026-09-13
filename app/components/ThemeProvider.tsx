@@ -3,6 +3,7 @@ import { useEffect, useState, createContext, useContext } from "react";
 import { createBusinessResolverSupabase } from "../lib/supabase";
 import { tenantSubdomainFromHost } from "../lib/tenant-headers";
 import { computeTheme } from "../../lib/theme-engine";
+import * as Sentry from "@sentry/nextjs";
 
 type ThemeData = {
   id: string | null;
@@ -167,6 +168,10 @@ export default function ThemeProvider({ children, initialBusinessId, initialThem
   // already does) — themed first paint, no client theme round-trip blocking
   // every page's data queries.
   const [theme, setTheme] = useState<ThemeData>(() => (initialTheme ? toTheme(initialTheme) : defaults));
+  useEffect(() => {
+    Sentry.setTag("business_id", theme.id || undefined);
+    return () => Sentry.setTag("business_id", undefined);
+  }, [theme.id]);
 
   useEffect(() => {
     if (!initialTheme) {

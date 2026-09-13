@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
+const releaseName = (process.env.SENTRY_RELEASE || process.env.VERCEL_GIT_COMMIT_SHA || process.env.VERCEL_URL)?.trim();
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_SENTRY_RELEASE: releaseName || "",
+    NEXT_PUBLIC_SENTRY_ENVIRONMENT: process.env.VERCEL_ENV || process.env.NODE_ENV || "development",
+  },
   turbopack: {
     root: __dirname,
   },
@@ -85,8 +90,10 @@ const nextConfig: NextConfig = {
 };
 
 export default withSentryConfig(nextConfig, {
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
+  org: process.env.SENTRY_ORG?.trim(),
+  project: process.env.SENTRY_PROJECT?.trim(),
+  authToken: process.env.SENTRY_AUTH_TOKEN?.trim(),
+  release: releaseName ? { name: releaseName } : undefined,
   silent: !process.env.CI,
   widenClientFileUpload: true,
   sourcemaps: {
