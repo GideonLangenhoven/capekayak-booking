@@ -16,7 +16,7 @@ export default function SectionHeader({
   return (
     <div className={`page-header ${centered ? "text-center mx-auto" : ""} ${className}`.trim()}>
       {eyebrow && <p className="eyebrow">{eyebrow}</p>}
-      <h2 className="headline-display">{title}</h2>
+      {title && <h2 className="headline-display">{title}</h2>}
       {subtitle && <p className="subhead">{subtitle}</p>}
     </div>
   );

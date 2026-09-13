@@ -1,14 +1,18 @@
 import { fmtTime } from "../lib/format";
 import type { Booking } from "../lib/types";
 
-export const STATUS_STYLE: Record<string, string> = {
-  PAID: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  CONFIRMED: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  HELD: "bg-amber-50 text-amber-700 border border-amber-200",
-  PENDING: "bg-amber-50 text-amber-700 border border-amber-200",
-  CANCELLED: "bg-red-50 text-red-700 border border-red-200",
-  COMPLETED: "bg-blue-50 text-blue-700 border border-blue-200",
-  EXPIRED: "bg-gray-50 text-gray-500 border border-gray-200",
+/* Status → semantic tone. Rendered with tenant-themed CSS vars (never
+   hardcoded palette colors) so white-label themes carry through. */
+export type StatusTone = "success" | "warning" | "danger" | "info" | "muted";
+
+export const STATUS_TONE: Record<string, StatusTone> = {
+  PAID: "success",
+  CONFIRMED: "success",
+  HELD: "warning",
+  PENDING: "warning",
+  CANCELLED: "danger",
+  COMPLETED: "info",
+  EXPIRED: "muted",
 };
 
 export const STATUS_LABEL: Record<string, string> = {

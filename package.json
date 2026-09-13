@@ -9,7 +9,8 @@
     "dev": "NEXT_TELEMETRY_DISABLED=1 next dev --webpack -H 127.0.0.1 -p 3001",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "check:ways": "node --experimental-strip-types scripts/check-ways.mts"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.55.0",

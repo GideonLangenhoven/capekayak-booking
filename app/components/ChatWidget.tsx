@@ -3,25 +3,113 @@ import { useState, useRef, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import ChatCalendar from "./ChatCalendar";
 import { useTheme } from "./ThemeProvider";
+
 import type { ChatMessage, ChatButton } from "../lib/types";
 
 export default function ChatWidget() {
-  const { chatbot_avatar, business_name } = useTheme();
+  const { id } = useTheme();
+  return <TenantChatWidget key={id || "unresolved"} />;
+}
+
+type WidgetMessage = ChatMessage & { manageBookingsUrl?: string };
+
+function TenantChatWidget() {
+  const { id: businessId, chatbot_avatar, business_name } = useTheme();
   const [open, setOpen] = useState(false);
-  const [msgs, setMsgs] = useState<ChatMessage[]>([]);
+  const [msgs, setMsgs] = useState<WidgetMessage[]>([]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [st, setSt] = useState<Record<string, unknown>>({ step: "IDLE" });
+  const [chatSession, setChatSession] = useState("");
+  const [sessionError, setSessionError] = useState(false);
+  const [sessionAttempt, setSessionAttempt] = useState(0);
   const isHuman = st.status === "HUMAN";
   const adminName = String(st.admin_name || "");
   const [showJoined, setShowJoined] = useState(false);
+  const [showRating, setShowRating] = useState(false);
+  const [rated, setRated] = useState(false);
   const prevHumanRef = useRef(false);
   const endRef = useRef<HTMLDivElement>(null);
   const inRef = useRef<HTMLInputElement>(null);
   const greeted = useRef(false);
+  const lastPollRef = useRef<string>("");
   useEffect(() => {
     if (typeof document !== "undefined") document.body.setAttribute("data-chat-hydrated", "1");
   }, [chatbot_avatar]);
+  // The server issues the visitor identity. Keep its capability separate from
+  // booking-flow state (whose historical `vid` field means voucher ID).
+  useEffect(() => {
+    if (!open || !businessId) return;
+    let active = true;
+    setSessionError(false);
+    (async () => {
+      try {
+        const storageKey = "bt_chat_session:" + businessId;
+        let saved = "";
+        try { saved = localStorage.getItem(storageKey) || ""; } catch { /* memory-only chat */ }
+        const { data, error } = await supabase.functions.invoke("web-chat", {
+          body: { action: "session", business_id: businessId, chat_session: saved },
+        });
+        if (error || !data?.chat_session) throw new Error("Chat connection failed");
+        if (!active) return;
+        try { localStorage.setItem(storageKey, data.chat_session); } catch { /* memory-only chat */ }
+        setChatSession(data.chat_session);
+      } catch { if (active) setSessionError(true); }
+    })();
+    return () => { active = false; };
+  }, [open, businessId, sessionAttempt]);
+
+  async function invokeChat(body: Record<string, unknown>) {
+    let customerSession = "";
+    try { customerSession = localStorage.getItem("mb_customer_session") || ""; } catch { /* signed-out visitor */ }
+    const response = await supabase.functions.invoke("web-chat", {
+      body: { ...body, business_id: businessId, chat_session: chatSession, customer_session: customerSession },
+    });
+    if (response.error) throw response.error;
+    return response;
+  }
+  // Resume a live-agent thread after reload/page navigation: HUMAN status only
+  // lives in React state, so a remount would silently stop polling and the
+  // visitor would never see agent replies sent while they were away. One-shot
+  // check that restores the status and pulls the last 24h of agent replies.
+  useEffect(() => {
+    if (!open || !chatSession || isHuman || lastPollRef.current) return;
+    (async () => {
+      try {
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const res = await invokeChat({ action: "poll", state: st, since });
+        const d = res.data || {};
+        if (d.status === "HUMAN") {
+          const missed = Array.isArray(d.messages) ? d.messages : [];
+          if (missed.length) setMsgs(prev => [...prev, ...missed.map((m: { text: string }) => ({ role: "bot" as const, text: m.text }))]);
+          lastPollRef.current = missed.length ? (missed[missed.length - 1].at || new Date().toISOString()) : new Date().toISOString();
+          setSt(s => ({ ...s, status: "HUMAN" }));
+        }
+      } catch { /* stay in bot mode; next send() restores HUMAN via d.human */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, chatSession]);
+  // Live agent handoff: while a human is connected, poll for their replies and
+  // drop them into the conversation. Stops when the agent hands back to the bot.
+  useEffect(() => {
+    if (!open || !isHuman || !chatSession) return;
+    if (!lastPollRef.current) lastPollRef.current = new Date().toISOString();
+    const id = setInterval(async () => {
+      try {
+        const res = await invokeChat({ action: "poll", state: st, since: lastPollRef.current });
+        const d = res.data || {};
+        if (Array.isArray(d.messages) && d.messages.length) {
+          setMsgs(prev => [...prev, ...d.messages.map((m: { text: string }) => ({ role: "bot" as const, text: m.text }))]);
+          lastPollRef.current = d.messages[d.messages.length - 1].at || lastPollRef.current;
+        }
+        if (d.status && d.status !== "HUMAN") setSt(s => ({ ...s, status: d.status }));
+        // Agent ended the chat — show the star picker.
+        if (d.rate && !rated) setShowRating(true);
+      } catch { /* transient — next tick retries */ }
+    }, 4000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, isHuman, chatSession]);
 
   function handleOpenChat() {
     setOpen(true);
@@ -37,13 +125,13 @@ export default function ChatWidget() {
   useEffect(() => {
     if (open && !greeted.current) {
       greeted.current = true;
-      setTimeout(() => { setTyping(true); setTimeout(() => { setTyping(false); setMsgs([{ role: "bot", text: "Hi there! 🛶 How can I help?" }]); }, 900 + Math.random() * 500); }, 400);
+      setTimeout(() => { setTyping(true); setTimeout(() => { setTyping(false); setMsgs([{ role: "bot", text: "Hi there! How can I help?" }]); }, 900 + Math.random() * 500); }, 400);
     }
     if (open) setTimeout(() => inRef.current?.focus(), 100);
   }, [open]);
   async function send(ovr?: string) {
     const msg = ovr || input.trim();
-    if (!msg || typing) return;
+    if (!msg || typing || !chatSession) return;
     const isBtn = msg.startsWith("btn:");
     let displayMsg = msg;
     if (isBtn) {
@@ -54,67 +142,90 @@ export default function ChatWidget() {
         if (cd) displayMsg = cd.label;
       }
     }
-    const newM: ChatMessage[] = [...msgs, { role: "user", text: displayMsg }];
+    const newM: WidgetMessage[] = [...msgs, { role: "user", text: displayMsg }];
     setMsgs(newM);
     setInput("");
     setTyping(true);
     try {
       const hist = newM.slice(-12).map(m => ({ role: m.role, text: m.text }));
-      const res = await supabase.functions.invoke("web-chat", { body: { messages: hist.slice(0, -1), message: msg, state: st } });
+      const res = await invokeChat({ messages: hist.slice(0, -1), message: msg, state: st });
       const d = res.data || {};
       setSt(d.state || st);
+      // A human agent is handling this — their reply arrives via the poll, so
+      // don't render a bot bubble (d.reply is empty in this case).
+      if (d.human) { setTyping(false); return; }
       const delay = 800 + Math.min((d.reply || "").length * 6, 1500) + Math.random() * 500;
-      setTimeout(() => { setTyping(false); setMsgs(prev => [...prev, { role: "bot", text: d.reply || "Try again?", buttons: d.buttons || null, paymentUrl: d.paymentUrl || null, calendar: d.calendar || null }]); }, delay);
+      setTimeout(() => { setTyping(false); setMsgs(prev => [...prev, { role: "bot", text: d.reply || "Try again?", buttons: d.buttons || null, paymentUrl: d.paymentUrl || null, calendar: d.calendar || null, manageBookingsUrl: d.manageBookingsUrl }]); if (d.rate && !rated) setShowRating(true); }, delay);
     } catch {
       setTimeout(() => { setTyping(false); setMsgs(prev => [...prev, { role: "bot", text: "Sorry, try that again?" }]); }, 800);
     }
   }
+  async function submitRating(n: number) {
+    setShowRating(false);
+    setRated(true);
+    setMsgs(prev => [...prev, { role: "bot", text: "Thanks for your feedback! 🙏" }]);
+    try { await invokeChat({ action: "rate", rating: n, state: st }); } catch { /* rating is best-effort */ }
+  }
   return (
     <>
       {!open && (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-center">
-          <style>{`
-            @keyframes blurFadeInOut {
-              0%   { opacity:0; text-shadow:0 0 40px #fff; transform:translateX(-50%) scale(1.3); }
-              20%, 75% { opacity:1; text-shadow:0 0 1px #fff;  transform:translateX(-50%) scale(1);   }
-              100% { opacity:0; text-shadow:0 0 50px #fff; transform:translateX(-50%) scale(0);   }
-            }
-          `}</style>
-          <span
-            className="absolute -top-9 left-1/2 whitespace-nowrap text-[21px] font-semibold text-black hidden sm:inline"
-            style={{ animation: "blurFadeInOut 3s ease-in-out infinite" }}
-          >Book here</span>
+        <div className="fixed bottom-6 right-6 chat-launcher-lift z-50 flex flex-col items-center">
           {chatbot_avatar ? (
-            <button aria-label="Open chat" onClick={handleOpenChat} className="w-[52px] h-[52px] md:w-20 md:h-20 rounded-full shadow-lg hover:scale-105 transition-all overflow-hidden bg-white border-2 border-gray-200">
+            <button aria-label="Open chat" onClick={handleOpenChat} className="glass-chip h-[52px] w-[52px] overflow-hidden !rounded-full p-0 transition-transform hover:scale-105 md:h-20 md:w-20">
               {/* @ts-expect-error dotlottie-wc is a web component */}
               <dotlottie-wc src={chatbot_avatar} style={{ width: "100%", height: "100%" }} autoplay loop></dotlottie-wc>
             </button>
           ) : (
-            <button aria-label="Open chat" onClick={handleOpenChat} className="w-[52px] h-[52px] md:w-20 md:h-20 bg-gray-900 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-800 hover:scale-105 transition-all"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 md:w-6 md:h-6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg></button>
+            <button aria-label="Open chat" onClick={handleOpenChat} className="glass-chip flex h-[52px] w-[52px] items-center justify-center !rounded-full transition-transform hover:scale-105 md:h-20 md:w-20" style={{ background: "var(--accent)", color: "var(--ink-on-main)" }}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 md:h-6 md:w-6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg></button>
           )}
         </div>
       )}
       {open && (
-        <div className="fixed bottom-6 right-6 w-[22rem] h-[32rem] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden z-50" style={{ animation: "su .2s ease-out" }}>
+        <div className="glass-sheet fixed bottom-6 right-6 chat-launcher-lift z-50 flex h-[32rem] w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden" style={{ animation: "su .2s ease-out" }}>
           <style>{`@keyframes su{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}@keyframes bl{0%,80%,100%{opacity:0}40%{opacity:1}}`}</style>
-          <div className="bg-gray-900 text-white p-4 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-3"><div className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center text-lg">🛶</div><div><p className="text-sm font-semibold">{business_name || "Kayaks"}</p>{isHuman ? (<div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400"></span><p className="text-xs text-gray-400">Live agent{adminName ? " \u00b7 " + adminName : ""}</p></div>) : (<div className="flex items-center gap-1.5"><span className="text-[10px]" aria-hidden>&#x26A1;</span><p className="text-xs text-gray-400">AI assistant</p></div>)}</div></div>
+          <div className="border-b p-4 flex items-center justify-between shrink-0" style={{ borderColor: "var(--glass-border)", color: "var(--ink-sheet)" }}>
+            <div className="flex items-center gap-3">
+
+              <div>
+                <p className="text-sm font-semibold" style={{ color: "var(--ink-sheet)" }}>{business_name || "Chat"}</p>
+                {isHuman ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <p className="text-xs" style={{ color: "var(--ink-muted)" }}>Live agent{adminName ? " \u00b7 " + adminName : ""}</p>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs" style={{ color: "var(--ink-muted)" }}>AI assistant</p>
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="flex items-center gap-1">
-              <button aria-label="New chat" onClick={() => { setMsgs([]); setSt({ step: "IDLE" }); greeted.current = false; setTimeout(() => { greeted.current = true; setTyping(true); setTimeout(() => { setTyping(false); setMsgs([{ role: "bot", text: "Hi there! 🛶 How can I help?" }]); }, 900 + Math.random() * 500); }, 400); }} className="text-gray-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10" title="New chat"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
-              <button aria-label="Close chat" onClick={() => setOpen(false)} className="text-gray-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10" title="Close">✕</button>
+              <button aria-label="New chat" onClick={() => { setMsgs([]); setSt({ step: "IDLE" }); setShowRating(false); setRated(false); greeted.current = false; setTimeout(() => { greeted.current = true; setTyping(true); setTimeout(() => { setTyping(false); setMsgs([{ role: "bot", text: "Hi there! How can I help?" }]); }, 900 + Math.random() * 500); }, 400); }} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[color:var(--hover-overlay)]" style={{ color: "var(--ink-muted)" }} title="New chat"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+              <button aria-label="Close chat" onClick={() => setOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[color:var(--hover-overlay)]" style={{ color: "var(--ink-muted)" }} title="Close">✕</button>
             </div>
           </div>
-          <div className="flex-1 overflow-auto p-4 space-y-3 bg-gray-50">
+          <div className="flex-1 overflow-auto p-4 space-y-3 bg-transparent">
             {msgs.map((m, i) => (
               <div key={i}>
                 <div className={"flex " + (m.role === "user" ? "justify-end" : "justify-start")} style={{ animation: "su .15s ease-out" }}>
-                  {m.role === "bot" && <div className="w-7 h-7 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs mr-2 shrink-0 mt-1">🛶</div>}
-                  <div className={"max-w-[80%] px-3.5 py-2.5 text-sm leading-relaxed " + (m.role === "user" ? "bg-gray-900 text-white rounded-2xl rounded-br-md" : "bg-white border border-gray-200 text-gray-800 rounded-2xl rounded-bl-md shadow-sm")}><p className="whitespace-pre-wrap">{m.text}</p></div>
+
+                  <div
+                    // overflow-wrap:anywhere, not break-words: only `anywhere`
+                    // shrinks the flex item's min-content size, so a long
+                    // unbreakable URL (waiver + terms links in the hold message)
+                    // wraps instead of spilling outside the bubble.
+                    className={"max-w-[80%] [overflow-wrap:anywhere] px-3.5 py-2.5 text-sm leading-relaxed " + (m.role === "user" ? "rounded-2xl rounded-br-md shadow-sm" : "border rounded-2xl rounded-bl-md shadow-sm")}
+                    style={m.role === "user" ? { backgroundColor: "var(--accent)", color: "var(--ink-on-main)" } : { backgroundColor: "var(--glass-tint-card)", color: "var(--ink)", borderColor: "var(--glass-border)" }}
+                  >
+                    <p className="whitespace-pre-wrap" style={m.role === "user" ? { color: "var(--ink-on-main)" } : { color: "var(--ink)" }}>{m.text}</p>
+                    {m.manageBookingsUrl && <a href={m.manageBookingsUrl} className="mt-2 inline-block underline">Verify in My Bookings</a>}
+                  </div>
                 </div>
                 {m.paymentUrl && (
                   <div className="ml-9 mt-2">
-                    <a href={m.paymentUrl} target="_blank" rel="noopener noreferrer" className="inline-block bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-emerald-700 no-underline shadow-md">💳 Complete Payment →</a>
-                    <p className="text-xs text-gray-400 mt-1">Spots held for 15 min</p>
+                    <a href={m.paymentUrl} target="_blank" rel="noopener noreferrer" className="inline-block px-5 py-2.5 rounded-xl text-sm font-semibold no-underline shadow-md" style={{ backgroundColor: "var(--cta)", color: "var(--ink-on-cta)" }}>Complete Payment →</a>
+                    <p className="text-xs mt-1" style={{ color: "var(--ink-muted)" }}>Spots held for 15 min</p>
                   </div>
                 )}
                 {m.calendar && m.calendar.length > 0 && (
@@ -123,20 +234,56 @@ export default function ChatWidget() {
                 {m.buttons && m.buttons.length > 0 && (
                   <div className="ml-9 mt-2 flex flex-col gap-1.5">
                     {m.buttons.map((b: ChatButton, j: number) => (
-                      <button key={j} onClick={() => send("btn:" + b.value)} className="text-left text-xs bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-700 hover:bg-gray-100 hover:border-gray-400 transition-colors font-medium shadow-sm">{b.label}</button>
+                      <button key={j} onClick={() => send("btn:" + b.value)}
+                        className="text-left text-xs border rounded-xl px-3 py-2.5 transition-colors font-medium shadow-sm hover:bg-[color:var(--hover-overlay)]"
+                        style={{ backgroundColor: "var(--glass-tint-card)", color: "var(--ink)", borderColor: "var(--glass-border)" }}
+                      >
+                        {b.label}
+                      </button>
                     ))}
                   </div>
                 )}
               </div>
             ))}
-            {showJoined && (<div className="text-center text-xs text-gray-500 my-2 animate-in fade-in duration-300">A team member just joined this chat.</div>)}
-            {typing && <div className="flex justify-start" style={{ animation: "su .15s ease-out" }}><div className="w-7 h-7 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs mr-2 shrink-0">🛶</div><div className="bg-white border border-gray-200 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm"><div className="flex gap-1"><span className="w-2 h-2 rounded-full bg-gray-400" style={{ animation: "bl 1.4s infinite 0s" }} /><span className="w-2 h-2 rounded-full bg-gray-400" style={{ animation: "bl 1.4s infinite .2s" }} /><span className="w-2 h-2 rounded-full bg-gray-400" style={{ animation: "bl 1.4s infinite .4s" }} /></div></div></div>}
+            {showJoined && (<div className="text-center text-xs my-2 animate-in fade-in duration-300" style={{ color: "var(--ink-muted)" }}>A team member just joined this chat.</div>)}
+            {showRating && !rated && (
+              <div className="flex flex-col items-center gap-2 my-3" style={{ animation: "su .2s ease-out" }}>
+                <p className="text-xs" style={{ color: "var(--ink-muted)" }}>How would you rate this chat?</p>
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button key={n} aria-label={`${n} star${n > 1 ? "s" : ""}`} onClick={() => submitRating(n)}
+                      className="text-2xl leading-none transition-transform hover:scale-125" style={{ color: "var(--accent)" }}>★</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {typing && (
+              <div className="flex justify-start" style={{ animation: "su .15s ease-out" }}>
+
+                <div className="border rounded-2xl rounded-bl-md px-4 py-3 shadow-sm" style={{ backgroundColor: "var(--glass-tint-card)", borderColor: "var(--glass-border)" }}>
+                  <div className="flex gap-1">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "var(--ink-muted)", animation: "bl 1.4s infinite 0s" }} />
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "var(--ink-muted)", animation: "bl 1.4s infinite .2s" }} />
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "var(--ink-muted)", animation: "bl 1.4s infinite .4s" }} />
+                  </div>
+                </div>
+              </div>
+            )}
             <div ref={endRef} />
           </div>
-          <div className="p-3 border-t border-gray-200 bg-white shrink-0">
+          <div className="p-3 border-t shrink-0 bg-transparent" style={{ borderColor: "var(--glass-border)" }}>
+            {sessionError && <p role="alert" className="mb-2 text-sm">Chat could not connect. <button type="button" className="underline" onClick={() => setSessionAttempt(value => value + 1)}>Retry</button></p>}
             <div className="flex gap-2">
-              <input ref={inRef} type="text" aria-label="Chat message" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="Type a message..." disabled={typing} className="flex-1 px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:opacity-50" />
-              <button aria-label="Send message" onClick={() => send()} disabled={!input.trim() || typing} className="bg-gray-900 text-white w-10 h-10 rounded-xl flex items-center justify-center hover:bg-gray-800 disabled:opacity-30 shrink-0"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg></button>
+              <input ref={inRef} type="text" aria-label="Chat message" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder={chatSession ? "Type a message..." : "Connecting..."} disabled={typing || !chatSession}
+                className="flex-1 px-3.5 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)] disabled:opacity-50"
+                style={{ backgroundColor: "var(--glass-tint-card)", color: "var(--ink)", borderColor: "var(--glass-border)" }}
+              />
+              <button aria-label="Send message" onClick={() => send()} disabled={!input.trim() || typing || !chatSession}
+                className="w-10 h-10 rounded-xl flex items-center justify-center disabled:opacity-30 shrink-0"
+                style={{ backgroundColor: "var(--cta)", color: "var(--ink-on-cta)" }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
+              </button>
             </div>
           </div>
         </div>

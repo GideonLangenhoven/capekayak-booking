@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   const rl = await enforceRateLimit({ req, endpoint: "review-submit", maxPerMinute: 20 });
   if (rl) return rl;
   const supabase = getServiceClient();
-  let body: any;
+  let body: { token?: unknown; rating?: unknown; comment?: unknown; reviewerName?: unknown };
   try {
     body = await req.json();
   } catch {

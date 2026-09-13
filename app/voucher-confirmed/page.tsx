@@ -3,34 +3,39 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createVoucherSupabase } from "../lib/supabase";
+import { useTheme } from "../components/ThemeProvider";
 import ConfirmationSkeleton from "../components/skeletons/ConfirmationSkeleton";
+
 
 function VoucherConfirmedContent() {
   const params = useSearchParams();
+  const theme = useTheme();
   const code = params.get("code");
   const [voucher, setVoucher] = useState<{
     code: string; value: number; tour_name: string; recipient_name: string;
     gift_message?: string | null; buyer_name: string; buyer_email: string;
     expires_at?: string | null;
   } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => Boolean(code));
 
   useEffect(() => {
-    if (!code) { setLoading(false); return; }
+    if (!code || !theme.id) return;
     (async () => {
-      const voucherSupabase = createVoucherSupabase(code);
+      // RLS requires the tenant header alongside the voucher code — vouchers
+      // are only readable in the context of the operator that issued them.
+      const voucherSupabase = createVoucherSupabase(code, theme.id);
       const { data } = await voucherSupabase.from("vouchers").select("*").eq("code", code).single();
       setVoucher(data);
       setLoading(false);
     })();
-  }, [code]);
+  }, [code, theme.id]);
 
   if (loading) return <ConfirmationSkeleton />;
 
   return (
     <div className="app-container max-w-md page-wrap">
       <div className="mb-8 text-center">
-        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-[color:var(--accentSoft)]"><span className="text-4xl">🎁</span></div>
+
         <h2 className="headline-lg mb-2">Voucher Purchase Confirmed</h2>
         <p>Your gift voucher is ready to share.</p>
       </div>
@@ -70,8 +75,9 @@ function VoucherConfirmedContent() {
       )}
 
       <div className="surface-muted mb-6 p-4 toast-enter">
-        <p className="text-sm font-medium text-[color:var(--text)]">📧 Voucher details emailed to {voucher?.buyer_email}</p>
+        <p className="text-sm font-medium text-[color:var(--text)]">Voucher details emailed to {voucher?.buyer_email}</p>
         <p className="mt-1 text-xs">Share this code with the recipient to use during online or WhatsApp booking.</p>
+        <p className="mt-2 text-xs">Don&rsquo;t see the email? Please check your <strong>spam or promotions</strong> folder.</p>
       </div>
 
       <div className="space-y-3">

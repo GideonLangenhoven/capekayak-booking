@@ -13,7 +13,7 @@
 
 (function () {
   function init() {
-    var nodes = document.querySelectorAll('[id="bookingtours-widget"], .bookingtours-widget');
+    const nodes = document.querySelectorAll('[id="bookingtours-widget"], .bookingtours-widget');
     if (!nodes.length) {
       console.warn("[bookingtours] widget container not found");
       return;
@@ -22,36 +22,36 @@
     nodes.forEach(function (node) {
       if (node.querySelector("iframe")) return;
 
-      var tenant = node.getAttribute("data-tenant");
+      const tenant = node.getAttribute("data-tenant");
       if (!tenant) {
         console.warn("[bookingtours] missing data-tenant on widget container");
         return;
       }
 
-      var tour = node.getAttribute("data-tour") || "";
-      var bg = node.getAttribute("data-bg") || "transparent";
-      var minHeight = parseInt(node.getAttribute("data-min-height") || "600", 10);
-      var hostOverride = node.getAttribute("data-host") || "";
+      const tour = node.getAttribute("data-tour") || "";
+      const bg = node.getAttribute("data-bg") || "transparent";
+      const minHeight = parseInt(node.getAttribute("data-min-height") || "600", 10);
+      const hostOverride = node.getAttribute("data-host") || "";
 
-      var scriptEl = document.currentScript || document.querySelector('script[src*="widget.js"]');
-      var scriptOrigin = scriptEl && scriptEl.src ? new URL(scriptEl.src).origin : "https://booking.bookingtours.co.za";
+      const scriptEl = document.currentScript || document.querySelector('script[src*="widget.js"]');
+      const scriptOrigin = scriptEl && scriptEl.src ? new URL(scriptEl.src).origin : "https://booking.bookingtours.co.za";
 
-      var iframeOrigin;
+      let iframeOrigin;
       if (hostOverride) {
         iframeOrigin = hostOverride;
       } else {
-        var u = new URL(scriptOrigin);
+        const u = new URL(scriptOrigin);
         if (!u.hostname.startsWith(tenant + ".")) {
           u.hostname = tenant + "." + u.hostname;
         }
         iframeOrigin = u.origin;
       }
 
-      var qs = "source=widget";
+      let qs = "source=widget";
       if (tour) qs += "&tour=" + encodeURIComponent(tour);
       if (bg !== "transparent") qs += "&bg=" + encodeURIComponent(bg);
 
-      var iframe = document.createElement("iframe");
+      const iframe = document.createElement("iframe");
       iframe.src = iframeOrigin + "/embed?" + qs;
       iframe.style.width = "100%";
       iframe.style.border = "0";

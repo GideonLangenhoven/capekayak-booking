@@ -19,10 +19,10 @@ function ConfirmInner() {
   const params = useSearchParams();
   const token = params.get("token") || "";
   const id = params.get("id") || "";
-  const [state, setState] = useState<State>({ kind: "loading" });
+  const [state, setState] = useState<State>(() => (!token || !id ? { kind: "missing" } : { kind: "loading" }));
 
   useEffect(() => {
-    if (!token || !id) { setState({ kind: "missing" }); return; }
+    if (!token || !id) return;
     (async () => {
       try {
         const res = await fetch("/api/popia/confirm", {
@@ -78,12 +78,12 @@ function ConfirmInner() {
           </p>
           {isDeletion ? (
             <p className="text-sm text-emerald-800 mt-3">
-              Per POPIA's cooling-off rules, deletion will be processed on or after <strong>{sched}</strong>. You can cancel
+              Per POPIA&apos;s cooling-off rules, deletion will be processed on or after <strong>{sched}</strong>. You can cancel
               the request before then by replying to the confirmation email.
             </p>
           ) : (
             <p className="text-sm text-emerald-800 mt-3">
-              We'll email your data export to the address on file within 30 days. Most requests are handled in 1–3 business days.
+              We&apos;ll email your data export to the address on file within 30 days. Most requests are handled in 1–3 business days.
             </p>
           )}
         </div>

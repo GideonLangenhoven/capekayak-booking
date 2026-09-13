@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
+const releaseName = (process.env.SENTRY_RELEASE || process.env.VERCEL_GIT_COMMIT_SHA || process.env.VERCEL_URL)?.trim();
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_SENTRY_RELEASE: releaseName || "",
+    NEXT_PUBLIC_SENTRY_ENVIRONMENT: process.env.VERCEL_ENV || process.env.NODE_ENV || "development",
+  },
   turbopack: {
     root: __dirname,
   },
@@ -63,11 +68,15 @@ const nextConfig: NextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com",
+              // *.paysafe.com: the combo checkout loads paysafe.checkout.min.js
+              // from hosted.paysafe.com and the overlay talks to Paysafe APIs —
+              // without these entries SplitPay combos dead-end at payment.
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://*.paysafe.com",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https:",
               "font-src 'self' data:",
-              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.sentry.io",
+              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.sentry.io https://lottie.host https://unpkg.com https://cdn.jsdelivr.net https://*.paysafe.com",
+              "frame-src 'self' https://*.paysafe.com",
               "frame-ancestors 'none'",
               "form-action 'self'",
               "base-uri 'self'",
@@ -81,8 +90,10 @@ const nextConfig: NextConfig = {
 };
 
 export default withSentryConfig(nextConfig, {
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
+  org: process.env.SENTRY_ORG?.trim(),
+  project: process.env.SENTRY_PROJECT?.trim(),
+  authToken: process.env.SENTRY_AUTH_TOKEN?.trim(),
+  release: releaseName ? { name: releaseName } : undefined,
   silent: !process.env.CI,
   widenClientFileUpload: true,
   sourcemaps: {

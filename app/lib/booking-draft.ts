@@ -15,6 +15,7 @@ export type BookingDraft = {
   customerName: string;
   customerEmail: string;
   customerPhone: string;
+  customerDialCode: string;
   marketingConsent: boolean;
   promoCode: string;
   voucherCode: string;
@@ -26,7 +27,7 @@ export type BookingDraft = {
 
 const empty: BookingDraft = {
   tourId: null, tourName: null, date: null, slotId: null, slotTime: null,
-  qty: 1, customerName: "", customerEmail: "", customerPhone: "",
+  qty: 1, customerName: "", customerEmail: "", customerPhone: "", customerDialCode: "+27",
   marketingConsent: false, promoCode: "", voucherCode: "", addOns: [],
   step: 1, savedAt: 0, tenantSlug: "",
 };
