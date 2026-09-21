@@ -7,12 +7,18 @@ export default function CancelledPage() {
   const theme = useTheme();
   const [checkout, setCheckout] = useState<{ url: string; ref: string } | null>(null);
   useEffect(() => {
+    let nextCheckout: { url: string; ref: string } | null = null;
     try {
       const saved = JSON.parse(sessionStorage.getItem("bt-checkout-" + theme.id) || "null");
-      if (!saved || !Number.isFinite(Date.parse(saved.expiresAt)) || Date.parse(saved.expiresAt) <= Date.now()) return;
-      const url = new URL(saved.url);
-      if (url.protocol === "https:" && (url.hostname === "c.yoco.com" || url.hostname === "payments.yoco.com")) setCheckout(saved);
+      if (saved && Number.isFinite(Date.parse(saved.expiresAt)) && Date.parse(saved.expiresAt) > Date.now()) {
+        const url = new URL(saved.url);
+        if (url.protocol === "https:" && (url.hostname === "c.yoco.com" || url.hostname === "payments.yoco.com")) {
+          nextCheckout = { url: url.toString(), ref: String(saved.ref || "") };
+        }
+      }
     } catch { /* Show the booking lookup if this browser has no saved checkout. */ }
+    const update = window.setTimeout(() => setCheckout(nextCheckout), 0);
+    return () => window.clearTimeout(update);
   }, [theme.id]);
   return (
     <div className="max-w-md mx-auto px-4 py-16 text-center">

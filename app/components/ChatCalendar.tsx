@@ -63,24 +63,24 @@ export default function ChatCalendar({ availableDates, onSelectDate }: CalendarP
   }
 
   return (
-    <div className="ml-9 mt-2 border rounded-xl shadow-sm p-3" style={{ width: "260px", backgroundColor: "var(--glass-tint-card)", borderColor: "var(--glass-border)", color: "var(--ink)" }}>
-      <div className="flex items-center justify-between mb-2">
-        <button onClick={prevMonth} disabled={!canPrev} className="w-7 h-7 flex items-center justify-center rounded-lg disabled:opacity-20 text-sm hover:bg-[color:var(--hover-overlay)]" style={{ color: "var(--ink)" }}>◀</button>
+    <div className="-mx-4 mt-2 w-[calc(100%+2rem)] border-y py-3 shadow-sm sm:mx-0 sm:w-full sm:rounded-xl sm:border" style={{ backgroundColor: "var(--glass-tint-card)", borderColor: "var(--glass-border)", color: "var(--ink)" }}>
+      <div className="mb-2 flex items-center justify-between px-2 sm:px-0">
+        <button onClick={prevMonth} disabled={!canPrev} className="flex h-11 w-11 items-center justify-center rounded-lg text-sm hover:bg-[color:var(--hover-overlay)] disabled:opacity-20" style={{ color: "var(--ink)" }}>◀</button>
         <span className="text-xs font-semibold" style={{ color: "var(--ink)" }}>{monthName}</span>
-        <button onClick={nextMonth} disabled={!canNext} className="w-7 h-7 flex items-center justify-center rounded-lg disabled:opacity-20 text-sm hover:bg-[color:var(--hover-overlay)]" style={{ color: "var(--ink)" }}>▶</button>
+        <button onClick={nextMonth} disabled={!canNext} className="flex h-11 w-11 items-center justify-center rounded-lg text-sm hover:bg-[color:var(--hover-overlay)] disabled:opacity-20" style={{ color: "var(--ink)" }}>▶</button>
       </div>
-      <div className="grid grid-cols-7 gap-0.5 mb-1">
+      <div className="mb-1 grid grid-cols-7 gap-0">
         {dayNames.map(dn => <div key={dn} className="text-center text-[10px] font-medium py-0.5" style={{ color: "var(--ink-muted)" }}>{dn}</div>)}
       </div>
-      <div className="grid grid-cols-7 gap-0.5">
+      <div className="grid grid-cols-7 gap-0">
         {cells.map((c, i) => {
           if (!c) return <div key={"e" + i} />;
           if (c.isPast || !c.hasSlots) {
-            return <div key={c.date} className="text-center py-1.5 text-[11px] rounded-lg" style={{ color: "var(--ink-faint)" }}>{c.day}</div>;
+            return <div key={c.date} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-center text-xs" style={{ color: "var(--ink-faint)" }}>{c.day}</div>;
           }
           return (
             <button key={c.date} onClick={() => onSelectDate(c.date)}
-              className="text-center py-1.5 text-[11px] font-semibold rounded-lg transition-colors relative hover:bg-[color:var(--hover-overlay)]"
+              className="relative flex min-h-11 min-w-11 items-center justify-center rounded-lg text-center text-xs font-semibold transition-colors hover:bg-[color:var(--hover-overlay)]"
               style={{ color: "var(--ink)" }}>
               {c.day}
               <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "var(--accent)" }}></span>

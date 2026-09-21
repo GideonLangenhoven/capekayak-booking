@@ -225,7 +225,7 @@ export default function ComboBookingPage() {
       const blocked = past || !has || breaksRules(idx, dayNum(date));
       cells.push(
         <button key={day} disabled={blocked} onClick={() => patchLeg(idx, { date, slot: null })}
-          className={"relative aspect-square rounded-full flex items-center justify-center text-sm font-medium transition-all " +
+          className={"relative flex aspect-square min-h-11 min-w-11 items-center justify-center rounded-full text-sm font-medium transition-all " +
             (sel ? "bg-[color:var(--accent)] text-[color:var(--ink-on-main)] shadow-lg scale-105 " : "") +
             (!sel && !blocked ? "bg-[color:var(--glass-tint-card)] text-[color:var(--ink)] hover:bg-[color:var(--hover-overlay)] border border-[color:var(--glass-border)] cursor-pointer " : "") +
             (blocked ? "text-[color:var(--ink-faint)] cursor-not-allowed " : "") +
@@ -237,19 +237,19 @@ export default function ComboBookingPage() {
     }
     const canPrev = leg.calYear > today.getFullYear() || leg.calMonth > today.getMonth();
     return (
-      <div>
-        <div className="flex items-center justify-between mb-4">
+      <div className="-mx-4 sm:mx-0">
+        <div className="mb-4 flex items-center justify-between px-4 sm:px-0">
           <button onClick={() => { if (leg.calMonth === 0) patchLeg(idx, { calMonth: 11, calYear: leg.calYear - 1 }); else patchLeg(idx, { calMonth: leg.calMonth - 1 }); }}
             disabled={!canPrev} className="w-9 h-9 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 rounded-full surface-muted flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)] disabled:opacity-30">&larr;</button>
           <h3 className="text-lg font-semibold text-[color:var(--ink)]">{fmtMonth(new Date(leg.calYear, leg.calMonth))}</h3>
           <button onClick={() => { if (leg.calMonth === 11) patchLeg(idx, { calMonth: 0, calYear: leg.calYear + 1 }); else patchLeg(idx, { calMonth: leg.calMonth + 1 }); }}
             className="w-9 h-9 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 rounded-full surface-muted flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)]">&rarr;</button>
         </div>
-        <div className="grid grid-cols-7 gap-1 mb-2">
+        <div className="mb-2 grid grid-cols-7 gap-0">
           {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(d => <div key={d} className="text-center text-xs font-medium text-[color:var(--ink-muted)] py-1">{d}</div>)}
         </div>
-        <div className="grid grid-cols-7 gap-1">{cells}</div>
-        <div className="flex items-center gap-4 mt-4 text-xs text-[color:var(--ink-muted)]">
+        <div className="grid grid-cols-7 gap-0">{cells}</div>
+        <div className="mt-4 flex items-center gap-4 px-4 text-xs text-[color:var(--ink-muted)] sm:px-0">
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[color:var(--accent)] inline-block" /> Available</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[color:var(--glass-border)] inline-block" /> Unavailable</span>
         </div>
@@ -433,7 +433,7 @@ export default function ComboBookingPage() {
   const policyNote = POLICY_NOTE[String(combo.cancellation_policy || "")] || "";
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className={`mx-auto max-w-4xl px-4 py-8 ${step === "payment" ? "" : "pb-36 md:pb-8"}`}>
       {/* Progress */}
       <div className="flex items-center gap-1 mb-10">
         {[{ l: "Select Dates", s: "slots" }, { l: "Details", s: "details" }, { l: "Payment", s: "payment" }].map((x, i) => {
@@ -510,7 +510,7 @@ export default function ComboBookingPage() {
 
           {allSelected && (
             <button onClick={() => setStep("details")}
-              className="btn btn-primary w-full mt-4 !py-3.5">
+              className="btn btn-primary mt-4 hidden w-full !py-3.5 md:flex">
               Continue &rarr;
             </button>
           )}
@@ -592,7 +592,7 @@ export default function ComboBookingPage() {
                   </div>
                 )}
                 <button onClick={submitComboBooking} disabled={submitting || !name.trim() || !email.trim()}
-                  className="btn btn-primary w-full mt-5 !py-3.5">
+                  className="btn btn-primary mt-5 hidden w-full !py-3.5 md:flex">
                   {submitting ? "Processing..." : "Pay R" + comboTotal}
                 </button>
                 {policyNote && <p className="text-xs text-[color:var(--ink-muted)] text-center mt-3">{policyNote}</p>}
@@ -658,6 +658,18 @@ export default function ComboBookingPage() {
               </button>
             </>
           )}
+        </div>
+      )}
+      {step === "slots" && (
+        <div data-mobile-booking-bar="combo-slots" className="fixed inset-x-3 bottom-3 z-40 flex min-h-[76px] items-center gap-3 rounded-[20px] border px-4 py-3 shadow-2xl backdrop-blur-xl md:hidden" style={{ background: "color-mix(in srgb, var(--glass-tint-card) 94%, transparent)", borderColor: "var(--glass-border)", paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
+          <div className="min-w-0 flex-1"><p className="text-xs font-bold" style={{ color: "var(--ink-muted)" }}>{allSelected ? `${legs.length} activities selected` : "Choose each date and time"}</p><p className="text-xl font-extrabold tabular-nums" style={{ color: "var(--ink)" }}>R{comboTotal}</p></div>
+          <button type="button" onClick={() => setStep("details")} disabled={!allSelected} className="btn btn-primary min-h-12 shrink-0 px-5 text-sm disabled:cursor-not-allowed disabled:opacity-50">Continue to details</button>
+        </div>
+      )}
+      {step === "details" && (
+        <div data-mobile-booking-bar="combo-details" className="fixed inset-x-3 bottom-3 z-40 flex min-h-[76px] items-center gap-3 rounded-[20px] border px-4 py-3 shadow-2xl backdrop-blur-xl md:hidden" style={{ background: "color-mix(in srgb, var(--glass-tint-card) 94%, transparent)", borderColor: "var(--glass-border)", paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
+          <div className="min-w-0 flex-1"><p className="text-xs font-bold" style={{ color: "var(--ink-muted)" }}>Combo total</p><p className="text-xl font-extrabold tabular-nums" style={{ color: "var(--ink)" }}>R{comboTotal}</p></div>
+          <button type="button" onClick={submitComboBooking} disabled={submitting || !name.trim() || !email.trim()} className="btn btn-primary min-h-12 shrink-0 px-5 text-sm disabled:cursor-not-allowed disabled:opacity-50">{submitting ? "Processing…" : `Pay R${comboTotal}`}</button>
         </div>
       )}
     </div>

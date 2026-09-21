@@ -215,10 +215,8 @@ export default function Home() {
           </div>
         </div>
       )}
-      {/* Hero copy sits on glass — text never floats on raw imagery (§5 rule 4).
-          No copy saved in Site Settings means no hero at all; this is a
-          multi-tenant storefront, so there is no sensible default sentence. */}
-      {(theme.hero_eyebrow || theme.hero_title || theme.hero_subtitle) && (
+      {/* The title opts the whole hero in; eyebrow and subtitle never render alone. */}
+      {theme.hero_title?.trim() && (
         <div className="glass mx-auto mb-8 max-w-3xl px-6 py-6 sm:mb-10 sm:px-10 sm:py-8" style={{ borderRadius: 32 }}>
           <SectionHeader
             centered

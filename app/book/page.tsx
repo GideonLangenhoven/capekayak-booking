@@ -390,7 +390,21 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
 
   async function submitBooking() {
     if (submitting) return;
-    if (!name.trim() || !phone.trim() || !termsAccepted) { showToast("Please complete your contact details and accept the terms.", "error"); return; }
+    if (!name.trim()) {
+      showToast("Please enter your full name.", "error");
+      document.getElementById("book-name")?.focus();
+      return;
+    }
+    if (!phone.trim()) {
+      showToast("Please enter your phone number.", "error");
+      document.getElementById("book-phone")?.focus();
+      return;
+    }
+    if (!termsAccepted) {
+      showToast("Please accept the terms to continue.", "error");
+      document.getElementById("book-terms")?.focus();
+      return;
+    }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       showToast("Please enter a valid email address.", "error");
       document.getElementById("book-email")?.focus();
@@ -504,7 +518,7 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
       const isToday = isSameDay(date, today);
       cells.push(
         <button key={day} data-shot="calendar-day" disabled={past || !has} onClick={() => { setSelectedDate(date); setSelectedSlot(null); }}
-          className={"relative aspect-square rounded-full flex items-center justify-center text-[15px] font-extrabold transition-all outline-none " +
+          className={"relative flex aspect-square min-h-11 min-w-11 items-center justify-center rounded-full text-[15px] font-extrabold transition-all outline-none " +
             (sel ? "bg-[color:var(--accent)] text-[color:var(--ink-on-main)] shadow-md scale-105 " : "") +
             (!sel && has && !past ? "bg-[color:var(--glass-tint-card)] text-[color:var(--ink)] border border-[color:var(--glass-border)] hover:bg-[color:var(--hover-overlay)] hover:shadow-sm cursor-pointer " : "") +
             (past || !has ? "text-[color:var(--ink-faint)] cursor-not-allowed bg-transparent " : "") +
@@ -516,8 +530,8 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
     }
     const canPrev = calYear > today.getFullYear() || calMonth > today.getMonth();
     return (
-      <div className="glass p-6" data-shot="calendar">
-        <div className="flex items-center justify-between mb-6">
+      <div className="glass -mx-4 py-4 sm:mx-0 sm:p-6" data-shot="calendar">
+        <div className="mb-4 flex items-center justify-between px-4 sm:mb-6 sm:px-0">
           <button onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); } else setCalMonth(calMonth - 1); }}
             aria-label="Previous month" disabled={!canPrev} className="w-10 h-10 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 rounded-full surface-muted flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)] disabled:opacity-30 transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
@@ -528,10 +542,10 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
           </button>
         </div>
-        <div className="grid grid-cols-7 gap-1 mb-3">
+        <div className="mb-3 grid grid-cols-7 gap-0">
           {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(d => <div key={d} className="text-center text-[11px] font-bold text-[color:var(--ink-muted)] py-1 uppercase tracking-wider">{d}</div>)}
         </div>
-        <div className="grid grid-cols-7 gap-1.5">{cells}</div>
+        <div className="grid grid-cols-7 gap-0">{cells}</div>
         <div className="flex items-center gap-5 mt-6 pt-5 border-t border-[color:var(--glass-border)] text-[12px] font-bold text-[color:var(--ink-muted)] justify-center">
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[color:var(--accent)] inline-block shadow-sm" /> Available</span>
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[color:var(--glass-border)] inline-block" /> Unavailable</span>
@@ -559,7 +573,7 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
   if (!trading) return <TenantClosedNotice />;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 md:py-12">
+    <div className={`mx-auto max-w-4xl px-4 py-6 md:py-12 ${step === "payment" || embed ? "" : "pb-36 md:pb-12"}`}>
       {/* Progress */}
       <div className="flex items-center justify-between mb-10 glass !rounded-full p-2.5 max-w-lg mx-auto">
         {[{ l: "Date", s: "calendar" }, { l: "Details", s: "details" }, { l: "Pay", s: "payment" }].map((x, i) => {
@@ -759,7 +773,7 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
                         </div>
                       </div>
 
-                      <button onClick={() => { setStep("details"); }} className="btn btn-primary w-full !py-4 text-[15px] group">
+                      <button onClick={() => { setStep("details"); }} className={`btn btn-primary w-full !py-4 text-[15px] group ${embed ? "" : "hidden md:flex"}`}>
                         Continue to Details
                       </button>
                     </div>
@@ -801,12 +815,12 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
                  <h3 className="text-[14px] font-extrabold text-[color:var(--ink)] tracking-wide mb-2 uppercase">Your Details</h3>
                  <div>
                    <label htmlFor="book-name" className="field-label ml-1">Full Name *</label>
-                   <input id="book-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="John Smith"
+                   <input id="book-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="John Smith" autoComplete="name"
                      className="field" />
                  </div>
                  <div>
                    <label htmlFor="book-email" className="field-label ml-1">Email Address *</label>
-                   <input id="book-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="john@example.com"
+                    <input id="book-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="john@example.com" autoComplete="email"
                      className="field" />
                  </div>
                  <div>
@@ -816,7 +830,7 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
                        className="field !w-auto shrink-0 cursor-pointer !px-2.5" style={{ minWidth: "96px" }}>
                        {DIAL_CODES.map((d, i) => <option key={d.country + i} value={d.code}>{d.flag} {d.code}</option>)}
                      </select>
-                     <input id="book-phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="71 234 5678"
+                     <input id="book-phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="71 234 5678" autoComplete="tel-national"
                        className="field min-w-0 flex-1" />
                    </div>
                  </div>
@@ -908,7 +922,7 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
               </div>
               
               <label className="flex items-start gap-4 mt-6 cursor-pointer group glass p-5 transition-colors">
-                <input type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)}
+                <input id="book-terms" type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)}
                   className="mt-0.5 w-5 h-5 shrink-0 rounded text-[color:var(--accent)] focus:ring-[color:var(--accent)] cursor-pointer" />
                 <span className="text-[13px] font-bold text-[color:var(--ink-muted)] leading-relaxed group-hover:text-[color:var(--ink)] transition-colors">
                   I accept the <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[color:var(--accent-text)] underline">Terms &amp; Conditions</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[color:var(--accent-text)] underline">Privacy Policy</a>.
@@ -963,7 +977,7 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
                 </div>
 
                 <button onClick={submitBooking} data-shot="pay-button" disabled={submitting || !name.trim() || !email.trim() || !phone.trim() || !termsAccepted}
-                  className="btn btn-primary w-full mt-8 !py-4 text-[15px]">
+                  className={`btn btn-primary mt-8 w-full !py-4 text-[15px] ${embed ? "" : "hidden md:flex"}`}>
                   {submitting ? "Processing..." : finalTotal <= 0 ? "Confirm Booking ✓" : "Pay R" + finalTotal + " now →"}
                 </button>
                 <div className="surface-muted !rounded-full flex items-center justify-center gap-2 mt-4 px-4 py-2 text-[11px] font-bold text-[color:var(--ink-muted)] uppercase tracking-widest">
@@ -1094,6 +1108,46 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
               </div>
             ))}
           </div>
+        </div>
+      )}
+      {!embed && step === "calendar" && (
+        <div
+          data-mobile-booking-bar="calendar"
+          className="fixed inset-x-3 bottom-3 z-40 flex min-h-[76px] items-center gap-3 rounded-[20px] border px-4 py-3 shadow-2xl backdrop-blur-xl md:hidden"
+          style={{ background: "color-mix(in srgb, var(--glass-tint-card) 94%, transparent)", borderColor: "var(--glass-border)", paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+        >
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold" style={{ color: "var(--ink-muted)" }}>{selectedSlot ? `${qty} ${qty === 1 ? "guest" : "guests"}` : "Choose a date and time"}</p>
+            <p className="text-xl font-extrabold tabular-nums" style={{ color: "var(--ink)" }}>{selectedSlot ? `R${grandTotal}` : "Not selected"}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setStep("details")}
+            disabled={!selectedTour || !selectedDate || !selectedSlot}
+            className="btn btn-primary min-h-12 shrink-0 px-5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Continue to details
+          </button>
+        </div>
+      )}
+      {!embed && step === "details" && (
+        <div
+          data-mobile-booking-bar="details"
+          className="fixed inset-x-3 bottom-3 z-40 flex min-h-[76px] items-center gap-3 rounded-[20px] border px-4 py-3 shadow-2xl backdrop-blur-xl md:hidden"
+          style={{ background: "color-mix(in srgb, var(--glass-tint-card) 94%, transparent)", borderColor: "var(--glass-border)", paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+        >
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold" style={{ color: "var(--ink-muted)" }}>Total</p>
+            <p className="text-xl font-extrabold tabular-nums" style={{ color: "var(--ink)" }}>{finalTotal <= 0 ? "FREE" : `R${finalTotal}`}</p>
+          </div>
+          <button
+            type="button"
+            onClick={submitBooking}
+            disabled={submitting || !name.trim() || !email.trim() || !phone.trim() || !termsAccepted}
+            className="btn btn-primary min-h-12 shrink-0 px-5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {submitting ? "Processing…" : finalTotal <= 0 ? "Confirm booking" : `Pay R${finalTotal} now`}
+          </button>
         </div>
       )}
       {toast && <Toast message={toast.message} type={toast.type} onDismiss={dismissToast} />}

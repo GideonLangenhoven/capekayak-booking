@@ -1,5 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import ChatCalendar from "./ChatCalendar";
 import { useTheme } from "./ThemeProvider";
@@ -15,7 +16,11 @@ type WidgetMessage = ChatMessage & { manageBookingsUrl?: string };
 
 function TenantChatWidget() {
   const { id: businessId, chatbot_avatar, business_name } = useTheme();
+  const pathname = usePathname() || "/";
+  const activeBookingFlow = pathname === "/book" || pathname.startsWith("/combo/");
   const [open, setOpen] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const [avatarFailed, setAvatarFailed] = useState(false);
   const [msgs, setMsgs] = useState<WidgetMessage[]>([]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
@@ -31,11 +36,20 @@ function TenantChatWidget() {
   const prevHumanRef = useRef(false);
   const endRef = useRef<HTMLDivElement>(null);
   const inRef = useRef<HTMLInputElement>(null);
+  const launcherRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const greeted = useRef(false);
   const lastPollRef = useRef<string>("");
   useEffect(() => {
     if (typeof document !== "undefined") document.body.setAttribute("data-chat-hydrated", "1");
   }, [chatbot_avatar]);
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setReduceMotion(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
   // The server issues the visitor identity. Keep its capability separate from
   // booking-flow state (whose historical `vid` field means voucher ID).
   useEffect(() => {
@@ -114,6 +128,40 @@ function TenantChatWidget() {
   function handleOpenChat() {
     setOpen(true);
   }
+  function handleCloseChat() {
+    setOpen(false);
+    requestAnimationFrame(() => launcherRef.current?.focus());
+  }
+  useEffect(() => {
+    if (!open) return;
+    const panel = panelRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        handleCloseChat();
+        return;
+      }
+      if (event.key !== "Tab" || !panel) return;
+      const focusable = Array.from(panel.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, typing]);
   useEffect(() => {
     if (isHuman && !prevHumanRef.current) {
@@ -169,19 +217,19 @@ function TenantChatWidget() {
   return (
     <>
       {!open && (
-        <div className="fixed bottom-6 right-6 chat-launcher-lift z-50 flex flex-col items-center">
-          {chatbot_avatar ? (
-            <button aria-label="Open chat" onClick={handleOpenChat} className="glass-chip h-[52px] w-[52px] overflow-hidden !rounded-full p-0 transition-transform hover:scale-105 md:h-20 md:w-20">
+        <div className={`fixed right-4 z-50 flex flex-col items-center md:right-6 ${activeBookingFlow ? "bottom-[calc(env(safe-area-inset-bottom)+6.75rem)]" : "bottom-6 chat-launcher-lift"}`}>
+          {chatbot_avatar && !reduceMotion && !avatarFailed ? (
+            <button ref={launcherRef} aria-label="Open chat" onClick={handleOpenChat} className="glass-chip h-[52px] w-[52px] overflow-hidden !rounded-full p-0 transition-transform hover:scale-105 md:h-20 md:w-20">
               {/* @ts-expect-error dotlottie-wc is a web component */}
-              <dotlottie-wc src={chatbot_avatar} style={{ width: "100%", height: "100%" }} autoplay loop></dotlottie-wc>
+              <dotlottie-wc src={chatbot_avatar} style={{ width: "100%", height: "100%" }} autoplay loop onError={() => setAvatarFailed(true)}></dotlottie-wc>
             </button>
           ) : (
-            <button aria-label="Open chat" onClick={handleOpenChat} className="glass-chip flex h-[52px] w-[52px] items-center justify-center !rounded-full transition-transform hover:scale-105 md:h-20 md:w-20" style={{ background: "var(--accent)", color: "var(--ink-on-main)" }}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 md:h-6 md:w-6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg></button>
+            <button ref={launcherRef} aria-label="Open chat" onClick={handleOpenChat} className="glass-chip flex h-[52px] w-[52px] items-center justify-center !rounded-full transition-transform hover:scale-105 md:h-20 md:w-20" style={{ background: "var(--accent)", color: "var(--ink-on-main)" }}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 md:h-6 md:w-6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg></button>
           )}
         </div>
       )}
       {open && (
-        <div className="glass-sheet fixed bottom-6 right-6 chat-launcher-lift z-50 flex h-[32rem] w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden" style={{ animation: "su .2s ease-out" }}>
+        <div ref={panelRef} role="dialog" aria-modal="true" aria-label={`${business_name || "Booking"} assistant`} className="glass-sheet fixed inset-x-0 bottom-0 top-0 z-50 flex w-auto flex-col overflow-hidden sm:inset-x-auto sm:bottom-6 sm:right-6 sm:top-auto sm:h-[min(32rem,calc(100dvh-3rem))] sm:w-[22rem] sm:max-w-[calc(100vw-2rem)]" style={{ animation: reduceMotion ? undefined : "su .2s ease-out" }}>
           <style>{`@keyframes su{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}@keyframes bl{0%,80%,100%{opacity:0}40%{opacity:1}}`}</style>
           <div className="border-b p-4 flex items-center justify-between shrink-0" style={{ borderColor: "var(--glass-border)", color: "var(--ink-sheet)" }}>
             <div className="flex items-center gap-3">
@@ -201,11 +249,11 @@ function TenantChatWidget() {
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <button aria-label="New chat" onClick={() => { setMsgs([]); setSt({ step: "IDLE" }); setShowRating(false); setRated(false); greeted.current = false; setTimeout(() => { greeted.current = true; setTyping(true); setTimeout(() => { setTyping(false); setMsgs([{ role: "bot", text: "Hi there! How can I help?" }]); }, 900 + Math.random() * 500); }, 400); }} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[color:var(--hover-overlay)]" style={{ color: "var(--ink-muted)" }} title="New chat"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
-              <button aria-label="Close chat" onClick={() => setOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[color:var(--hover-overlay)]" style={{ color: "var(--ink-muted)" }} title="Close">✕</button>
+              <button aria-label="New chat" onClick={() => { setMsgs([]); setSt({ step: "IDLE" }); setShowRating(false); setRated(false); greeted.current = false; setTimeout(() => { greeted.current = true; setTyping(true); setTimeout(() => { setTyping(false); setMsgs([{ role: "bot", text: "Hi there! How can I help?" }]); }, 900 + Math.random() * 500); }, 400); }} className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-[color:var(--hover-overlay)]" style={{ color: "var(--ink-muted)" }} title="New chat"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+              <button aria-label="Close chat" onClick={handleCloseChat} className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-[color:var(--hover-overlay)]" style={{ color: "var(--ink-muted)" }} title="Close">✕</button>
             </div>
           </div>
-          <div className="flex-1 overflow-auto p-4 space-y-3 bg-transparent">
+          <div role="log" aria-live="polite" className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-3 bg-transparent">
             {msgs.map((m, i) => (
               <div key={i}>
                 <div className={"flex " + (m.role === "user" ? "justify-end" : "justify-start")} style={{ animation: "su .15s ease-out" }}>
@@ -224,7 +272,7 @@ function TenantChatWidget() {
                 </div>
                 {m.paymentUrl && (
                   <div className="ml-9 mt-2">
-                    <a href={m.paymentUrl} target="_blank" rel="noopener noreferrer" className="inline-block px-5 py-2.5 rounded-xl text-sm font-semibold no-underline shadow-md" style={{ backgroundColor: "var(--cta)", color: "var(--ink-on-cta)" }}>Complete Payment →</a>
+                    <a href={m.paymentUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-xl px-5 py-2.5 text-sm font-semibold no-underline shadow-md" style={{ backgroundColor: "var(--cta)", color: "var(--ink-on-cta)" }}>Complete Payment →</a>
                     <p className="text-xs mt-1" style={{ color: "var(--ink-muted)" }}>Spots held for 15 min</p>
                   </div>
                 )}
@@ -235,7 +283,7 @@ function TenantChatWidget() {
                   <div className="ml-9 mt-2 flex flex-col gap-1.5">
                     {m.buttons.map((b: ChatButton, j: number) => (
                       <button key={j} onClick={() => send("btn:" + b.value)}
-                        className="text-left text-xs border rounded-xl px-3 py-2.5 transition-colors font-medium shadow-sm hover:bg-[color:var(--hover-overlay)]"
+                        className="min-h-11 rounded-xl border px-3 py-2.5 text-left text-sm font-medium shadow-sm transition-colors hover:bg-[color:var(--hover-overlay)]"
                         style={{ backgroundColor: "var(--glass-tint-card)", color: "var(--ink)", borderColor: "var(--glass-border)" }}
                       >
                         {b.label}
@@ -252,7 +300,7 @@ function TenantChatWidget() {
                 <div className="flex gap-1">
                   {[1, 2, 3, 4, 5].map((n) => (
                     <button key={n} aria-label={`${n} star${n > 1 ? "s" : ""}`} onClick={() => submitRating(n)}
-                      className="text-2xl leading-none transition-transform hover:scale-125" style={{ color: "var(--accent)" }}>★</button>
+                      className="flex h-11 w-11 items-center justify-center text-2xl leading-none transition-transform hover:scale-110" style={{ color: "var(--accent)" }}>★</button>
                   ))}
                 </div>
               </div>
@@ -271,7 +319,7 @@ function TenantChatWidget() {
             )}
             <div ref={endRef} />
           </div>
-          <div className="p-3 border-t shrink-0 bg-transparent" style={{ borderColor: "var(--glass-border)" }}>
+          <div className="shrink-0 border-t bg-transparent p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]" style={{ borderColor: "var(--glass-border)" }}>
             {sessionError && <p role="alert" className="mb-2 text-sm">Chat could not connect. <button type="button" className="underline" onClick={() => setSessionAttempt(value => value + 1)}>Retry</button></p>}
             <div className="flex gap-2">
               <input ref={inRef} type="text" aria-label="Chat message" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder={chatSession ? "Type a message..." : "Connecting..."} disabled={typing || !chatSession}
@@ -279,7 +327,7 @@ function TenantChatWidget() {
                 style={{ backgroundColor: "var(--glass-tint-card)", color: "var(--ink)", borderColor: "var(--glass-border)" }}
               />
               <button aria-label="Send message" onClick={() => send()} disabled={!input.trim() || typing || !chatSession}
-                className="w-10 h-10 rounded-xl flex items-center justify-center disabled:opacity-30 shrink-0"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl disabled:opacity-30"
                 style={{ backgroundColor: "var(--cta)", color: "var(--ink-on-cta)" }}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
