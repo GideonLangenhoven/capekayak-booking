@@ -773,7 +773,7 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
                         </div>
                       </div>
 
-                      <button onClick={() => { setStep("details"); }} className="btn btn-primary hidden w-full !py-4 text-[15px] group md:flex">
+                      <button onClick={() => { setStep("details"); }} className={`btn btn-primary w-full !py-4 text-[15px] group ${embed ? "" : "hidden md:flex"}`}>
                         Continue to Details
                       </button>
                     </div>
@@ -820,7 +820,7 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
                  </div>
                  <div>
                    <label htmlFor="book-email" className="field-label ml-1">Email Address *</label>
-                   <input id="book-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="john@example.com" autoComplete="email"
+                    <input id="book-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="john@example.com" autoComplete="email"
                      className="field" />
                  </div>
                  <div>
@@ -977,7 +977,7 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
                 </div>
 
                 <button onClick={submitBooking} data-shot="pay-button" disabled={submitting || !name.trim() || !email.trim() || !phone.trim() || !termsAccepted}
-                  className="btn btn-primary mt-8 hidden w-full !py-4 text-[15px] md:flex">
+                  className={`btn btn-primary mt-8 w-full !py-4 text-[15px] ${embed ? "" : "hidden md:flex"}`}>
                   {submitting ? "Processing..." : finalTotal <= 0 ? "Confirm Booking ✓" : "Pay R" + finalTotal + " now →"}
                 </button>
                 <div className="surface-muted !rounded-full flex items-center justify-center gap-2 mt-4 px-4 py-2 text-[11px] font-bold text-[color:var(--ink-muted)] uppercase tracking-widest">
