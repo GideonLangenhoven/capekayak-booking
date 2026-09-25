@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, Suspense, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { PostgrestError } from "@supabase/supabase-js";
-import { createTenantSupabase, createVoucherSupabase, supabase } from "../lib/supabase";
+import { createBookingSupabase, createTenantSupabase, createVoucherSupabase, supabase } from "../lib/supabase";
 import { formatDuration } from "../lib/duration";
 import { useTheme } from "../components/ThemeProvider";
 import TenantClosedNotice, { useTenantTrading } from "../components/TenantClosedNotice";
@@ -27,7 +27,7 @@ type ReviewItem = {
   submitted_at: string;
 };
 
-export function BookingFlow({ embed = false }: { embed?: boolean }) {
+function BookingFlow({ embed = false }: { embed?: boolean }) {
   const params = useSearchParams();
   const theme = useTheme();
   const trading = useTenantTrading();
@@ -63,6 +63,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState("");
+  const [checkoutAmount, setCheckoutAmount] = useState<number | null>(null);
   const [bookingRef, setBookingRef] = useState("");
   const [voucherRemainders, setVoucherRemainders] = useState<{ code: string; remaining: number }[]>([]);
   const [soldOutMsg, setSoldOutMsg] = useState("");
@@ -76,6 +77,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   const [promoError, setPromoError] = useState("");
   const [waiverUrl, setWaiverUrl] = useState("");
   const [draftBookingId, setDraftBookingId] = useState<string | null>(null);
+  const [draftWaiverToken, setDraftWaiverToken] = useState<string | null>(null);
   const [holdExpiresAt, setHoldExpiresAt] = useState<Date | null>(null);
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const { toast, showToast, dismissToast } = useToast();
@@ -107,7 +109,6 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
         setSelectedDate(new Date(draftDate));
         setSelectedSlot(matchSlot);
         if (explicitResume && d?.tourId === selectedTour.id && d.step >= 2) {
-          setHoldExpiresAt(new Date(Date.now() + 15 * 60 * 1000));
           setStep("details");
         }
       } else if (draftDate) {
@@ -163,7 +164,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
 
   // Debounced save to localStorage on form field changes
   useEffect(() => {
-    if (!selectedTour) return;
+    if (!selectedTour || step === "payment") return;
     const id = setTimeout(function () {
       saveLocalDraft({
         tourId: selectedTour.id,
@@ -180,7 +181,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
         promoCode,
         voucherCode,
         addOns: Object.entries(selectedAddOns).filter(function (e) { return e[1] > 0; }).map(function (e) { return { id: e[0], qty: e[1] }; }),
-        step: step === "payment" ? 3 : step === "details" ? 2 : 1,
+        step: step === "details" ? 2 : 1,
       });
     }, 500);
     return function () { clearTimeout(id); };
@@ -351,26 +352,6 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
 
   function removeVoucher(i: number) { const v = vouchers[i]; setVouchers(vouchers.filter((_, j) => j !== i)); setVoucherTotal(voucherTotal - v.value); }
 
-  async function saveDraft() {
-    if (!name.trim() || !email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !phone.trim()) return;
-    if (!selectedTour || !selectedSlot) return;
-    const draftData = {
-      business_id: selectedTour.business_id, tour_id: selectedTour.id, slot_id: selectedSlot.id,
-      customer_name: name.trim(), email: email.toLowerCase().trim(),
-      qty, unit_price: effectiveUnitPrice,
-      total_amount: grandTotal, original_total: grandTotal,
-      status: "DRAFT" as const, source: embed ? "WIDGET" : "WEB",
-    };
-    try {
-      if (draftBookingId) {
-        await tenantSupabase.from("bookings").update(draftData).eq("id", draftBookingId).eq("status", "DRAFT");
-      } else {
-        const { data } = await tenantSupabase.from("bookings").insert(draftData).select("id").single();
-        if (data) setDraftBookingId(data.id);
-      }
-    } catch (e) { /* draft save is best-effort */ }
-  }
-
   async function applyPromo() {
     if (!promoCode.trim()) return;
     setPromoError("");
@@ -408,8 +389,29 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   }
 
   async function submitBooking() {
-    if (!name.trim() || !email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !phone.trim() || !termsAccepted) return;
+    if (submitting) return;
+    if (!name.trim()) {
+      showToast("Please enter your full name.", "error");
+      document.getElementById("book-name")?.focus();
+      return;
+    }
+    if (!phone.trim()) {
+      showToast("Please enter your phone number.", "error");
+      document.getElementById("book-phone")?.focus();
+      return;
+    }
+    if (!termsAccepted) {
+      showToast("Please accept the terms to continue.", "error");
+      document.getElementById("book-terms")?.focus();
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      showToast("Please enter a valid email address.", "error");
+      document.getElementById("book-email")?.focus();
+      return;
+    }
     setSubmitting(true);
+    try {
     const promoInsertFields: Record<string, unknown> = {};
     if (appliedPromo) {
       promoInsertFields.discount_type = appliedPromo.discount_type === "PERCENT" ? "PERCENT" : "FLAT";
@@ -420,7 +422,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     }
     const bookingPayload = {
       business_id: selectedTour!.business_id, tour_id: selectedTour!.id, slot_id: selectedSlot!.id,
-      customer_name: name, phone: phone ? normalizePhone(dialCode, phone) : "", email: email.toLowerCase(),
+      customer_name: name.trim(), phone: phone ? normalizePhone(dialCode, phone) : "", email: email.toLowerCase().trim(),
       qty, unit_price: effectiveUnitPrice, total_amount: finalTotal, original_total: grandTotal,
       voucher_amount_paid: effectiveVoucherCredit,
       status: "PENDING", source: embed ? "WIDGET" : "WEB",
@@ -432,127 +434,73 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     };
     let booking: Booking | null; let error: PostgrestError | null;
     if (draftBookingId) {
-      const res = await tenantSupabase.from("bookings").update(bookingPayload).eq("id", draftBookingId).select().single();
-      booking = res.data; error = res.error;
+      const bookingClient = draftWaiverToken
+        ? createBookingSupabase(selectedTour!.business_id, draftBookingId, draftWaiverToken)
+        : tenantSupabase;
+      const existing = await bookingClient.from("bookings").select().eq("id", draftBookingId).single();
+      if (existing.data?.status === "HELD") {
+        booking = existing.data; error = existing.error;
+        if (booking && (booking.qty !== qty || booking.slot_id !== selectedSlot!.id)) {
+          showToast("Your previous reservation is still held. Restore its guest count and departure to retry, or wait for it to expire.", "error");
+          return;
+        }
+      } else {
+        const res = await bookingClient.from("bookings").update(bookingPayload).eq("id", draftBookingId).select().single();
+        booking = res.data; error = res.error;
+      }
     } else {
-      const res = await tenantSupabase.from("bookings").insert(bookingPayload).select().single();
+      const bookingId = crypto.randomUUID();
+      const waiverToken = crypto.randomUUID();
+      const bookingClient = createBookingSupabase(selectedTour!.business_id, bookingId, waiverToken);
+      const res = await bookingClient.from("bookings").insert({ ...bookingPayload, id: bookingId, waiver_token: waiverToken }).select().single();
+      if (res.data?.id) setDraftBookingId(res.data.id);
+      if (res.data?.waiver_token) setDraftWaiverToken(String(res.data.waiver_token));
       booking = res.data; error = res.error;
     }
     if (error || !booking) { showToast("Something went wrong.", "error"); setSubmitting(false); return; }
+    if (!booking.waiver_token) { showToast("We couldn't verify this booking. Please try again.", "error"); setSubmitting(false); return; }
     setBookingRef(booking.id.substring(0, 8).toUpperCase());
 
-    // Save add-on line items (snapshot unit_price at booking time)
-    const addOnRows = availableAddOns
-      .filter(ao => selectedAddOns[ao.id] && selectedAddOns[ao.id] > 0)
-      .map(ao => ({ booking_id: booking.id, add_on_id: ao.id, qty: selectedAddOns[ao.id], unit_price: ao.price }));
-    if (addOnRows.length > 0) {
-      await tenantSupabase.from("booking_add_ons").insert(addOnRows);
-    }
-
-    // Record promo usage atomically (prevents race conditions and duplicate uses)
-    if (appliedPromo) {
-      await supabase.rpc("apply_promo_code", {
-        p_promo_id: appliedPromo.id,
-        p_customer_email: email.toLowerCase(),
-        p_booking_id: booking.id,
-        p_customer_phone: phone ? normalizePhone(dialCode, phone) : null,
-      });
-    }
-
-    if (finalTotal <= 0) {
-      // Server-side confirmation: confirm_voucher_booking recomputes the total,
-      // verifies the vouchers actually cover it, reserves capacity, deducts the
-      // vouchers and sets PAID — all atomically. Anon can no longer mark a booking
-      // PAID directly, and capacity is checked before confirmation (never PAID on
-      // a sold-out slot).
-      const { data: confirmRes, error: confirmErr } = await supabase.rpc("confirm_voucher_booking", {
-        p_booking_id: booking.id,
-        p_voucher_ids: vouchers.map(v => v.id),
-      });
-      if (confirmErr || !confirmRes?.ok) {
-        if (confirmRes?.error === "no_capacity") {
-          await tenantSupabase.from("bookings").update({ status: "CANCELLED", cancellation_reason: "No capacity" }).eq("id", booking.id);
-          setSoldOutMsg(confirmRes?.message || "This slot just sold out! Please select another time.");
-          setSelectedSlot(null);
-          setStep("calendar");
-          setSubmitting(false);
-          if (selectedTour) loadSlots(selectedTour.id);
-          return;
-        }
-        showToast(confirmRes?.error === "insufficient_voucher"
-          ? "Your voucher no longer covers the full amount. Please try again."
-          : "We couldn't confirm your booking. Please try again.", "error");
-        setSubmitting(false);
-        return;
-      }
-      // Email customers any leftover voucher balance the server reported.
-      const remainders: { code: string; remaining: number }[] = (confirmRes.remainders || []).map((r: { code: string; remaining: number }) => ({ code: r.code, remaining: Number(r.remaining) }));
-      for (const r of remainders) {
-        const used = vouchers.find(v => v.code === r.code);
-        try {
-          await supabase.functions.invoke("send-email", {
-            body: {
-              type: "VOUCHER_BALANCE",
-              data: {
-                email: email.toLowerCase(),
-                customer_name: name,
-                voucher_code: r.code,
-                original_value: used?.value ?? null,
-                amount_used: used ? used.value - r.remaining : null,
-                remaining_balance: r.remaining,
-                booking_ref: booking.id.substring(0, 8).toUpperCase(),
-                tour_name: selectedTour!.name,
-                business_id: selectedTour!.business_id,
-              },
-            },
-          });
-        } catch (e) { console.error("VOUCHER_BALANCE_EMAIL_ERR:", e); }
-      }
-      // Confirm booking (handles email + WhatsApp + invoice + marketing sync)
-      try {
-        await supabase.functions.invoke("confirm-booking", {
-          body: { booking_id: booking.id },
-        });
-      } catch (e) { console.error("VOUCHER_CONFIRM_ERR:", e); }
-      // Fetch waiver token to show CTA on confirmation screen
-      try {
-        const { data: waiverData } = await supabase.from("bookings").select("waiver_token, waiver_status").eq("id", booking.id).single();
-        if (waiverData?.waiver_token && waiverData.waiver_status !== "SIGNED") {
-          setWaiverUrl("/waiver?booking=" + booking.id + "&token=" + waiverData.waiver_token);
-        }
-      } catch (e) { console.error("WAIVER_FETCH_ERR:", e); }
-      setVoucherRemainders(remainders);
-      clearLocalDraft(); setPaymentUrl("FREE"); setStep("payment"); setSubmitting(false); return;
-    }
-
-    // Atomic capacity check + hold creation to prevent overbooking
-    const { data: holdResult, error: holdError } = await supabase.rpc("create_hold_with_capacity_check", {
-      p_booking_id: booking.id,
-      p_slot_id: selectedSlot!.id,
-      p_qty: qty,
-      p_expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+    // The server prices the selected extras and reserves capacity and vouchers.
+    const yocoRes = await supabase.functions.invoke("create-checkout", {
+      body: {
+        booking_id: booking.id, booking_token: booking.waiver_token, amount: finalTotal,
+        customer_name: name.trim(), customer_email: email.trim().toLowerCase(), qty,
+        promo_code: appliedPromo?.code || null,
+        voucher_codes: vouchers.map(v => v.code), voucher_ids: vouchers.map(v => v.id),
+        add_ons: Object.entries(selectedAddOns).filter(([, count]) => count > 0).map(([id, count]) => ({ id, qty: count })),
+        skip_notifications: true,
+      },
     });
-    if (holdError || !holdResult?.success) {
-      // Capacity exceeded or hold failed — clean up the booking and redirect to calendar
-      await tenantSupabase.from("bookings").update({ status: "CANCELLED", cancellation_reason: "No capacity" }).eq("id", booking.id);
-      setSoldOutMsg(holdResult?.error || "This slot just sold out! Please select another time.");
-      setSelectedSlot(null);
-      setStep("calendar");
-      setSubmitting(false);
-      if (selectedTour) loadSlots(selectedTour.id);
+    if (!yocoRes.data?.redirectUrl) {
+      let reason = yocoRes.data?.reason;
+      if (!reason && yocoRes.error) {
+        try { reason = (await yocoRes.error.context?.json())?.reason; } catch { /* use fallback */ }
+      }
+      showToast(reason || "Payment link unavailable. Your details are saved; please try again.", "error");
       return;
     }
-    await tenantSupabase.from("bookings").update({ status: "HELD" }).eq("id", booking.id);
-
-    // skip_notifications: the customer is being redirected to the payment page
-    // right now — emailing/WhatsApping them the same link is noise. If they
-    // abandon, the hold-expiry sweep sends the follow-up instead.
-    const yocoRes = await supabase.functions.invoke("create-checkout", {
-      body: { booking_id: booking.id, amount: finalTotal, customer_name: name, qty, voucher_codes: vouchers.map(v => v.code), voucher_ids: vouchers.map(v => v.id), skip_notifications: true },
-    });
-    if (yocoRes.data?.redirectUrl) { clearLocalDraft(); setPaymentUrl(yocoRes.data.redirectUrl); setStep("payment"); }
-    else showToast("Payment link unavailable. Please try again.", "error");
-    setSubmitting(false);
+    const checkout = yocoRes.data;
+    setCheckoutAmount(Number(checkout.amount ?? finalTotal));
+    setHoldExpiresAt(checkout.expires_at ? new Date(checkout.expires_at) : null);
+    setPaymentUrl(checkout.redirectUrl); setStep("payment"); clearLocalDraft();
+    try {
+      sessionStorage.setItem("bt-checkout-" + theme.id, JSON.stringify({
+        url: checkout.redirectUrl, amount: checkout.amount ?? finalTotal,
+        expiresAt: checkout.expires_at, ref: booking.id.substring(0, 8).toUpperCase(),
+      }));
+    } catch { /* A disabled session store must not prevent payment. */ }
+    if (Math.abs(Number(checkout.amount ?? finalTotal) - finalTotal) > 0.01) {
+      showToast("The available price or voucher balance changed. Please review the payment total below.", "error");
+      return;
+    }
+    // Keep the visible link as a fallback if the browser blocks navigation.
+    if (embed && window.top) window.top.location.href = checkout.redirectUrl;
+    else window.location.assign(checkout.redirectUrl);
+    } catch (error) {
+      console.error("BOOKING_CHECKOUT_ERR:", error);
+      showToast("We couldn't open payment. Please use the payment link or try again.", "error");
+    } finally { setSubmitting(false); }
   }
 
   function renderCalendar() {
@@ -570,7 +518,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
       const isToday = isSameDay(date, today);
       cells.push(
         <button key={day} data-shot="calendar-day" disabled={past || !has} onClick={() => { setSelectedDate(date); setSelectedSlot(null); }}
-          className={"relative aspect-square rounded-full flex items-center justify-center text-[15px] font-extrabold transition-all outline-none " +
+          className={"relative flex aspect-square min-h-11 min-w-11 items-center justify-center rounded-full text-[15px] font-extrabold transition-all outline-none " +
             (sel ? "bg-[color:var(--accent)] text-[color:var(--ink-on-main)] shadow-md scale-105 " : "") +
             (!sel && has && !past ? "bg-[color:var(--glass-tint-card)] text-[color:var(--ink)] border border-[color:var(--glass-border)] hover:bg-[color:var(--hover-overlay)] hover:shadow-sm cursor-pointer " : "") +
             (past || !has ? "text-[color:var(--ink-faint)] cursor-not-allowed bg-transparent " : "") +
@@ -582,22 +530,22 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
     }
     const canPrev = calYear > today.getFullYear() || calMonth > today.getMonth();
     return (
-      <div className="glass p-6" data-shot="calendar">
-        <div className="flex items-center justify-between mb-6">
+      <div className="glass -mx-4 py-4 sm:mx-0 sm:p-6" data-shot="calendar">
+        <div className="mb-4 flex items-center justify-between px-4 sm:mb-6 sm:px-0">
           <button onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); } else setCalMonth(calMonth - 1); }}
-            disabled={!canPrev} className="w-10 h-10 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 rounded-full surface-muted flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)] disabled:opacity-30 transition-colors">
+            aria-label="Previous month" disabled={!canPrev} className="w-10 h-10 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 rounded-full surface-muted flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)] disabled:opacity-30 transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
           </button>
           <h3 className="text-xl font-extrabold text-[color:var(--ink)] tracking-tight">{fmtMonth(new Date(calYear, calMonth))}</h3>
           <button onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1); } else setCalMonth(calMonth + 1); }}
-            className="w-10 h-10 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 rounded-full surface-muted flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)] transition-colors">
+            aria-label="Next month" className="w-10 h-10 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 rounded-full surface-muted flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)] transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
           </button>
         </div>
-        <div className="grid grid-cols-7 gap-1 mb-3">
+        <div className="mb-3 grid grid-cols-7 gap-0">
           {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(d => <div key={d} className="text-center text-[11px] font-bold text-[color:var(--ink-muted)] py-1 uppercase tracking-wider">{d}</div>)}
         </div>
-        <div className="grid grid-cols-7 gap-1.5">{cells}</div>
+        <div className="grid grid-cols-7 gap-0">{cells}</div>
         <div className="flex items-center gap-5 mt-6 pt-5 border-t border-[color:var(--glass-border)] text-[12px] font-bold text-[color:var(--ink-muted)] justify-center">
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[color:var(--accent)] inline-block shadow-sm" /> Available</span>
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[color:var(--glass-border)] inline-block" /> Unavailable</span>
@@ -625,7 +573,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
   if (!trading) return <TenantClosedNotice />;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 md:py-12">
+    <div className={`mx-auto max-w-4xl px-4 py-6 md:py-12 ${step === "payment" || embed ? "" : "pb-36 md:pb-12"}`}>
       {/* Progress */}
       <div className="flex items-center justify-between mb-10 glass !rounded-full p-2.5 max-w-lg mx-auto">
         {[{ l: "Date", s: "calendar" }, { l: "Details", s: "details" }, { l: "Pay", s: "payment" }].map((x, i) => {
@@ -825,7 +773,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                         </div>
                       </div>
 
-                      <button onClick={() => { setHoldExpiresAt(new Date(Date.now() + 15 * 60 * 1000)); setStep("details"); }} className="btn btn-primary w-full !py-4 text-[15px] group">
+                      <button onClick={() => { setStep("details"); }} className="btn btn-primary hidden w-full !py-4 text-[15px] group md:flex">
                         Continue to Details
                       </button>
                     </div>
@@ -867,12 +815,12 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                  <h3 className="text-[14px] font-extrabold text-[color:var(--ink)] tracking-wide mb-2 uppercase">Your Details</h3>
                  <div>
                    <label htmlFor="book-name" className="field-label ml-1">Full Name *</label>
-                   <input id="book-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="John Smith"
+                   <input id="book-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="John Smith" autoComplete="name"
                      className="field" />
                  </div>
                  <div>
                    <label htmlFor="book-email" className="field-label ml-1">Email Address *</label>
-                   <input id="book-email" type="email" value={email} onChange={e => setEmail(e.target.value)} onBlur={saveDraft} placeholder="john@example.com"
+                   <input id="book-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="john@example.com" autoComplete="email"
                      className="field" />
                  </div>
                  <div>
@@ -882,7 +830,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                        className="field !w-auto shrink-0 cursor-pointer !px-2.5" style={{ minWidth: "96px" }}>
                        {DIAL_CODES.map((d, i) => <option key={d.country + i} value={d.code}>{d.flag} {d.code}</option>)}
                      </select>
-                     <input id="book-phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="71 234 5678"
+                     <input id="book-phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="71 234 5678" autoComplete="tel-national"
                        className="field min-w-0 flex-1" />
                    </div>
                  </div>
@@ -974,7 +922,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
               </div>
               
               <label className="flex items-start gap-4 mt-6 cursor-pointer group glass p-5 transition-colors">
-                <input type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)}
+                <input id="book-terms" type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)}
                   className="mt-0.5 w-5 h-5 shrink-0 rounded text-[color:var(--accent)] focus:ring-[color:var(--accent)] cursor-pointer" />
                 <span className="text-[13px] font-bold text-[color:var(--ink-muted)] leading-relaxed group-hover:text-[color:var(--ink)] transition-colors">
                   I accept the <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[color:var(--accent-text)] underline">Terms &amp; Conditions</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[color:var(--accent-text)] underline">Privacy Policy</a>.
@@ -1029,7 +977,7 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                 </div>
 
                 <button onClick={submitBooking} data-shot="pay-button" disabled={submitting || !name.trim() || !email.trim() || !phone.trim() || !termsAccepted}
-                  className="btn btn-primary w-full mt-8 !py-4 text-[15px]">
+                  className="btn btn-primary mt-8 hidden w-full !py-4 text-[15px] md:flex">
                   {submitting ? "Processing..." : finalTotal <= 0 ? "Confirm Booking ✓" : "Pay R" + finalTotal + " now →"}
                 </button>
                 <div className="surface-muted !rounded-full flex items-center justify-center gap-2 mt-4 px-4 py-2 text-[11px] font-bold text-[color:var(--ink-muted)] uppercase tracking-widest">
@@ -1117,12 +1065,12 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
                   }} />
                 </div>
               ) : (
-                <p className="text-[14px] font-bold text-[color:var(--ink-muted)] mb-6">Spots are held exclusively for 15 minutes.</p>
+                <p className="text-[14px] font-bold text-[color:var(--ink-muted)] mb-6">Use the payment link below to complete your booking.</p>
               )}
 
               <div className="surface-muted w-full py-6 mb-8 text-center">
                  <p className="text-[12px] font-extrabold uppercase tracking-widest text-[color:var(--ink-muted)] mb-1">Payment Total</p>
-                 <p className="text-5xl font-extrabold tracking-tighter text-[color:var(--ink)]">R{finalTotal}</p>
+                 <p className="text-5xl font-extrabold tracking-tighter text-[color:var(--ink)]">R{checkoutAmount ?? finalTotal}</p>
               </div>
 
               <a href={paymentUrl} onClick={embed ? (e) => { e.preventDefault(); if (window.top) window.top.location.href = paymentUrl; else window.location.href = paymentUrl; } : undefined} className="btn btn-primary w-full !py-4 text-[16px]">Proceed to Secure Portal &rarr;</a>
@@ -1160,6 +1108,46 @@ export function BookingFlow({ embed = false }: { embed?: boolean }) {
               </div>
             ))}
           </div>
+        </div>
+      )}
+      {!embed && step === "calendar" && (
+        <div
+          data-mobile-booking-bar="calendar"
+          className="fixed inset-x-3 bottom-3 z-40 flex min-h-[76px] items-center gap-3 rounded-[20px] border px-4 py-3 shadow-2xl backdrop-blur-xl md:hidden"
+          style={{ background: "color-mix(in srgb, var(--glass-tint-card) 94%, transparent)", borderColor: "var(--glass-border)", paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+        >
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold" style={{ color: "var(--ink-muted)" }}>{selectedSlot ? `${qty} ${qty === 1 ? "guest" : "guests"}` : "Choose a date and time"}</p>
+            <p className="text-xl font-extrabold tabular-nums" style={{ color: "var(--ink)" }}>{selectedSlot ? `R${grandTotal}` : "Not selected"}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setStep("details")}
+            disabled={!selectedTour || !selectedDate || !selectedSlot}
+            className="btn btn-primary min-h-12 shrink-0 px-5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Continue to details
+          </button>
+        </div>
+      )}
+      {!embed && step === "details" && (
+        <div
+          data-mobile-booking-bar="details"
+          className="fixed inset-x-3 bottom-3 z-40 flex min-h-[76px] items-center gap-3 rounded-[20px] border px-4 py-3 shadow-2xl backdrop-blur-xl md:hidden"
+          style={{ background: "color-mix(in srgb, var(--glass-tint-card) 94%, transparent)", borderColor: "var(--glass-border)", paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+        >
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold" style={{ color: "var(--ink-muted)" }}>Total</p>
+            <p className="text-xl font-extrabold tabular-nums" style={{ color: "var(--ink)" }}>{finalTotal <= 0 ? "FREE" : `R${finalTotal}`}</p>
+          </div>
+          <button
+            type="button"
+            onClick={submitBooking}
+            disabled={submitting || !name.trim() || !email.trim() || !phone.trim() || !termsAccepted}
+            className="btn btn-primary min-h-12 shrink-0 px-5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {submitting ? "Processing…" : finalTotal <= 0 ? "Confirm booking" : `Pay R${finalTotal} now`}
+          </button>
         </div>
       )}
       {toast && <Toast message={toast.message} type={toast.type} onDismiss={dismissToast} />}

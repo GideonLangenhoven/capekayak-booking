@@ -1,5 +1,13 @@
 import type { Slot } from "./types";
 
+export function paidPortions(booking: { total_amount?: number; original_total?: number; voucher_amount_paid?: number }) {
+  const voucher = Number(booking.voucher_amount_paid || 0);
+  const original = Number(booking.original_total || 0);
+  let cash = Number(booking.total_amount || 0);
+  if (original > 0 && cash + voucher > original) cash = Math.max(0, original - voucher);
+  return { cash, voucher, total: cash + voucher };
+}
+
 /**
  * How close to departure a slot stops being sellable. The booking flow hides
  * slots inside this window, so nothing may advertise one either (a last-minute

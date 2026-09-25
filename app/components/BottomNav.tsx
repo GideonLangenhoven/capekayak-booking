@@ -22,7 +22,7 @@ function TicketIcon() {
 export default function BottomNav() {
   const theme = useTheme();
   const pathname = usePathname() || "/";
-  if (pathname.startsWith("/embed")) return null;
+  if (pathname.startsWith("/embed") || pathname === "/book" || pathname.startsWith("/combo/")) return null;
 
   const items = [
     { href: "/", label: "Book", icon: <HomeIcon /> },
