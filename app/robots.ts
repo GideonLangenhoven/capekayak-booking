@@ -7,6 +7,53 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
   return {
     rules: [
       {
+        userAgent: [
+          "Googlebot",
+          "Bingbot",
+          "Applebot",
+          "Slurp",
+          "DuckDuckBot",
+          "YandexBot",
+        ],
+        allow: ["/", "/book", "/voucher", "/directory", "/terms", "/privacy", "/cookies"],
+        disallow: [
+          "/api/",
+          "/embed",
+          "/auth/",
+          "/success",
+          "/cancelled",
+          "/voucher-success",
+          "/voucher-confirmed",
+          "/my-bookings",
+          "/waiver",
+          "/review",
+        ],
+      },
+      {
+        userAgent: [
+          "GPTBot",
+          "ChatGPT-User",
+          "ClaudeBot",
+          "PerplexityBot",
+          "Google-Extended",
+          "Applebot-Extended",
+          "CCBot",
+        ],
+        allow: ["/", "/book", "/voucher", "/directory", "/terms", "/privacy", "/cookies"],
+        disallow: [
+          "/api/",
+          "/embed",
+          "/auth/",
+          "/success",
+          "/cancelled",
+          "/voucher-success",
+          "/voucher-confirmed",
+          "/my-bookings",
+          "/waiver",
+          "/review",
+        ],
+      },
+      {
         userAgent: "*",
         allow: "/",
         disallow: [
