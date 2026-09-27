@@ -16,16 +16,16 @@ const source = ts.transpileModule(readFileSync('middleware.ts','utf8'), {
 const production = {VERCEL:'1',VERCEL_ENV:'production',NEXT_PUBLIC_SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'synthetic-service-key'};
 
 function load(env, fetchImpl) {
-  const module = {exports:{}};
+  const sandboxModule = {exports:{}};
   runInNewContext(source, {
-    module,exports:module.exports,require:name=>{
+    module:sandboxModule,exports:sandboxModule.exports,require:name=>{
       assert.equal(name,'next/server');
       return {NextResponse};
     },
     process:{env},fetch:fetchImpl,crypto:webcrypto,
     Response,Request,URL,AbortSignal,TextEncoder,TextDecoder,ReadableStream,Uint8Array,Map,Date,Number,JSON,console,
   }, {filename:'middleware.ts'});
-  return module.exports.middleware;
+  return sandboxModule.exports.middleware;
 }
 
 function request(path='/api/tours', headers={}) {
