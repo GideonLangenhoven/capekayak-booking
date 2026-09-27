@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 // AN4: per-endpoint, per-IP rate limit backed by the public.api_rate_limits
-// table + public.check_rate_limit RPC. The booking-site middleware already
-// imposes a coarse 100/min/IP across all /api/*, but it runs on the
-// in-memory fallback (Upstash isn't provisioned), so sensitive write
-// endpoints get this stricter, durable bucket on top.
+// table + public.check_rate_limit RPC. Storefront middleware imposes a shared
+// coarse 100/min/IP API bucket; sensitive writes keep this stricter bucket.
 
 export function getClientIp(req: NextRequest): string {
   const xff = req.headers.get("x-forwarded-for");

@@ -9,6 +9,7 @@ import Header from "./components/Header";
 import BottomNav from "./components/BottomNav";
 import Footer from "./components/Footer";
 import { getRequestTenant } from "./lib/tenant-server";
+import { tenantJsonLd } from "./lib/tenant-jsonld";
 
 // Glass design language pairing: rounded geometric display + legible humanist
 // body. Self-hosted via next/font — no CDN, no CSP change.
@@ -47,7 +48,8 @@ export async function generateMetadata(): Promise<Metadata> {
       title,
       description,
       type: "website",
-      ...(ogImage ? { images: [{ url: ogImage }] } : {}),
+      locale: "en_ZA",
+      ...(ogImage ? { images: [{ url: ogImage, alt: title }] } : {}),
     },
     twitter: {
       card: ogImage ? "summary_large_image" : "summary",
@@ -68,11 +70,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // stack a second sticky header on top of it and link to storefront routes
   // that cannot work without a business_id.
   const chrome = Boolean(tenant);
+  const jsonLd = tenantJsonLd(tenant);
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en-ZA" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#0F2B1F" />
+        {jsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />}
       </head>
       <body className={`${font.className} ${display.variable}`} suppressHydrationWarning>
         <ThemeProvider initialBusinessId={tenant?.id ?? null} initialTheme={tenant}>
