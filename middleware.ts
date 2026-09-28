@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { validIp } from "@/app/lib/client-ip";
 
 const rateMap = new Map<string, { count: number; resetAt: number }>();
 const WINDOW_MS = 60_000;
@@ -126,11 +127,14 @@ export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
   if (path !== "/api" && !path.startsWith("/api/")) return NextResponse.next();
 
-  const deployed = process.env.VERCEL === "1" || process.env.NODE_ENV === "production" ||
+  const netlify = (globalThis as typeof globalThis & { Netlify?: { context?: { ip?: string } | null } }).Netlify?.context;
+  const deployed = Boolean(netlify) || process.env.VERCEL === "1" || process.env.NODE_ENV === "production" ||
     process.env.VERCEL_ENV === "production" || process.env.VERCEL_ENV === "preview";
-  if (deployed && process.env.VERCEL !== "1") return unavailable();
-  const rawIp = (request.headers.get("x-vercel-forwarded-for") || request.headers.get("x-forwarded-for") || "").trim();
-  const ip = rawIp && rawIp.length <= 45 && /^[0-9a-fA-F:.]+$/.test(rawIp) ? rawIp : deployed ? null : "local";
+  if ((netlify && process.env.VERCEL === "1") || (deployed && process.env.VERCEL !== "1" && !netlify)) return unavailable();
+  // Netlify Edge provides the client IP in runtime context, not request headers.
+  const candidateIp = netlify ? netlify.ip : process.env.VERCEL === "1"
+    ? request.headers.get("x-vercel-forwarded-for") : null;
+  const ip = validIp(candidateIp) ? candidateIp : deployed ? null : "local";
   if (!ip) return unavailable();
 
   const redisConfigured = Boolean(process.env.UPSTASH_REDIS_REST_URL || process.env.UPSTASH_REDIS_REST_TOKEN);

@@ -13,16 +13,23 @@ class NextResponse extends Response {
 const source = ts.transpileModule(readFileSync('middleware.ts','utf8'), {
   compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022},
 }).outputText;
+const ipSource = ts.transpileModule(readFileSync('app/lib/client-ip.ts','utf8'), {
+  compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022},
+}).outputText;
+const ipModule = {exports:{}};
+runInNewContext(ipSource, {module:ipModule,exports:ipModule.exports,URL,Number});
 const production = {VERCEL:'1',VERCEL_ENV:'production',NEXT_PUBLIC_SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'synthetic-service-key'};
 
-function load(env, fetchImpl) {
+function load(env, fetchImpl, netlifyContext) {
   const sandboxModule = {exports:{}};
   runInNewContext(source, {
     module:sandboxModule,exports:sandboxModule.exports,require:name=>{
-      assert.equal(name,'next/server');
-      return {NextResponse};
+      if (name === 'next/server') return {NextResponse};
+      assert.equal(name,'@/app/lib/client-ip');
+      return ipModule.exports;
     },
     process:{env},fetch:fetchImpl,crypto:webcrypto,
+    Netlify:netlifyContext === undefined ? undefined : {context:netlifyContext},
     Response,Request,URL,AbortSignal,TextEncoder,TextDecoder,ReadableStream,Uint8Array,Map,Date,Number,JSON,console,
   }, {filename:'middleware.ts'});
   return sandboxModule.exports.middleware;
@@ -73,10 +80,58 @@ test('only trusted Vercel IP affects the bucket; missing config/IP fails closed'
   assert.equal((await middleware(request('/api/tours',{'x-forwarded-for':'198.51.100.7'}))).status,200);
   assert.equal(shared.calls[0].p_key_hash,shared.calls[1].p_key_hash);
   assert.equal((await middleware(request('/api/tours',{'x-vercel-forwarded-for':'bad-ip'}))).status,503);
+  assert.equal((await middleware(request('/api/tours',{'x-vercel-forwarded-for':'','x-forwarded-for':'192.0.2.44'}))).status,503);
   assert.equal((await load({...production,SUPABASE_SERVICE_ROLE_KEY:''},shared.fetchImpl)(request())).status,503);
   assert.equal((await load({...production,VERCEL:''},shared.fetchImpl)(request())).status,503);
   assert.equal((await load({...production,NEXT_PUBLIC_SUPABASE_URL:'http://project.supabase.co'},shared.fetchImpl)(request())).status,503);
   assert.equal((await load({...production,SUPABASE_SERVICE_ROLE_KEY:''},shared.fetchImpl)(request('/tour'))).status,200);
+});
+
+test('Netlify uses runtime context IP and ignores request-supplied IP headers', async () => {
+  const env = {...production, VERCEL:'', VERCEL_ENV:'', NODE_ENV:'production'};
+  const shared = database();
+  const first = load(env, shared.fetchImpl, {ip:'192.0.2.44'});
+  const second = load(env, shared.fetchImpl, {ip:'192.0.2.45'});
+  const spoofed = {'x-vercel-forwarded-for':'198.51.100.7','x-forwarded-for':'198.51.100.8','x-nf-client-connection-ip':'198.51.100.9'};
+  assert.equal((await first(request('/api/tours', spoofed))).status,200);
+  assert.equal((await first(request('/api/tours', {'x-forwarded-for':'203.0.113.2'}))).status,200);
+  assert.equal((await second(request('/api/tours', spoofed))).status,200);
+  assert.equal(shared.calls[0].p_key_hash,shared.calls[1].p_key_hash);
+  assert.notEqual(shared.calls[1].p_key_hash,shared.calls[2].p_key_hash);
+  assert.equal((await load(env, shared.fetchImpl)(request('/api/tours', spoofed))).status,503);
+  assert.equal((await load(env, shared.fetchImpl, {})(request('/api/tours', spoofed))).status,503);
+  assert.equal((await load(env, shared.fetchImpl, {ip:'not-an-ip'})(request('/api/tours', spoofed))).status,503);
+  assert.equal((await load(env, shared.fetchImpl, {ip:'999.0.0.1'})(request('/api/tours', spoofed))).status,503);
+  assert.equal((await load({...env,VERCEL:'1'}, shared.fetchImpl, {ip:'192.0.2.44'})(request('/api/tours', spoofed))).status,503);
+
+  const rateSource = ts.transpileModule(readFileSync('app/lib/rate-limit.ts','utf8'), {
+    compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022},
+  }).outputText;
+  const rateModule = {exports:{}};
+  const rateEnv = {...env};
+  let runtimeContext = {ip:'192.0.2.44'};
+  runInNewContext(rateSource, {
+    module:rateModule,exports:rateModule.exports,require:name=>{
+      if (name === 'next/server') return {NextResponse};
+      if (name === '@/app/lib/client-ip') return ipModule.exports;
+      if (name === '@netlify/functions') return {getContext:()=>{
+        if (!runtimeContext) throw new Error('No Netlify context');
+        return runtimeContext;
+      }};
+      assert.equal(name,'@supabase/supabase-js');
+      return {createClient:()=>{throw new Error('no database call expected')}};
+    },
+    process:{env:rateEnv},Response,Number,console,
+  });
+  assert.equal(rateModule.exports.getClientIp(request('/api/tours',spoofed)),'192.0.2.44');
+  runtimeContext = {ip:'999.0.0.1'};
+  assert.equal(rateModule.exports.getClientIp(request('/api/tours',spoofed)),null);
+  assert.equal((await rateModule.exports.enforceRateLimit({req:request('/api/tours',spoofed),endpoint:'review-submit',maxPerMinute:20})).status,503);
+  runtimeContext = null;
+  assert.equal(rateModule.exports.getClientIp(request('/api/tours',spoofed)),null);
+  assert.equal((await rateModule.exports.enforceRateLimit({req:request('/api/tours',spoofed),endpoint:'review-submit',maxPerMinute:20})).status,503);
+  rateEnv.SUPABASE_SERVICE_ROLE_KEY = '';
+  assert.equal((await rateModule.exports.enforceRateLimit({req:request('/api/tours',spoofed),endpoint:'review-submit',maxPerMinute:20})).status,503);
 });
 
 test('database errors and oversized or invalid replies never fall back to process memory', async () => {

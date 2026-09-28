@@ -2,6 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { enforceRateLimit } from "@/app/lib/rate-limit";
 
+export const runtime = "nodejs";
+
 function getServiceClient() {
   return createClient(
     process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "",

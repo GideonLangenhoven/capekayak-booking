@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { randomBytes, createHash } from "crypto";
 import { enforceRateLimit } from "@/app/lib/rate-limit";
 
+export const runtime = "nodejs";
+
 // AK1: customer-facing mirror of /admin /api/popia/request so the booking
 // site can accept POPIA data-subject requests directly without cross-origin
 // calls into the admin host. Same writer logic (and same target table) as

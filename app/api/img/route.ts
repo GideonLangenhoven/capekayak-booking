@@ -5,6 +5,7 @@ const ALLOWED_TYPES = /^image\/(?:jpeg|png|webp|avif|gif)(?:;|$)/i;
 const MAX_WIDTH = 1920;
 const DEFAULT_QUALITY = 80;
 const MAX_BYTES = 10_000_000;
+const MAX_OUTPUT_BYTES = 5_500_000;
 const MAX_PIXELS = 40_000_000;
 
 export async function GET(req: NextRequest) {
@@ -70,6 +71,10 @@ export async function GET(req: NextRequest) {
       .resize(w, undefined, { withoutEnlargement: true })
       [format]({ quality: q })
       .toBuffer();
+
+    if (transformed.byteLength > MAX_OUTPUT_BYTES) {
+      return NextResponse.json({ error: "Transformed image too large" }, { status: 413 });
+    }
 
     return new NextResponse(new Uint8Array(transformed), {
       headers: {

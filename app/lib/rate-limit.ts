@@ -1,14 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getContext } from "@netlify/functions";
+import { validIp } from "@/app/lib/client-ip";
 
 // AN4: per-endpoint, per-IP rate limit backed by the public.api_rate_limits
 // table + public.check_rate_limit RPC. Storefront middleware imposes a shared
 // coarse 100/min/IP API bucket; sensitive writes keep this stricter bucket.
 
-export function getClientIp(req: NextRequest): string {
-  const xff = req.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0]?.trim() || "unknown";
-  return req.headers.get("x-real-ip")?.trim() || "unknown";
+export function getClientIp(req: NextRequest): string | null {
+  try {
+    const ip = getContext().ip;
+    return validIp(ip) ? ip : null;
+  } catch { /* No Netlify request context outside Netlify Functions. */ }
+  if (process.env.VERCEL === "1") {
+    const ip = req.headers.get("x-vercel-forwarded-for");
+    return validIp(ip) ? ip : null;
+  }
+  return process.env.NODE_ENV === "production" ? null : "local";
+}
+
+function unavailable() {
+  return NextResponse.json(
+    { error: "Rate limiter unavailable, please retry shortly." },
+    { status: 503, headers: { "Retry-After": "5" } },
+  );
 }
 
 export async function enforceRateLimit(opts: {
@@ -18,9 +33,10 @@ export async function enforceRateLimit(opts: {
 }): Promise<NextResponse | null> {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-  if (!supabaseUrl || !serviceKey) return null;
+  if (!supabaseUrl || !serviceKey) return process.env.NODE_ENV === "production" ? unavailable() : null;
 
   const ip = getClientIp(opts.req);
+  if (!ip) return unavailable();
   const db = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
   // Retry once on transient RPC failure. Without this, a single hiccup
