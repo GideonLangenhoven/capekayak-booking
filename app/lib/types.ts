@@ -58,6 +58,7 @@ export interface Booking {
   waiver_payload?: Record<string, unknown> | null;
   yoco_payment_id?: string | null;
   marketing_opt_in?: boolean | null;
+  whatsapp_booking_updates_opt_in?: boolean;
   slots?: { start_time: string; capacity_total: number; booked: number; held: number };
   tours?: { name: string; duration_minutes?: number; meeting_point?: string | null; what_to_bring?: string | null };
 }

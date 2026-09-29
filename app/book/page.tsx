@@ -69,6 +69,7 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
   const [soldOutMsg, setSoldOutMsg] = useState("");
   const [tourNotFound, setTourNotFound] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
+  const [whatsappUpdatesOptIn, setWhatsappUpdatesOptIn] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [availableAddOns, setAvailableAddOns] = useState<AddOn[]>([]);
   const [selectedAddOns, setSelectedAddOns] = useState<Record<string, number>>({});
@@ -427,6 +428,7 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
       voucher_amount_paid: effectiveVoucherCredit,
       status: "PENDING", source: embed ? "WIDGET" : "WEB",
       marketing_opt_in: marketingOptIn || null,
+      whatsapp_booking_updates_opt_in: whatsappUpdatesOptIn,
       terms_accepted_at: new Date().toISOString(),
       customer_company_name: isCompany && companyName.trim() ? companyName.trim() : null,
       customer_vat_number: isCompany && vatNumber.trim() ? vatNumber.trim() : null,
@@ -933,6 +935,11 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
                 <input type="checkbox" checked={marketingOptIn} onChange={e => setMarketingOptIn(e.target.checked)}
                   className="mt-0.5 w-5 h-5 shrink-0 rounded text-[color:var(--accent)] focus:ring-[color:var(--accent)] cursor-pointer" />
                 <span className="text-[13px] font-bold text-[color:var(--ink-muted)] leading-relaxed group-hover:text-[color:var(--ink)] transition-colors">I agree to receive booking updates and occasional promotions by email and SMS. You can opt out at any time.</span>
+              </label>
+              <label className="flex items-start gap-4 mt-3 cursor-pointer group glass p-5 transition-colors">
+                <input type="checkbox" checked={whatsappUpdatesOptIn} onChange={e => setWhatsappUpdatesOptIn(e.target.checked)}
+                  className="mt-0.5 w-5 h-5 shrink-0 rounded text-[color:var(--accent)] focus:ring-[color:var(--accent)] cursor-pointer" />
+                <span className="text-[13px] font-bold text-[color:var(--ink-muted)] leading-relaxed group-hover:text-[color:var(--ink)] transition-colors">I agree to receive booking-related WhatsApp messages from this operator at the number above, including how to manage my booking. No promotions. I can opt out at any time.</span>
               </label>
             </div>
             

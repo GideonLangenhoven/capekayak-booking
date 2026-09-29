@@ -101,6 +101,7 @@ export default function ComboBookingPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [marketingOptIn, setMarketingOptIn] = useState(false);
+  const [whatsappUpdatesOptIn, setWhatsappUpdatesOptIn] = useState(false);
 
   // Payment state
   const [submitting, setSubmitting] = useState(false);
@@ -315,6 +316,7 @@ export default function ComboBookingPage() {
           customer_name: name,
           customer_email: email.toLowerCase(),
           customer_phone: phone ? normalizePhone("+27", phone) : "",
+          whatsapp_booking_updates_opt_in: whatsappUpdatesOptIn,
         }),
       });
       const data = await res.json();
@@ -552,6 +554,11 @@ export default function ComboBookingPage() {
                 <input type="checkbox" checked={marketingOptIn} onChange={e => setMarketingOptIn(e.target.checked)}
                   className="mt-1 w-4 h-4 shrink-0 rounded border-[color:var(--glass-border)]" />
                 <span className="text-xs text-[color:var(--ink-muted)] leading-relaxed">I agree to receive booking updates and occasional promotions by email and SMS. You can opt out at any time.</span>
+              </label>
+              <label className="flex items-start gap-3 mt-4 cursor-pointer">
+                <input type="checkbox" checked={whatsappUpdatesOptIn} onChange={e => setWhatsappUpdatesOptIn(e.target.checked)}
+                  className="mt-1 w-4 h-4 shrink-0 rounded border-[color:var(--glass-border)]" />
+                <span className="text-xs text-[color:var(--ink-muted)] leading-relaxed">I agree to receive booking-related WhatsApp messages from the operators in this combo at the number above, including how to manage my bookings. No promotions. I can opt out at any time.</span>
               </label>
             </div>
 
