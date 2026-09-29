@@ -113,7 +113,7 @@ export default function ProfileTab({ customer, user, onUpdate, onSignOut }: Prop
         <label className="flex cursor-pointer items-center gap-2.5 pt-1">
           <input type="checkbox" checked={marketingConsent} onChange={e => setMarketingConsent(e.target.checked)}
             className="h-4 w-4 rounded" style={{ accentColor: "var(--accent)" }} />
-          <span className="text-sm text-[color:var(--text)]">Send me booking updates and promotions</span>
+          <span className="text-sm text-[color:var(--text)]">Send me offers and promotions. Trip emails still arrive if I leave this off.</span>
         </label>
 
         <div className="flex items-center gap-3 pt-1">

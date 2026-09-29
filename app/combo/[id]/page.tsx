@@ -553,7 +553,7 @@ export default function ComboBookingPage() {
               <label className="flex items-start gap-3 mt-4 cursor-pointer">
                 <input type="checkbox" checked={marketingOptIn} onChange={e => setMarketingOptIn(e.target.checked)}
                   className="mt-1 w-4 h-4 shrink-0 rounded border-[color:var(--glass-border)]" />
-                <span className="text-xs text-[color:var(--ink-muted)] leading-relaxed">I agree to receive booking updates and occasional promotions by email and SMS. You can opt out at any time.</span>
+                <span className="text-xs text-[color:var(--ink-muted)] leading-relaxed">I agree to receive offers and promotions by email and SMS. Booking confirmations and trip information will still be emailed if I leave this unchecked.</span>
               </label>
               <label className="flex items-start gap-3 mt-4 cursor-pointer">
                 <input type="checkbox" checked={whatsappUpdatesOptIn} onChange={e => setWhatsappUpdatesOptIn(e.target.checked)}

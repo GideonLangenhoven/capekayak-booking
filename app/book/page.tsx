@@ -934,7 +934,7 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
               <label className="flex items-start gap-4 mt-3 cursor-pointer group glass p-5 transition-colors">
                 <input type="checkbox" checked={marketingOptIn} onChange={e => setMarketingOptIn(e.target.checked)}
                   className="mt-0.5 w-5 h-5 shrink-0 rounded text-[color:var(--accent)] focus:ring-[color:var(--accent)] cursor-pointer" />
-                <span className="text-[13px] font-bold text-[color:var(--ink-muted)] leading-relaxed group-hover:text-[color:var(--ink)] transition-colors">I agree to receive booking updates and occasional promotions by email and SMS. You can opt out at any time.</span>
+                <span className="text-[13px] font-bold text-[color:var(--ink-muted)] leading-relaxed group-hover:text-[color:var(--ink)] transition-colors">I agree to receive offers and promotions by email and SMS. Booking confirmations and trip information will still be emailed if I leave this unchecked.</span>
               </label>
               <label className="flex items-start gap-4 mt-3 cursor-pointer group glass p-5 transition-colors">
                 <input type="checkbox" checked={whatsappUpdatesOptIn} onChange={e => setWhatsappUpdatesOptIn(e.target.checked)}
