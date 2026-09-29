@@ -85,6 +85,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // stack a second sticky header on top of it and link to storefront routes
   // that cannot work without a business_id.
   const chrome = Boolean(tenant);
+  const showBottomNav = chrome && tenant?.subdomain !== "kayak";
 
   // Background Structured Entity Schema for AI Retrieval (Perplexity, ChatGPT Search, Gemini) & Google Knowledge Graph
   const jsonLd = {
@@ -166,13 +167,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       </head>
-      <body className={`${font.className} ${display.variable}`} suppressHydrationWarning>
+      <body className={`${font.className} ${display.variable}`} data-mobile-bottom-nav={showBottomNav ? "true" : undefined} suppressHydrationWarning>
         <ThemeProvider initialBusinessId={tenant?.id ?? null} initialTheme={tenant}>
           {chrome && <GlassBackdrop />}
           {chrome && <Header />}
           <main className="min-h-[calc(100dvh-12rem)]">{children}</main>
-          {chrome && <Footer />}
-          {chrome && <BottomNav />}
+          {chrome && <Footer withBottomNav={showBottomNav} />}
+          {showBottomNav && <BottomNav />}
           <CookieBanner />
           {chrome && <ChatWidget />}
         </ThemeProvider>

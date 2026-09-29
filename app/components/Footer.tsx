@@ -2,14 +2,14 @@
 import { useTheme } from "./ThemeProvider";
 import { BrandMark, BrandWordmark } from "./BrandLogo";
 
-export default function Footer() {
+export default function Footer({ withBottomNav }: { withBottomNav: boolean }) {
   const theme = useTheme();
   const name = theme.business_name || "Your Booking";
   const line1 = theme.footer_line_one || (name + (theme.business_tagline ? " \u00B7 " + theme.business_tagline : ""));
   const line2 = theme.footer_line_two || "";
 
   return (
-    <footer className="mt-14 px-4 pb-24 lg:pb-6">
+    <footer className={`mt-14 px-4 ${withBottomNav ? "pb-24" : "pb-6"} lg:pb-6`}>
       <div className="glass-sheet app-container py-8 text-center text-sm text-[color:var(--ink-muted)]">
         <p className="max-w-none">{line1}</p>
         {line2 && <p className="mt-1 max-w-none">{line2}</p>}

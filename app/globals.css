@@ -898,10 +898,9 @@
   color: var(--ink-muted);
 }
 
-/* Chat launcher/panel float above the mobile bottom glass nav. The embed
-   widget hides via `.fixed.bottom-6.right-6` — those classes must stay. */
+/* Lift the chat launcher only when the mobile bottom nav is present. */
 @media (max-width: 1023px) {
-  .chat-launcher-lift { bottom: 5.75rem; }
+  body[data-mobile-bottom-nav="true"] .chat-launcher-lift { bottom: 5.75rem; }
 }
 
 /* Rich-text policy panes (spec §5 rule 6): operator HTML may carry inline
