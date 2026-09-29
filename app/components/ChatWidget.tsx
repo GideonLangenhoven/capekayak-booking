@@ -9,6 +9,8 @@ import type { ChatMessage, ChatButton } from "../lib/types";
 
 export default function ChatWidget() {
   const { id } = useTheme();
+  const pathname = usePathname();
+  if (pathname === "/embed" || pathname?.startsWith("/embed/")) return null;
   return <TenantChatWidget key={id || "unresolved"} />;
 }
 
