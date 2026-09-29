@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { PostgrestError } from "@supabase/supabase-js";
 import { createBookingSupabase, createTenantSupabase, createVoucherSupabase, supabase } from "../lib/supabase";
-import { formatDuration } from "../lib/duration";
 import { useTheme } from "../components/ThemeProvider";
 import TenantClosedNotice, { useTenantTrading } from "../components/TenantClosedNotice";
 import BookingFlowSkeleton from "../components/skeletons/BookingFlowSkeleton";
@@ -613,143 +612,106 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
             </div>
           )}
           
-          <div className="text-center mb-10 w-full flex flex-col items-center justify-center">
-             {!embed && <Link href="/" className="glass-chip inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-bold text-[color:var(--ink-muted)] transition-colors mb-6 hover:shadow-md">
-               Back to tours
-             </Link>}
-             {/* Only render once the tour row is loaded — "0 min · From R" placeholders read as broken */}
-             {selectedTour && <div className="glass-chip inline-flex items-center gap-4 p-2 pr-6 mb-2">
-               <div className="text-left">
-                 <h3 className="font-extrabold text-[16px] text-[color:var(--ink)] leading-tight">{selectedTour?.name}</h3>
-                 <p className="text-[color:var(--ink-muted)] text-[12px] font-bold mt-0.5">
-                   {formatDuration(selectedTour?.duration_minutes)} &middot; {selectedSlot
-                     ? <>{isLastMinute ? <span className="mr-1 line-through text-[color:var(--ink-faint)]">R{selectedTour?.base_price_per_person}</span> : null}R{effectiveUnitPrice} per person{isPeakPrice ? <span className="ml-1 inline-block rounded-full bg-[color-mix(in_srgb,var(--warning)_18%,transparent)] text-[color:var(--warning)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider">Peak</span> : null}{isLastMinute ? <span className="ml-1 inline-block rounded-full bg-[color-mix(in_srgb,var(--success)_18%,transparent)] text-[color:var(--success)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider">Last minute</span> : null}</>
-                     : <>From R{selectedTour?.base_price_per_person} per person</>}
-                 </p>
-               </div>
-             </div>}
-          </div>
+          {!embed && <Link href="/" className="mb-6 inline-flex items-center text-[13px] font-bold text-[color:var(--ink-muted)] hover:text-[color:var(--ink)]">
+            Back to tours
+          </Link>}
           
           <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
             <div>
-              <h2 className="glass-chip mb-6 inline-block px-4 py-1.5 text-2xl font-extrabold tracking-tight text-[color:var(--ink)]">Pick a Date</h2>
               {renderCalendar()}
             </div>
             
-            <div>
-              <div className="glass-chip mb-5 inline-flex flex-col items-start !rounded-3xl px-4 py-2">
-                <h2 className="text-2xl font-extrabold tracking-tight text-[color:var(--ink)]">{selectedDate ? "Times for " + fmtDate(selectedDate.toISOString(), tz) : "Select timeslot"}</h2>
+            <div className="glass p-5 sm:p-6 self-start">
+              <div className="mb-5">
+                <h2 className="text-2xl font-extrabold tracking-tight text-[color:var(--ink)]">{selectedDate ? fmtDate(selectedDate.toISOString(), tz) : "Select a date"}</h2>
                 <p className="text-xs font-medium text-[color:var(--ink-muted)]">All times shown in {tzAbbr}</p>
               </div>
 
               {!selectedDate ? (
-                <div className="glass !border-dashed text-center py-16 px-6 flex flex-col items-center justify-center">
+                <div className="text-center py-12 px-4 flex flex-col items-center justify-center">
 
                   <p className="text-[14px] font-bold text-[color:var(--ink)]">No date selected</p>
                    <p className="text-[13px] font-medium text-[color:var(--ink-muted)] mt-1">Tap a highlighted date to see available times.</p>
                 </div>
               ) : daySlots.length === 0 ? (
-                <div className="glass !border-dashed text-center py-16 px-6 flex flex-col items-center justify-center">
+                <div className="text-center py-12 px-4 flex flex-col items-center justify-center">
                   <p className="text-[14px] font-bold text-[color:var(--ink)]">No times available</p>
                   <p className="text-[13px] font-medium text-[color:var(--ink-muted)] mt-1">Try selecting another date to proceed.</p>
                 </div>
               ) : (
-                <div className="flex flex-col gap-3">
+                <div>
                   {daySlots.map((s: Slot) => {
                     const a = s.capacity_total - s.booked - (s.held || 0);
                     const isSel = selectedSlot?.id === s.id;
                     const lowThreshold = Math.max(3, Math.floor(s.capacity_total * 0.3));
                     const isVeryLow = a > 0 && a <= 3;
                     const isLow = a > 0 && a <= lowThreshold;
-                    let badgeClass: string, badgeText: string;
-                    if (isVeryLow) {
-                      badgeClass = "bg-[color-mix(in_srgb,var(--danger)_12%,transparent)] text-[color:var(--danger)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)]";
-                      badgeText = a === 1 ? "Last spot!" : "Only " + a + " left!";
-                    } else if (isLow) {
-                      badgeClass = "bg-[color-mix(in_srgb,var(--warning)_14%,transparent)] text-[color:var(--warning)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)]";
-                      badgeText = a + " left";
-                    } else {
-                      badgeClass = "bg-[color-mix(in_srgb,var(--success)_12%,transparent)] text-[color:var(--success)] border border-[color-mix(in_srgb,var(--success)_30%,transparent)]";
-                      badgeText = a + " spots";
-                    }
                     return (
                       <button key={s.id} data-slot-id={s.id} data-slot-date={s.start_time} onClick={() => setSelectedSlot(s)}
                         aria-label={fmtTime(s.start_time, tz) + ", " + a + " spots " + (isLow ? "remaining, book soon" : "available")}
-                        className={"w-full text-left rounded-[1.5rem] p-5 transition-all outline-none flex items-center gap-4 group " + (isSel ? "border-2 border-[color:var(--accent)] bg-[color:var(--accent)] text-[color:var(--ink-on-main)] shadow-lg overflow-hidden relative" : "glass !rounded-[1.5rem] hover:shadow-md")}>
-                        {isSel && <div className="absolute inset-0 bg-[color:var(--main-overlay)] mix-blend-overlay"></div>}
-
-                        <div className="flex-1 min-w-0 relative z-10">
-                           <p className={"text-[18px] font-extrabold leading-tight " + (isSel ? "text-[color:var(--ink-on-main)]" : "text-[color:var(--ink)]")}>{fmtTime(s.start_time, tz)}
-                             {s.last_minute_at && s.price_per_person_override != null ? <span className="ml-2 align-middle inline-block rounded-full bg-[color-mix(in_srgb,var(--success)_18%,transparent)] text-[color:var(--success)] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider">R{s.price_per_person_override} last minute</span> : null}
+                        aria-pressed={isSel}
+                        className={"w-full text-left py-3.5 px-2 border-b border-[color:var(--glass-border)] flex items-center gap-4 transition-colors focus-visible:outline-2 focus-visible:outline-[color:var(--accent)] " + (isSel ? "bg-[color:var(--accentSoft)]" : "hover:bg-[color:var(--hover-overlay)]")}>
+                        <div className="flex-1 min-w-0">
+                           <p className="text-[17px] font-bold leading-tight text-[color:var(--ink)]">{fmtTime(s.start_time, tz)}
+                             {s.last_minute_at && s.price_per_person_override != null ? <span className="ml-2 text-[12px] font-semibold text-[color:var(--success)]">R{s.price_per_person_override} last minute</span> : null}
                            </p>
-                           <p className={"text-[12px] font-bold mt-0.5 " + (isSel ? "text-[color:var(--ink-on-main)] opacity-80" : isVeryLow ? "text-[color:var(--danger)]" : isLow ? "text-[color:var(--warning)]" : "text-[color:var(--ink-muted)]")}>{a} {a === 1 ? "spot" : "spots"} remaining</p>
+                           <p className={"text-[12px] font-medium mt-0.5 " + (isVeryLow ? "text-[color:var(--danger)]" : isLow ? "text-[color:var(--warning)]" : "text-[color:var(--ink-muted)]")}>{a} {a === 1 ? "spot" : "spots"} remaining</p>
                         </div>
-                        <div className="shrink-0 relative z-10" data-shot="seat-count">
-                          {isSel ? (
-                            <span className="bg-[color-mix(in_srgb,var(--ink-on-main)_20%,transparent)] text-[color:var(--ink-on-main)] pl-2 pr-3 py-1.5 rounded-full text-[12px] font-bold flex items-center gap-1.5 border border-[color-mix(in_srgb,var(--ink-on-main)_20%,transparent)]">
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                              Selected
-                            </span>
-                          ) : (
-                            <span className={"text-[11px] font-extrabold uppercase tracking-wide px-3 py-1.5 rounded-full " + badgeClass}>
-                              {badgeText}
-                            </span>
-                          )}
+                        <div className="shrink-0 text-[12px] font-bold text-[color:var(--accent-text)]" data-shot="seat-count">
+                          {isSel ? "Selected" : "Select"}
                         </div>
                       </button>
                     );
                   })}
                      {selectedSlot && (
-                    <div className="mt-6 space-y-6 animate-in fade-in slide-in-from-top-2">
+                    <div className="mt-5 space-y-5 animate-in fade-in slide-in-from-top-2">
                       {/* Qty Selector */}
-                      <div className="glass p-5">
+                      <div>
                         <label className="block text-[14px] font-extrabold text-[color:var(--ink)] mb-3">Number of Guests</label>
                         <div className="flex items-center gap-5">
-                          <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-12 h-12 surface-muted rounded-[1.125rem] flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)] hover:text-[color:var(--ink)] transition-colors">
+                          <button aria-label="Remove one guest" disabled={qty <= 1} onClick={() => setQty(Math.max(1, qty - 1))} className="w-11 h-11 surface-muted rounded-full flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)] hover:text-[color:var(--ink)] disabled:opacity-40 transition-colors">
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" /></svg>
                           </button>
                           <span className="text-3xl font-extrabold w-10 text-center text-[color:var(--ink)]">{qty}</span>
-                          <button onClick={() => setQty(Math.min(avail, qty + 1))} className="w-12 h-12 surface-muted rounded-[1.125rem] flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)] hover:text-[color:var(--ink)] transition-colors">
+                          <button aria-label="Add one guest" disabled={qty >= avail} onClick={() => setQty(Math.min(avail, qty + 1))} className="w-11 h-11 surface-muted rounded-full flex items-center justify-center text-[color:var(--ink-muted)] hover:bg-[color:var(--hover-overlay)] hover:text-[color:var(--ink)] disabled:opacity-40 transition-colors">
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
                           </button>
-                          <span className="text-[13px] font-bold text-[color:var(--ink-muted)] ml-2">max {avail} limit</span>
+                          <span className="text-[12px] font-medium text-[color:var(--ink-muted)] ml-auto">Up to {avail}</span>
                         </div>
                       </div>
 
                       {/* Extras & Add-Ons Selector */}
                       {availableAddOns.length > 0 && (
-                        <div className="glass p-5">
-                          <label className="block text-[14px] font-extrabold text-[color:var(--ink)] tracking-wide mb-3 uppercase">Extras & Add-Ons</label>
-                          <div className="space-y-3">
+                        <div className="border-t border-[color:var(--glass-border)] pt-5">
+                          <h3 className="text-[14px] font-extrabold text-[color:var(--ink)] mb-3">Extras &amp; add-ons</h3>
+                          <div>
                             {availableAddOns.map(ao => {
                               const isSelected = !!selectedAddOns[ao.id];
-                              const percentage = Math.round((ao.price / baseTotal) * 100);
-                              const contrastLabel = percentage > 0 ? ` (just ${percentage}% of booking)` : "";
                               return (
-                                <div key={ao.id} data-shot="addon-row" className={"rounded-[1.25rem] p-3.5 transition-all " + (isSelected ? "border-2 border-[color:var(--accent)] bg-[color:var(--accentSoft)]" : "surface-muted !rounded-[1.25rem] hover:bg-[color:var(--hover-overlay)]")}>
+                                <div key={ao.id} data-shot="addon-row" className="py-3 border-b border-[color:var(--glass-border)] last:border-b-0">
                                   <div className="flex items-start gap-3">
-                                    <input type="checkbox" checked={isSelected} onChange={() => toggleAddOn(ao.id)}
+                                    <input type="checkbox" aria-label={`Add ${ao.name}`} checked={isSelected} onChange={() => toggleAddOn(ao.id)}
                                       className="mt-1 w-5 h-5 shrink-0 rounded border-[color:var(--glass-border)] text-[color:var(--accent)] focus:ring-[color:var(--accent)] cursor-pointer" />
                                     <div className="flex-1 min-w-0">
-                                      <div className="flex items-start justify-between">
+                                      <div className="flex items-start justify-between gap-3">
                                         <span className="text-[14px] font-bold text-[color:var(--ink)]">{ao.name}</span>
-                                        <span className="text-[13px] font-extrabold text-[color:var(--accent-text)] bg-[color:var(--accentSoft)] px-2 py-0.5 rounded-full shrink-0 ml-2">
-                                          +R{ao.price}{contrastLabel}
+                                        <span className="text-[13px] font-bold text-[color:var(--ink)] shrink-0">
+                                          +R{ao.price}
                                         </span>
                                       </div>
                                       {ao.description && <p className="text-[12px] text-[color:var(--ink-muted)] mt-1 font-medium leading-relaxed">{ao.description}</p>}
                                     </div>
                                   </div>
                                   {isSelected && (
-                                    <div className="flex items-center gap-2.5 mt-3 ml-8 surface-muted p-1.5 w-max !rounded-full">
-                                      <span className="text-[10px] font-bold uppercase tracking-wider text-[color:var(--ink-muted)] ml-1.5">Qty</span>
-                                      <button onClick={() => setAddOnQty(ao.id, (selectedAddOns[ao.id] || 1) - 1)}
-                                        className="w-7 h-7 rounded-full flex items-center justify-center text-[color:var(--ink-muted)] bg-[color:var(--hover-overlay)] hover:text-[color:var(--ink)] transition-colors">
+                                    <div className="flex items-center gap-2.5 mt-3 ml-8">
+                                      <span className="text-[12px] font-medium text-[color:var(--ink-muted)] mr-1">Quantity</span>
+                                      <button aria-label={`Remove one ${ao.name}`} onClick={() => setAddOnQty(ao.id, (selectedAddOns[ao.id] || 1) - 1)}
+                                        className="w-9 h-9 rounded-full flex items-center justify-center text-[color:var(--ink-muted)] surface-muted hover:text-[color:var(--ink)] transition-colors">
                                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" /></svg>
                                       </button>
                                       <span className="text-[13px] font-extrabold w-5 text-center text-[color:var(--ink)]">{selectedAddOns[ao.id]}</span>
-                                      <button onClick={() => setAddOnQty(ao.id, (selectedAddOns[ao.id] || 1) + 1)}
-                                        className="w-7 h-7 rounded-full flex items-center justify-center text-[color:var(--ink-muted)] bg-[color:var(--hover-overlay)] hover:text-[color:var(--ink)] transition-colors">
+                                      <button aria-label={`Add one ${ao.name}`} onClick={() => setAddOnQty(ao.id, (selectedAddOns[ao.id] || 1) + 1)}
+                                        className="w-9 h-9 rounded-full flex items-center justify-center text-[color:var(--ink-muted)] surface-muted hover:text-[color:var(--ink)] transition-colors">
                                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
                                       </button>
                                     </div>
@@ -761,8 +723,8 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
                         </div>
                       )}
 
-                      {/* Brief Reciprocity/Endowment Pricing Summary */}
-                      <div className="glass p-5">
+                      {/* Price summary */}
+                      <div className="border-t border-[color:var(--glass-border)] pt-5">
                         <div className="space-y-2 text-[14px]">
                           <div className="flex justify-between items-center"><span className="text-[color:var(--ink-muted)] font-bold">Base Price ({qty} {qty === 1 ? "Guest" : "Guests"})</span><span className="font-extrabold text-[color:var(--ink)]">R{baseTotal}</span></div>
                           {addOnsTotal > 0 && (
@@ -810,10 +772,10 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
           )}
           <h2 className="text-3xl font-extrabold text-[color:var(--ink)] mb-8 tracking-tight pl-2">Complete Booking</h2>
           <div className="grid md:grid-cols-5 gap-8 lg:gap-12">
-            <div className="md:col-span-3 space-y-6">
+            <div className="md:col-span-3 glass p-6 sm:p-8 space-y-7 self-start">
 
               {/* Personal Details */}
-              <div className="glass p-6 space-y-5">
+              <div className="space-y-5">
                  <h3 className="text-[14px] font-extrabold text-[color:var(--ink)] tracking-wide mb-2 uppercase">Your Details</h3>
                  <div>
                    <label htmlFor="book-name" className="field-label ml-1">Full Name *</label>
@@ -860,7 +822,7 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
               </div>
 
               {/* Discounts Block */}
-              <div className="glass p-6 space-y-6">
+              <div className="border-t border-[color:var(--glass-border)] pt-7 space-y-6">
                  <div>
                    <label htmlFor="book-promo" className="block text-[14px] font-extrabold text-[color:var(--ink)] tracking-wide mb-3 uppercase">Promo Code</label>
                    {!appliedPromo ? (
@@ -916,14 +878,14 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
                  </div>
               </div>
 
-              <div className="mt-4 p-5 glass flex items-start gap-4">
-                <div className="flex-1 pt-0.5">
+              <div className="border-t border-[color:var(--glass-border)] pt-6">
+                <div>
                   <p className="text-[14px] font-extrabold text-[color:var(--ink)]">Waiver Required</p>
                   <p className="text-[13px] font-medium text-[color:var(--ink-muted)] mt-1">All participants must complete a digital waiver before arriving. A secure link will be included in your confirmation email.</p>
                 </div>
               </div>
               
-              <label className="flex items-start gap-4 mt-6 cursor-pointer group glass p-5 transition-colors">
+              <label className="flex items-start gap-4 cursor-pointer group transition-colors">
                 <input id="book-terms" type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)}
                   className="mt-0.5 w-5 h-5 shrink-0 rounded text-[color:var(--accent)] focus:ring-[color:var(--accent)] cursor-pointer" />
                 <span className="text-[13px] font-bold text-[color:var(--ink-muted)] leading-relaxed group-hover:text-[color:var(--ink)] transition-colors">
@@ -931,12 +893,12 @@ function BookingFlow({ embed = false }: { embed?: boolean }) {
                 </span>
               </label>
 
-              <label className="flex items-start gap-4 mt-3 cursor-pointer group glass p-5 transition-colors">
+              <label className="flex items-start gap-4 cursor-pointer group transition-colors">
                 <input type="checkbox" checked={marketingOptIn} onChange={e => setMarketingOptIn(e.target.checked)}
                   className="mt-0.5 w-5 h-5 shrink-0 rounded text-[color:var(--accent)] focus:ring-[color:var(--accent)] cursor-pointer" />
                 <span className="text-[13px] font-bold text-[color:var(--ink-muted)] leading-relaxed group-hover:text-[color:var(--ink)] transition-colors">I agree to receive offers and promotions by email and SMS. Booking confirmations and trip information will still be emailed if I leave this unchecked.</span>
               </label>
-              <label className="flex items-start gap-4 mt-3 cursor-pointer group glass p-5 transition-colors">
+              <label className="flex items-start gap-4 cursor-pointer group transition-colors">
                 <input type="checkbox" checked={whatsappUpdatesOptIn} onChange={e => setWhatsappUpdatesOptIn(e.target.checked)}
                   className="mt-0.5 w-5 h-5 shrink-0 rounded text-[color:var(--accent)] focus:ring-[color:var(--accent)] cursor-pointer" />
                 <span className="text-[13px] font-bold text-[color:var(--ink-muted)] leading-relaxed group-hover:text-[color:var(--ink)] transition-colors">I agree to receive booking-related WhatsApp messages from this operator at the number above, including how to manage my booking. No promotions. I can opt out at any time.</span>
